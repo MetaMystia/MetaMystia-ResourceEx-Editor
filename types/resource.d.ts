@@ -284,6 +284,7 @@ export interface MissionCondition {
 	amount?: number;
 	sellableType?: 'Food' | 'Beverage';
 	label?: string;
+	tag?: number;
 	productType?: string;
 	productId?: number;
 	productAmount?: number;

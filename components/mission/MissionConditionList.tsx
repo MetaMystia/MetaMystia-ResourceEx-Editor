@@ -7,6 +7,7 @@ import type {
 	MissionNode,
 } from '@/types/resource';
 import { EmptyState } from '@/components/common/EmptyState';
+import { FOOD_TAGS, BEVERAGE_TAGS } from '@/data/tags';
 
 const CONDITION_TYPES: { type: ConditionType; label: string }[] = [
 	{ type: 'BillRepayment', label: '【未实现】还债' },
@@ -14,7 +15,7 @@ const CONDITION_TYPES: { type: ConditionType; label: string }[] = [
 	{ type: 'InspectInteractable', label: '【未实现】调查白天交互物品' },
 	{ type: 'SubmitItem', label: '交付目标物品' },
 	{ type: 'ServeInWork', label: '请角色品尝料理' },
-	{ type: 'SubmitByTag', label: '【未实现】交付包含Tag的对应物品' },
+	{ type: 'SubmitByTag', label: '交付包含Tag的对应物品' },
 	{ type: 'SubmitByTags', label: '【未实现】交付包含多个Tag的对应物品' },
 	{ type: 'SellInWork', label: '【未实现】在工作中售卖料理' },
 	{ type: 'SubmitByIngredients', label: '【未实现】交付包含食材的料理' },
@@ -433,9 +434,90 @@ export const MissionConditionList = memo<MissionConditionListProps>(
 									</div>
 								)}
 
+								{condition.conditionType === 'SubmitByTag' && (
+									<div className="flex flex-col gap-3">
+										<div className="flex flex-col gap-1">
+											<label className="text-xs font-medium opacity-70">
+												Sellable Type
+											</label>
+											<select
+												value={
+													condition.sellableType ||
+													'Food'
+												}
+												onChange={(e) =>
+													updateCondition(index, {
+														sellableType: e.target
+															.value as
+															| 'Food'
+															| 'Beverage',
+														tag: 0,
+													})
+												}
+												className="rounded border border-black/10 bg-white/50 px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10 dark:bg-black/50"
+											>
+												<option value="Food">
+													料理 Food
+												</option>
+												<option value="Beverage">
+													酒水 Beverage
+												</option>
+											</select>
+										</div>
+										<div className="flex flex-col gap-1">
+											<label className="text-xs font-medium opacity-70">
+												Tag
+											</label>
+											<select
+												value={condition.tag ?? 0}
+												onChange={(e) =>
+													updateCondition(index, {
+														tag: Number(
+															e.target.value
+														),
+													})
+												}
+												className="rounded border border-black/10 bg-white/50 px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10 dark:bg-black/50"
+											>
+												{((condition.sellableType ||
+													'Food') === 'Food'
+													? FOOD_TAGS
+													: BEVERAGE_TAGS
+												).map((t) => (
+													<option
+														key={t.id}
+														value={t.id}
+													>
+														[{t.id}] {t.name}
+													</option>
+												))}
+											</select>
+										</div>
+										<div className="flex flex-col gap-1">
+											<label className="text-xs font-medium opacity-70">
+												Amount
+											</label>
+											<input
+												type="number"
+												min="0"
+												value={condition.amount ?? 0}
+												onChange={(e) =>
+													updateCondition(index, {
+														amount: Number(
+															e.target.value
+														),
+													})
+												}
+												className="rounded border border-black/10 bg-white/50 px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10 dark:bg-black/50"
+											/>
+										</div>
+									</div>
+								)}
+
 								{condition.conditionType !== 'ServeInWork' &&
+									condition.conditionType !== 'SubmitItem' &&
 									condition.conditionType !==
-										'SubmitItem' && (
+										'SubmitByTag' && (
 										<WarningNotice>
 											⚠
 											当前编辑器尚未支持配置此条件的详细参数
