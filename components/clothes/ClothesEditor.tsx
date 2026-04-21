@@ -361,7 +361,9 @@ const OFFSET_FIELDS: {
 		| 'izakayaSkinIndex'
 		| 'izkayaHorizontalOffset'
 		| 'notebookHorizontalOffset'
-		| 'notebookVerticalOffset';
+		| 'notebookVerticalOffset'
+		| 'notebookUITitleHorizontalOffset'
+		| 'notebookUITitleVerticalOffset';
 	label: string;
 	tip: string;
 	step: number;
@@ -394,6 +396,20 @@ const OFFSET_FIELDS: {
 		key: 'notebookVerticalOffset',
 		label: '笔记本垂直偏移 (notebookVerticalOffset)',
 		tip: '笔记本（图鉴）中立绘的垂直偏移',
+		step: 0.01,
+		defaultValue: 0,
+	},
+	{
+		key: 'notebookUITitleHorizontalOffset',
+		label: '笔记本标题水平偏移 (notebookUITitleHorizontalOffset)',
+		tip: '笔记本 UI 标题文字的水平偏移',
+		step: 0.01,
+		defaultValue: 0,
+	},
+	{
+		key: 'notebookUITitleVerticalOffset',
+		label: '笔记本标题垂直偏移 (notebookUITitleVerticalOffset)',
+		tip: '笔记本 UI 标题文字的垂直偏移',
 		step: 0.01,
 		defaultValue: 0,
 	},

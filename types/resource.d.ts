@@ -210,10 +210,8 @@ export interface Clothes {
 	izkayaHorizontalOffset?: number;
 	notebookHorizontalOffset?: number;
 	notebookVerticalOffset?: number;
-	izakayaSkinIndex?: number;
-	izkayaHorizontalOffset?: number;
-	notebookHorizontalOffset?: number;
-	notebookVerticalOffset?: number;
+	notebookUITitleHorizontalOffset?: number;
+	notebookUITitleVerticalOffset?: number;
 }
 
 export type CookerType = 'Pot' | 'Grill' | 'Fryer' | 'Steamer' | 'CuttingBoard';
