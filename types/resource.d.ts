@@ -206,6 +206,14 @@ export interface Clothes {
 	spritePath: string;
 	portraitPath: string;
 	pixelFullConfig: PixelFullConfig;
+	izakayaSkinIndex?: number;
+	izkayaHorizontalOffset?: number;
+	notebookHorizontalOffset?: number;
+	notebookVerticalOffset?: number;
+	izakayaSkinIndex?: number;
+	izkayaHorizontalOffset?: number;
+	notebookHorizontalOffset?: number;
+	notebookVerticalOffset?: number;
 }
 
 export type CookerType = 'Pot' | 'Grill' | 'Fryer' | 'Steamer' | 'CuttingBoard';

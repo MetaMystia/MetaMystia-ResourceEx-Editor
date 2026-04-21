@@ -262,6 +262,9 @@ export const ClothesEditor = memo<ClothesEditorProps>(function ClothesEditor({
 				/>
 			</div>
 
+			{/* 显示参数 (居酒屋 / 笔记本) */}
+			<ClothesDisplayOffsets clothes={clothes} onUpdate={onUpdate} />
+
 			{/* 资源 - 立绘 */}
 			<div className="flex flex-col gap-4 rounded-lg bg-white/20 p-4 dark:bg-white/5">
 				<h3 className="text-sm font-bold uppercase tracking-wider opacity-60">
@@ -347,3 +350,101 @@ export const ClothesEditor = memo<ClothesEditorProps>(function ClothesEditor({
 		</div>
 	);
 });
+
+interface ClothesDisplayOffsetsProps {
+	clothes: Clothes;
+	onUpdate: (updates: Partial<Clothes>) => void;
+}
+
+const OFFSET_FIELDS: {
+	key:
+		| 'izakayaSkinIndex'
+		| 'izkayaHorizontalOffset'
+		| 'notebookHorizontalOffset'
+		| 'notebookVerticalOffset';
+	label: string;
+	tip: string;
+	step: number;
+	defaultValue: number;
+	integer?: boolean;
+}[] = [
+	{
+		key: 'izakayaSkinIndex',
+		label: '居酒屋皮肤索引 (izakayaSkinIndex)',
+		tip: '居酒屋场景中使用的皮肤索引，-1 表示使用默认皮肤',
+		step: 1,
+		defaultValue: -1,
+		integer: true,
+	},
+	{
+		key: 'izkayaHorizontalOffset',
+		label: '居酒屋水平偏移 (izkayaHorizontalOffset)',
+		tip: '居酒屋场景中立绘的水平偏移，单位与游戏内坐标一致',
+		step: 0.01,
+		defaultValue: 0,
+	},
+	{
+		key: 'notebookHorizontalOffset',
+		label: '笔记本水平偏移 (notebookHorizontalOffset)',
+		tip: '笔记本（图鉴）中立绘的水平偏移',
+		step: 0.01,
+		defaultValue: 0,
+	},
+	{
+		key: 'notebookVerticalOffset',
+		label: '笔记本垂直偏移 (notebookVerticalOffset)',
+		tip: '笔记本（图鉴）中立绘的垂直偏移',
+		step: 0.01,
+		defaultValue: 0,
+	},
+];
+
+function ClothesDisplayOffsets({
+	clothes,
+	onUpdate,
+}: ClothesDisplayOffsetsProps) {
+	return (
+		<div className="flex flex-col gap-4 rounded-lg bg-white/20 p-4 dark:bg-white/5">
+			<h3 className="text-sm font-bold uppercase tracking-wider opacity-60">
+				显示参数 (居酒屋 / 笔记本)
+				<InfoTip>
+					这些字段为可选项，留空 / 使用默认值时导出 JSON
+					将沿用游戏内置的默认行为（皮肤索引 -1、各偏移 0）
+				</InfoTip>
+			</h3>
+			<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+				{OFFSET_FIELDS.map((field) => {
+					const current = clothes[field.key];
+					const value = current ?? field.defaultValue;
+					return (
+						<div key={field.key} className="flex flex-col gap-1">
+							<Label tip={field.tip}>{field.label}</Label>
+							<input
+								type="number"
+								step={field.step}
+								value={Number.isFinite(value) ? value : ''}
+								onChange={(e) => {
+									const raw = e.target.value;
+									if (raw === '') {
+										onUpdate({
+											[field.key]: undefined,
+										} as Partial<Clothes>);
+										return;
+									}
+									const num = field.integer
+										? parseInt(raw, 10)
+										: parseFloat(raw);
+									if (Number.isNaN(num)) return;
+									onUpdate({
+										[field.key]: num,
+									} as Partial<Clothes>);
+								}}
+								className="h-9 w-full rounded-lg border border-black/10 bg-white/40 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-black/30 focus:ring-2 focus:ring-black/10 dark:border-white/10 dark:bg-black/10 dark:focus:border-white/10 dark:focus:ring-white/10"
+							/>
+						</div>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
