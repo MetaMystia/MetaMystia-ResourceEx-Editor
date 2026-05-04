@@ -11,7 +11,11 @@ import {
 } from 'react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { KNOWN_DEPENDENCIES } from '@/lib/constants';
+import {
+	KNOWN_DEPENDENCIES,
+	isValidPackLabel,
+	PACK_LABEL_ALLOWED_DESCRIPTION,
+} from '@/lib/constants';
 
 import type { ResourceEx } from '@/types/resource';
 import type { Dialog, DialogAction } from '@/types/resource';
@@ -370,6 +374,16 @@ export function DataProvider({ children }: PropsWithChildren) {
 			) {
 				alert(
 					`导出失败: 资源包标识符 (Label) 不能使用保留关键字 "${data.packInfo.label}"`
+				);
+				return;
+			}
+
+			if (
+				data.packInfo?.label &&
+				!isValidPackLabel(data.packInfo.label)
+			) {
+				alert(
+					`导出失败: 资源包标识符 (Label) "${data.packInfo.label}" 含非法字符。${PACK_LABEL_ALLOWED_DESCRIPTION}。`
 				);
 				return;
 			}

@@ -5,6 +5,10 @@ import {
 	UNMANAGED_ID_MAX,
 	verifyIdRange,
 } from '@/lib/crypto';
+import {
+	isValidPackLabel,
+	PACK_LABEL_ALLOWED_DESCRIPTION,
+} from '@/lib/constants';
 
 export type IssueSeverity = 'error' | 'warning';
 
@@ -38,6 +42,12 @@ export async function validateResourcePack(
 			severity: 'warning',
 			category: '基础信息',
 			message: '资源包 Label 未设置',
+		});
+	} else if (!isValidPackLabel(packLabel)) {
+		issues.push({
+			severity: 'error',
+			category: '基础信息',
+			message: `资源包 Label "${packLabel}" 含非法字符。${PACK_LABEL_ALLOWED_DESCRIPTION}。`,
 		});
 	}
 
