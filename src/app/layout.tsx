@@ -46,7 +46,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
 			</head>
 			<body
 				suppressHydrationWarning
-				className="text-autospace bg-blend-mystia antialiased"
+				className="text-autospace bg-blend-mystia-pseudo antialiased"
 			>
 				<Providers>
 					<div className="flex min-h-dvh-safe flex-col">
