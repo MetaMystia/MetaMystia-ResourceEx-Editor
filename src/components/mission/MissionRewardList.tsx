@@ -1,10 +1,91 @@
-import { memo, useCallback } from 'react';
-import { Button } from '@/design/ui/components';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { Button, Select } from '@/design/ui/components';
+import type { ISelectOption } from '@/design/ui/components';
 import { EditorField } from '@/components/common/EditorField';
 import { WarningNotice } from '@/components/common/WarningNotice';
 import type { MissionReward, ObjectType, RewardType } from '@/types/resource';
 import { BEVERAGE_NAMES } from '@/data/beverages';
 import { EmptyState } from '@/components/common/EmptyState';
+
+interface AddRewardItemRowProps {
+	objectType: ObjectType | undefined;
+	allFoods: { id: number; name: string }[];
+	allIngredients: { id: number; name: string }[];
+	allRecipes: { id: number; name: string }[];
+	onAdd: (id: number, count: number) => void;
+}
+
+function AddRewardItemRow({
+	objectType,
+	allFoods,
+	allIngredients,
+	allRecipes,
+	onAdd,
+}: AddRewardItemRowProps) {
+	const [selectedId, setSelectedId] = useState<number | undefined>(undefined);
+	const [count, setCount] = useState(1);
+
+	const items = useMemo<ISelectOption<number>[]>(() => {
+		if (objectType === 'Food' || !objectType) {
+			return allFoods.map((f) => ({
+				value: f.id,
+				label: `[${f.id}] ${f.name}`,
+			}));
+		}
+		if (objectType === 'Ingredient') {
+			return allIngredients.map((ing) => ({
+				value: ing.id,
+				label: `[${ing.id}] ${ing.name}`,
+			}));
+		}
+		if (objectType === 'Beverage') {
+			return BEVERAGE_NAMES.map((bev) => ({
+				value: bev.id,
+				label: `[${bev.id}] ${bev.name}`,
+			}));
+		}
+		if (objectType === 'Recipe') {
+			return allRecipes.map((rec) => ({
+				value: rec.id,
+				label: `[${rec.id}] ${rec.name}`,
+			}));
+		}
+		return [];
+	}, [objectType, allFoods, allIngredients, allRecipes]);
+
+	return (
+		<div className="mt-2 flex items-center gap-2">
+			<Select<number>
+				ariaLabel="选择物品"
+				className="flex-1"
+				placeholder="选择物品..."
+				value={selectedId}
+				onChange={(v) => setSelectedId(v)}
+				items={items}
+			/>
+			<input
+				type="number"
+				value={count}
+				onChange={(e) => setCount(parseInt(e.target.value) || 1)}
+				className="w-16 rounded border border-black/10 bg-white/50 px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10 dark:bg-black/50"
+				placeholder="数量"
+				min={1}
+			/>
+			<Button
+				variant="light"
+				size="sm"
+				onPress={() => {
+					if (selectedId === undefined) return;
+					onAdd(selectedId, count);
+					setCount(1);
+				}}
+				className="h-full px-3 text-sm"
+			>
+				添加
+			</Button>
+		</div>
+	);
+}
 
 const REWARD_TYPES: { type: RewardType; label: string }[] = [
 	{ type: 'UnlockNPC', label: '【未实现】解锁NPC' },
@@ -202,22 +283,18 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 							className="flex flex-col gap-3 rounded-lg border border-black/5 bg-black/5 p-4 dark:border-white/5 dark:bg-white/5"
 						>
 							<div className="flex items-center justify-between gap-4">
-								<select
+								<Select<RewardType>
+									ariaLabel="Reward Type"
+									className="flex-1"
 									value={reward.rewardType}
-									onChange={(e) =>
-										updateReward(index, {
-											rewardType: e.target
-												.value as RewardType,
-										})
+									onChange={(v) =>
+										updateReward(index, { rewardType: v })
 									}
-									className="flex-1 rounded border border-black/10 bg-transparent px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10"
-								>
-									{REWARD_TYPES.map((t) => (
-										<option key={t.type} value={t.type}>
-											{t.label} ({t.type})
-										</option>
-									))}
-								</select>
+									items={REWARD_TYPES.map((t) => ({
+										value: t.type,
+										label: `${t.label} (${t.type})`,
+									}))}
+								/>
 								<Button
 									variant="light"
 									size="sm"
@@ -234,33 +311,32 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 										<label className="text-xs font-medium opacity-70">
 											物品类型 (Object Type)
 										</label>
-										<select
+										<Select<ObjectType>
+											ariaLabel="Object Type"
 											value={reward.objectType || 'Food'}
-											onChange={(e) =>
+											onChange={(v) =>
 												updateReward(index, {
-													objectType: e.target
-														.value as ObjectType,
+													objectType: v,
 													rewardIntArray: [],
 												})
 											}
-											className="rounded border border-black/10 bg-white/50 px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10 dark:bg-black/50"
-										>
-											{[
-												'Food',
-												'Ingredient',
-												'Beverage',
-												'Recipe',
-												'Item',
-												'Izakaya',
-												'Partner',
-												'Badge',
-												'Cooker',
-											].map((type) => (
-												<option key={type} value={type}>
-													{type}
-												</option>
-											))}
-										</select>
+											items={(
+												[
+													'Food',
+													'Ingredient',
+													'Beverage',
+													'Recipe',
+													'Item',
+													'Izakaya',
+													'Partner',
+													'Badge',
+													'Cooker',
+												] as ObjectType[]
+											).map((type) => ({
+												value: type,
+												label: type,
+											}))}
+										/>
 										{![
 											'Food',
 											'Ingredient',
@@ -360,112 +436,23 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 												}
 											)}
 										</div>
-										<div className="mt-2 flex items-center gap-2">
-											<select
-												id={`add-item-select-${index}`}
-												className="flex-1 rounded border border-black/10 bg-white/50 px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10 dark:bg-black/50"
-											>
-												<option value="">
-													选择物品...
-												</option>
-												{(reward.objectType ===
-													'Food' ||
-													!reward.objectType) &&
-													allFoods.map((f) => (
-														<option
-															key={f.id}
-															value={f.id}
-														>
-															[{f.id}] {f.name}
-														</option>
-													))}
-												{reward.objectType ===
-													'Ingredient' &&
-													allIngredients.map(
-														(ing) => (
-															<option
-																key={ing.id}
-																value={ing.id}
-															>
-																[{ing.id}]{' '}
-																{ing.name}
-															</option>
-														)
-													)}
-												{reward.objectType ===
-													'Beverage' &&
-													BEVERAGE_NAMES.map(
-														(bev) => (
-															<option
-																key={bev.id}
-																value={bev.id}
-															>
-																[{bev.id}]{' '}
-																{bev.name}
-															</option>
-														)
-													)}
-												{reward.objectType ===
-													'Recipe' &&
-													allRecipes.map((rec) => (
-														<option
-															key={rec.id}
-															value={rec.id}
-														>
-															[{rec.id}]{' '}
-															{rec.name}
-														</option>
-													))}
-											</select>
-											<input
-												type="number"
-												id={`add-item-count-${index}`}
-												className="w-16 rounded border border-black/10 bg-white/50 px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10 dark:bg-black/50"
-												placeholder="数量"
-												defaultValue={1}
-												min={1}
-											/>
-											<Button
-												variant="light"
-												size="sm"
-												onPress={() => {
-													const select =
-														document.getElementById(
-															`add-item-select-${index}`
-														) as HTMLSelectElement;
-													const countInput =
-														document.getElementById(
-															`add-item-count-${index}`
-														) as HTMLInputElement;
-													const val = parseInt(
-														select.value
-													);
-													const count =
-														parseInt(
-															countInput.value
-														) || 1;
-
-													if (!isNaN(val)) {
-														const newItems =
-															Array(count).fill(
-																val
-															);
-														updateReward(index, {
-															rewardIntArray: [
-																...(reward.rewardIntArray ||
-																	[]),
-																...newItems,
-															],
-														});
-														// Reset count to 1 for convenience
-														countInput.value = '1';
-													}
-												}}
-												className="h-full px-3 text-sm"
-											>
-												添加
-											</Button>
-										</div>
+										<AddRewardItemRow
+											objectType={reward.objectType}
+											allFoods={allFoods}
+											allIngredients={allIngredients}
+											allRecipes={allRecipes}
+											onAdd={(val, count) => {
+												const newItems =
+													Array(count).fill(val);
+												updateReward(index, {
+													rewardIntArray: [
+														...(reward.rewardIntArray ||
+															[]),
+														...newItems,
+													],
+												});
+											}}
+										/>
 									</div>
 								</div>
 							)}
@@ -475,25 +462,18 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 									<label className="text-xs font-medium opacity-70">
 										目标角色 (Reward ID)
 									</label>
-									<select
-										value={reward.rewardId || ''}
-										onChange={(e) =>
-											updateReward(index, {
-												rewardId: e.target.value,
-											})
+									<Select<string>
+										ariaLabel="目标角色"
+										placeholder="请选择角色..."
+										value={reward.rewardId ?? ''}
+										onChange={(v) =>
+											updateReward(index, { rewardId: v })
 										}
-										className="rounded border border-black/10 bg-white/50 px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10 dark:bg-black/50"
-									>
-										<option value="">请选择角色...</option>
-										{characterOptions.map((opt) => (
-											<option
-												key={opt.value}
-												value={opt.value}
-											>
-												{opt.label}
-											</option>
-										))}
-									</select>
+										items={characterOptions.map((opt) => ({
+											value: opt.value,
+											label: opt.label,
+										}))}
+									/>
 								</div>
 							)}
 

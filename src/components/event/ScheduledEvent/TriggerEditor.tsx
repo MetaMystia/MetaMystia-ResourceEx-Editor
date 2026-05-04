@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useMemo } from 'react';
+import { Select } from '@/design/ui/components';
 import { WarningNotice } from '@/components/common/WarningNotice';
 import type { ScheduledEvent, Character } from '@/types/resource';
 import { SPECIAL_GUESTS } from '@/data/specialGuest';
@@ -123,10 +124,11 @@ export const TriggerEditor = memo<TriggerEditorProps>(function TriggerEditor({
 				<label className="text-xs font-medium opacity-70">
 					Trigger Type
 				</label>
-				<select
-					value={trigger?.triggerType || ''}
-					onChange={(e) => {
-						const newType = e.target.value;
+				<Select<string>
+					ariaLabel="Trigger Type"
+					placeholder="None"
+					value={trigger?.triggerType ?? ''}
+					onChange={(newType) => {
 						const newTrigger: {
 							triggerType: string;
 							triggerId?: string;
@@ -139,15 +141,11 @@ export const TriggerEditor = memo<TriggerEditorProps>(function TriggerEditor({
 						}
 						onChange(newTrigger);
 					}}
-					className="rounded border border-black/10 bg-transparent px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10"
-				>
-					<option value="">None</option>
-					{TRIGGER_TYPES.map((t) => (
-						<option key={t.value} value={t.value}>
-							{t.label}
-						</option>
-					))}
-				</select>
+					items={TRIGGER_TYPES.map((t) => ({
+						value: t.value,
+						label: t.label,
+					}))}
+				/>
 			</div>
 
 			{trigger?.triggerType === 'KizunaCheckPoint' && (
@@ -155,25 +153,23 @@ export const TriggerEditor = memo<TriggerEditorProps>(function TriggerEditor({
 					<label className="text-xs font-medium opacity-70">
 						Target Character (Trigger ID)
 					</label>
-					<select
-						value={trigger?.triggerId || ''}
-						onChange={(e) =>
+					<Select<string>
+						ariaLabel="Target Character"
+						placeholder="Select Character..."
+						value={trigger?.triggerId ?? ''}
+						onChange={(v) =>
 							onChange({
 								...(trigger || {
 									triggerType: 'KizunaCheckPoint',
 								}),
-								triggerId: e.target.value,
+								triggerId: v,
 							})
 						}
-						className="rounded-lg border border-black/10 bg-black/5 px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-white/10 dark:bg-white/5"
-					>
-						<option value="">Select Character...</option>
-						{characterOptions.map((opt) => (
-							<option key={opt.value} value={opt.value}>
-								{opt.label}
-							</option>
-						))}
-					</select>
+						items={characterOptions.map((opt) => ({
+							value: opt.value,
+							label: opt.label,
+						}))}
+					/>
 				</div>
 			)}
 

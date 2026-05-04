@@ -1,10 +1,10 @@
 import { memo, useCallback, useId, useMemo } from 'react';
 
-import { Button } from '@/design/ui/components';
+import { Button, Select } from '@/design/ui/components';
+import type { SelectItemSpec } from '@/design/ui/components';
 import { useData } from '@/components/context/DataContext';
 import { Label } from '@/components/common/Label';
 import { WarningBadge } from '@/components/common/WarningBadge';
-import { cn } from '@/design/ui/utils';
 
 import type { Dialog, DialogAction, DialogActionType } from '@/types/resource';
 
@@ -255,6 +255,22 @@ const SpriteActionFields = memo<SpriteActionFieldsProps>(
 			!!action.sprite &&
 			!availableAssets.includes(action.sprite);
 
+		const spriteItems = useMemo<SelectItemSpec<string>[]>(() => {
+			const items: SelectItemSpec<string>[] = [
+				{ value: '', label: '— 选择资产 —' },
+			];
+			if (isMissing && action.sprite) {
+				items.push({
+					value: action.sprite,
+					label: `${action.sprite}（缺失）`,
+				});
+			}
+			for (const path of availableAssets) {
+				items.push({ value: path, label: path.slice(folder.length) });
+			}
+			return items;
+		}, [availableAssets, action.sprite, isMissing, folder]);
+
 		const handleModeChange = (next: SpriteMode) => {
 			if (next === 'clear') {
 				onUpdate({ sprite: undefined, shouldSet: false });
@@ -314,33 +330,18 @@ const SpriteActionFields = memo<SpriteActionFieldsProps>(
 									<WarningBadge>资产未注册</WarningBadge>
 								)}
 							</div>
-							<select
+							<Select<string>
 								id={selectId}
+								ariaLabel="资产路径"
+								size="sm"
+								isInvalid={isMissing}
+								placeholder="— 选择资产 —"
 								value={action.sprite ?? ''}
-								onChange={(e) => {
-									onUpdate({
-										sprite: e.target.value || undefined,
-									});
-								}}
-								className={cn(
-									'h-8 w-full rounded-md border bg-white/40 px-2 text-xs outline-none focus:ring-2 focus:ring-black/10 dark:bg-black/10 dark:focus:ring-white/10',
-									isMissing
-										? 'border-warning'
-										: 'border-black/10 dark:border-white/10'
-								)}
-							>
-								<option value="">— 选择资产 —</option>
-								{isMissing && (
-									<option value={action.sprite}>
-										{action.sprite}（缺失）
-									</option>
-								)}
-								{availableAssets.map((path) => (
-									<option key={path} value={path}>
-										{path.slice(folder.length)}
-									</option>
-								))}
-							</select>
+								onChange={(v) =>
+									onUpdate({ sprite: v || undefined })
+								}
+								items={spriteItems}
+							/>
 							{availableAssets.length === 0 && (
 								<p className="text-[10px] opacity-50">
 									{folder} 下暂无资源，请前往「资产」页上传。
@@ -380,6 +381,22 @@ const SoundActionFields = memo<SoundActionFieldsProps>(
 		const isMissing =
 			!!action.sound && !availableAssets.includes(action.sound);
 
+		const soundItems = useMemo<SelectItemSpec<string>[]>(() => {
+			const items: SelectItemSpec<string>[] = [
+				{ value: '', label: '— 选择音频 —' },
+			];
+			if (isMissing && action.sound) {
+				items.push({
+					value: action.sound,
+					label: `${action.sound}（缺失）`,
+				});
+			}
+			for (const path of availableAssets) {
+				items.push({ value: path, label: path.slice(folder.length) });
+			}
+			return items;
+		}, [availableAssets, action.sound, isMissing, folder]);
+
 		return (
 			<div className="flex flex-col gap-2">
 				<div className="flex flex-col gap-1">
@@ -392,31 +409,16 @@ const SoundActionFields = memo<SoundActionFieldsProps>(
 						</Label>
 						{isMissing && <WarningBadge>资产未注册</WarningBadge>}
 					</div>
-					<select
+					<Select<string>
 						id={selectId}
+						ariaLabel="音频路径"
+						size="sm"
+						isInvalid={isMissing}
+						placeholder="— 选择音频 —"
 						value={action.sound ?? ''}
-						onChange={(e) => {
-							onUpdate({ sound: e.target.value || undefined });
-						}}
-						className={cn(
-							'h-8 w-full rounded-md border bg-white/40 px-2 text-xs outline-none focus:ring-2 focus:ring-black/10 dark:bg-black/10 dark:focus:ring-white/10',
-							isMissing
-								? 'border-warning'
-								: 'border-black/10 dark:border-white/10'
-						)}
-					>
-						<option value="">— 选择音频 —</option>
-						{isMissing && (
-							<option value={action.sound}>
-								{action.sound}（缺失）
-							</option>
-						)}
-						{availableAssets.map((path) => (
-							<option key={path} value={path}>
-								{path.slice(folder.length)}
-							</option>
-						))}
-					</select>
+						onChange={(v) => onUpdate({ sound: v || undefined })}
+						items={soundItems}
+					/>
 					{availableAssets.length === 0 && (
 						<p className="text-[10px] opacity-50">
 							{folder} 下暂无音频，请前往「资产」页上传 .wav

@@ -1,7 +1,7 @@
 import { memo, useCallback } from 'react';
-import type { ChangeEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
-import { Button } from '@/design/ui/components';
+import { Button, Select } from '@/design/ui/components';
 import { EditorField } from '@/components/common/EditorField';
 import { EmptyState } from '@/components/common/EmptyState';
 import { WarningNotice } from '@/components/common/WarningNotice';
@@ -122,23 +122,17 @@ function SelectField({
 }: SelectFieldProps) {
 	return (
 		<Field label={label}>
-			<select
-				value={value ?? ''}
-				disabled={disabled}
-				onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-					onChange(e.target.value)
-				}
-				className={`${FIELD_CLASS}${disabled ? 'opacity-50' : ''}`}
-			>
-				{placeholder !== undefined && (
-					<option value="">{placeholder}</option>
-				)}
-				{options.map((opt) => (
-					<option key={opt.value} value={opt.value}>
-						{opt.label}
-					</option>
-				))}
-			</select>
+			<Select<string>
+				ariaLabel={label}
+				{...(placeholder !== undefined ? { placeholder } : {})}
+				{...(disabled ? { isDisabled: true } : {})}
+				value={value !== undefined ? String(value) : ''}
+				onChange={(v) => onChange(v)}
+				items={options.map((o) => ({
+					value: String(o.value),
+					label: o.label,
+				}))}
+			/>
 		</Field>
 	);
 }
@@ -432,21 +426,16 @@ function ConditionItem({
 	return (
 		<div className="flex flex-col gap-3 rounded-lg border border-black/5 bg-black/5 p-4 dark:border-white/5 dark:bg-white/5">
 			<div className="flex items-center justify-between gap-4">
-				<select
+				<Select<ConditionType>
+					ariaLabel="Condition Type"
+					className="flex-1"
 					value={condition.conditionType}
-					onChange={(e) =>
-						onUpdate({
-							conditionType: e.target.value as ConditionType,
-						})
-					}
-					className="flex-1 rounded border border-black/10 bg-transparent px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10"
-				>
-					{CONDITION_TYPES.map((t) => (
-						<option key={t.type} value={t.type}>
-							{t.label} ({t.type})
-						</option>
-					))}
-				</select>
+					onChange={(v) => onUpdate({ conditionType: v })}
+					items={CONDITION_TYPES.map((t) => ({
+						value: t.type,
+						label: `${t.label} (${t.type})`,
+					}))}
+				/>
 				<Button
 					variant="light"
 					size="sm"

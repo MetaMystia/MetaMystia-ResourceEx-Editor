@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { Select } from '@/design/ui/components';
 import { DAYSCENEMAP } from '@/data/daySceneMap';
 import type { SpawnMarker } from '@/types/resource';
 import { cn } from '@/design/ui/utils';
@@ -34,67 +35,36 @@ export const SpawnMarkerEditor = memo<SpawnMarkerEditorProps>(
 						>
 							地图 (Map)
 						</Label>
-						<select
-							className={inputClass}
+						<Select<string>
+							ariaLabel="地图"
 							value={spawnMarker.mapLabel}
-							onChange={(e) =>
-								onUpdate({
-									...spawnMarker,
-									mapLabel: e.target.value,
-								})
+							onChange={(v) =>
+								onUpdate({ ...spawnMarker, mapLabel: v })
 							}
-						>
-							{DAYSCENEMAP.map((map) => (
-								<option
-									key={map.label}
-									value={map.label}
-									className="bg-white text-black dark:bg-zinc-800 dark:text-white"
-								>
-									{map.name} ({map.label})
-								</option>
-							))}
-						</select>
+							items={DAYSCENEMAP.map((map) => ({
+								value: map.label,
+								label: `${map.name} (${map.label})`,
+							}))}
+						/>
 					</div>
 					<div className="flex gap-4">
 						<div className="flex flex-1 flex-col gap-1">
 							<Label size="sm" tip="朝向，上下左右">
 								朝向 (Rotation)
 							</Label>
-							<select
-								className={inputClass}
+							<Select<SpawnMarker['rotation']>
+								ariaLabel="朝向"
 								value={spawnMarker.rotation || 'Down'}
-								onChange={(e) =>
-									onUpdate({
-										...spawnMarker,
-										rotation: e.target.value as any,
-									})
+								onChange={(v) =>
+									onUpdate({ ...spawnMarker, rotation: v })
 								}
-							>
-								<option
-									value="Down"
-									className="bg-white text-black dark:bg-zinc-800 dark:text-white"
-								>
-									下 (Down)
-								</option>
-								<option
-									value="Up"
-									className="bg-white text-black dark:bg-zinc-800 dark:text-white"
-								>
-									上 (Up)
-								</option>
-								<option
-									value="Left"
-									className="bg-white text-black dark:bg-zinc-800 dark:text-white"
-								>
-									左 (Left)
-								</option>
-								<option
-									value="Right"
-									className="bg-white text-black dark:bg-zinc-800 dark:text-white"
-								>
-									右 (Right)
-								</option>
-							</select>
+								items={[
+									{ value: 'Down', label: '下 (Down)' },
+									{ value: 'Up', label: '上 (Up)' },
+									{ value: 'Left', label: '左 (Left)' },
+									{ value: 'Right', label: '右 (Right)' },
+								]}
+							/>
 						</div>
 						<div className="flex flex-1 flex-col gap-1">
 							<Label

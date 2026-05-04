@@ -1,4 +1,6 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
+import { Select } from '@/design/ui/components';
+import type { SelectItemSpec } from '@/design/ui/components';
 import type { DialogPackage } from '@/types/resource';
 import { DialogItem } from './DialogItem';
 
@@ -18,6 +20,16 @@ export const DialogArrayField = memo<DialogArrayFieldProps>(
 		onAdd,
 		onRemove,
 	}) {
+		const items = useMemo<SelectItemSpec<string>[]>(
+			() =>
+				allDialogPackages.map((d) => ({
+					value: d.name,
+					label: d.name,
+					isDisabled: dialogs.includes(d.name),
+				})),
+			[allDialogPackages, dialogs]
+		);
+
 		return (
 			<div className="flex flex-col gap-2">
 				<label className="text-sm font-bold opacity-70">{label}</label>
@@ -35,27 +47,15 @@ export const DialogArrayField = memo<DialogArrayFieldProps>(
 						</div>
 					)}
 					{/* Add Dialog Dropdown */}
-					<select
-						onChange={(e) => {
-							onAdd(e.target.value);
-							e.target.value = '';
+					<Select<string>
+						ariaLabel="添加对话包"
+						placeholder="添加对话包..."
+						value={undefined}
+						onChange={(v) => {
+							if (v) onAdd(v);
 						}}
-						className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 transition-all focus:outline-none focus:ring-2 focus:ring-primary/50"
-						defaultValue=""
-					>
-						<option value="" disabled>
-							添加对话包...
-						</option>
-						{allDialogPackages.map((d) => (
-							<option
-								key={d.name}
-								value={d.name}
-								disabled={dialogs.includes(d.name)}
-							>
-								{d.name}
-							</option>
-						))}
-					</select>
+						items={items}
+					/>
 				</div>
 			</div>
 		);

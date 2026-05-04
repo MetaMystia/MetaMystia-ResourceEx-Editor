@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react';
-import { Button } from '@/design/ui/components';
+import { Button, Select } from '@/design/ui/components';
 import { EmptyState } from '@/components/common/EmptyState';
 import { EditorField } from '@/components/common/EditorField';
 import type { MissionNode } from '@/types/resource';
@@ -65,26 +65,19 @@ export const PostMissionList = memo<PostMissionListProps>(
 									<label className="text-xs font-medium opacity-70">
 										任务 Label
 									</label>
-									<select
+									<Select<string>
+										ariaLabel="任务 Label"
+										placeholder="请选择任务..."
 										value={pm}
-										onChange={(e) =>
-											updatePostMission(
-												index,
-												e.target.value
-											)
+										onChange={(v) =>
+											updatePostMission(index, v)
 										}
-										className="rounded border border-black/10 bg-transparent px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10"
-									>
-										<option value="">请选择任务...</option>
-										{allMissions.map((m, i) => (
-											<option
-												key={`${m.label}-${i}`}
-												value={m.label}
-											>
-												{m.title || m.label} ({m.label})
-											</option>
-										))}
-									</select>
+										items={allMissions.map((m, i) => ({
+											value: m.label,
+											label: `${m.title || m.label} (${m.label})`,
+											textValue: `${m.label}-${i}`,
+										}))}
+									/>
 								</div>
 								<Button
 									variant="light"

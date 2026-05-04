@@ -32,6 +32,14 @@ export {
 	default as ScrollShadow,
 	type IScrollShadowProps,
 } from './scrollShadow';
+export {
+	default as Select,
+	type ISelectProps,
+	type ISelectOption,
+	type ISelectSection,
+	type SelectItem as SelectItemSpec,
+	type SelectValue,
+} from './select';
 export { default as Snippet, type ISnippetProps } from './snippet';
 export { default as Switch, type ISwitchProps } from './switch';
 export { default as Tooltip, type ITooltipProps } from './tooltip';

@@ -1,8 +1,11 @@
 'use client';
 
 import { memo } from 'react';
+import { Select } from '@/design/ui/components';
 import { WarningNotice } from '@/components/common/WarningNotice';
 import type { ScheduledEvent, DialogPackage } from '@/types/resource';
+
+type EventType = NonNullable<ScheduledEvent['eventData']>['eventType'];
 
 interface EventDataEditorProps {
 	eventData?: ScheduledEvent['eventData'];
@@ -18,10 +21,10 @@ export const EventDataEditor = memo<EventDataEditorProps>(
 					<label className="text-xs font-medium opacity-70">
 						Event Type
 					</label>
-					<select
+					<Select<EventType>
+						ariaLabel="Event Type"
 						value={eventData?.eventType || 'Null'}
-						onChange={(e) => {
-							const newType = e.target.value as any;
+						onChange={(newType) => {
 							const newEventData: any = { eventType: newType };
 							if (
 								newType === 'Dialog' &&
@@ -32,12 +35,12 @@ export const EventDataEditor = memo<EventDataEditorProps>(
 							}
 							onChange(newEventData);
 						}}
-						className="rounded border border-black/10 bg-transparent px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10"
-					>
-						<option value="Null">Null</option>
-						<option value="Timeline">Timeline</option>
-						<option value="Dialog">Dialog</option>
-					</select>
+						items={[
+							{ value: 'Null', label: 'Null' },
+							{ value: 'Timeline', label: 'Timeline' },
+							{ value: 'Dialog', label: 'Dialog' },
+						]}
+					/>
 				</div>
 
 				{eventData?.eventType === 'Dialog' && (
@@ -45,23 +48,22 @@ export const EventDataEditor = memo<EventDataEditorProps>(
 						<label className="text-xs font-medium opacity-70">
 							Dialog Package Name
 						</label>
-						<select
-							value={eventData?.dialogPackageName || ''}
-							onChange={(e) =>
+						<Select<string>
+							ariaLabel="Dialog Package Name"
+							placeholder="Select Package..."
+							value={eventData?.dialogPackageName ?? ''}
+							onChange={(v) =>
 								onChange({
 									...(eventData || { eventType: 'Dialog' }),
-									dialogPackageName: e.target.value,
+									dialogPackageName: v,
 								})
 							}
-							className="rounded-lg border border-black/10 bg-black/5 px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-white/10 dark:bg-white/5"
-						>
-							<option value="">Select Package...</option>
-							{allDialogPackages.map((pkg, index) => (
-								<option key={index} value={pkg.name}>
-									{pkg.name || `Dialog Package ${index}`}
-								</option>
-							))}
-						</select>
+							items={allDialogPackages.map((pkg, index) => ({
+								value: pkg.name,
+								label: pkg.name || `Dialog Package ${index}`,
+								textValue: `${pkg.name}-${index}`,
+							}))}
+						/>
 					</div>
 				)}
 

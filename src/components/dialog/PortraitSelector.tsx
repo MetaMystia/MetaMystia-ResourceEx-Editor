@@ -1,5 +1,6 @@
 import { memo, useId, useMemo } from 'react';
 
+import { Select } from '@/design/ui/components';
 import { SPECIAL_PORTRAITS } from '@/data/specialPortraits';
 import type { Character, CharacterType } from '@/types/resource';
 import { Label } from '@/components/common/Label';
@@ -45,30 +46,20 @@ export const PortraitSelector = memo<PortraitSelectorProps>(
 		return (
 			<div className="flex flex-col gap-1">
 				<Label htmlFor={id}>表情/立绘</Label>
-				<select
+				<Select<number>
 					id={id}
+					ariaLabel="表情/立绘"
 					value={value}
-					onChange={(e) => {
-						onChange(parseInt(e.target.value));
-					}}
-					className="h-9 w-full rounded-lg border border-black/10 bg-white/40 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-black/30 focus:ring-2 focus:ring-black/10 dark:border-white/10 dark:bg-black/10 dark:focus:border-white/10 dark:focus:ring-white/10"
-				>
-					{portraits.length > 0 ? (
-						portraits.map(({ name, pid }, index) => (
-							<option
-								key={index}
-								value={pid}
-								className="text-black"
-							>
-								({pid}) {name}
-							</option>
-						))
-					) : (
-						<option value={0} className="text-black">
-							无可用立绘
-						</option>
-					)}
-				</select>
+					onChange={(v) => onChange(v)}
+					placeholder={
+						portraits.length === 0 ? '无可用立绘' : '请选择...'
+					}
+					isDisabled={portraits.length === 0}
+					items={portraits.map(({ name, pid }) => ({
+						value: pid,
+						label: `(${pid}) ${name}`,
+					}))}
+				/>
 			</div>
 		);
 	}

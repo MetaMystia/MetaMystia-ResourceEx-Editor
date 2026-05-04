@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Button } from '@/design/ui/components';
+import { Button, Select } from '@/design/ui/components';
 import { EditorField } from '@/components/common/EditorField';
 import { WarningBadge } from '@/components/common/WarningBadge';
 import { useLabelPrefixValidation } from '@/components/common/useLabelPrefixValidation';
@@ -109,49 +109,42 @@ export const MissionBasicInfo = memo<MissionBasicInfoProps>(
 				</EditorField>
 
 				<EditorField label="Mission Type">
-					<select
+					<Select<MissionType>
+						ariaLabel="Mission Type"
 						value={mission.missionType}
-						onChange={(e) =>
-							onUpdate({
-								missionType: e.target.value as MissionType,
-							})
-						}
-						className="rounded-lg border border-black/10 bg-black/5 px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-white/10 dark:bg-white/5"
-					>
-						<option value="Kitsuna">Kitsuna</option>
-						<option value="Main">Main</option>
-						<option value="Side">Side</option>
-					</select>
+						onChange={(v) => onUpdate({ missionType: v })}
+						items={[
+							{ value: 'Kitsuna', label: 'Kitsuna' },
+							{ value: 'Main', label: 'Main' },
+							{ value: 'Side', label: 'Side' },
+						]}
+					/>
 				</EditorField>
 
 				<EditorField label="委托自(Sender)">
-					<select
-						value={mission.sender || ''}
-						onChange={(e) => onUpdate({ sender: e.target.value })}
-						className="rounded-lg border border-black/10 bg-black/5 px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-white/10 dark:bg-white/5"
-					>
-						<option value="">请选择角色...</option>
-						{characterOptions.map((opt) => (
-							<option key={opt.value} value={opt.value}>
-								{opt.label}
-							</option>
-						))}
-					</select>
+					<Select<string>
+						ariaLabel="委托自"
+						placeholder="请选择角色..."
+						value={mission.sender ?? ''}
+						onChange={(v) => onUpdate({ sender: v })}
+						items={characterOptions.map((opt) => ({
+							value: opt.value,
+							label: opt.label,
+						}))}
+					/>
 				</EditorField>
 
 				<EditorField label="交付至(Receiver)">
-					<select
-						value={mission.reciever || ''}
-						onChange={(e) => onUpdate({ reciever: e.target.value })} // ignore: typo
-						className="rounded-lg border border-black/10 bg-black/5 px-4 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-white/10 dark:bg-white/5"
-					>
-						<option value="">请选择角色...</option>
-						{characterOptions.map((opt) => (
-							<option key={opt.value} value={opt.value}>
-								{opt.label}
-							</option>
-						))}
-					</select>
+					<Select<string>
+						ariaLabel="交付至"
+						placeholder="请选择角色..."
+						value={mission.reciever ?? ''}
+						onChange={(v) => onUpdate({ reciever: v })}
+						items={characterOptions.map((opt) => ({
+							value: opt.value,
+							label: opt.label,
+						}))}
+					/>
 				</EditorField>
 			</div>
 		);

@@ -1,5 +1,6 @@
 import { memo, useId } from 'react';
 
+import { Select } from '@/design/ui/components';
 import { CharacterSelector } from '@/components/dialog/CharacterSelector';
 import { PortraitSelector } from '@/components/dialog/PortraitSelector';
 import { SPECIAL_PORTRAITS } from '@/data/specialPortraits';
@@ -71,24 +72,16 @@ export const DialogFormFields = memo<DialogFormFieldsProps>(
 					/>
 					<div className="flex flex-col gap-1">
 						<Label htmlFor={idPos}>显示位置</Label>
-						<select
+						<Select<Dialog['position']>
 							id={idPos}
+							ariaLabel="显示位置"
 							value={dialog.position}
-							onChange={(e) => {
-								onUpdate({
-									position: e.target
-										.value as Dialog['position'],
-								});
-							}}
-							className="h-9 w-full rounded-lg border border-black/10 bg-white/40 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-black/30 focus:ring-2 focus:ring-black/10 dark:border-white/10 dark:bg-black/10 dark:focus:border-white/10 dark:focus:ring-white/10"
-						>
-							<option value="Left" className="text-black">
-								左侧 (Left)
-							</option>
-							<option value="Right" className="text-black">
-								右侧 (Right)
-							</option>
-						</select>
+							onChange={(v) => onUpdate({ position: v })}
+							items={[
+								{ value: 'Left', label: '左侧 (Left)' },
+								{ value: 'Right', label: '右侧 (Right)' },
+							]}
+						/>
 					</div>
 
 					<div className="flex flex-col gap-1">

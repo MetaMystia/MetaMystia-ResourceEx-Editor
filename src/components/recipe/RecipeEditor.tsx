@@ -1,6 +1,7 @@
-import { memo, useCallback, useId } from 'react';
+import { memo, useCallback, useId, useMemo } from 'react';
 
-import { Button } from '@/design/ui/components';
+import { Button, Select } from '@/design/ui/components';
+import type { SelectItemSpec } from '@/design/ui/components';
 import { EmptyState } from '@/components/common/EmptyState';
 import { cn } from '@/design/ui/utils';
 import { ErrorBadge } from '@/components/common/ErrorBadge';
@@ -38,6 +39,50 @@ export const RecipeEditor = memo<RecipeEditorProps>(function RecipeEditor({
 	const idCookerType = useId();
 
 	const isIdTooSmall = recipe && recipe.id < 9000;
+
+	const foodItems = useMemo<SelectItemSpec<number>[]>(() => {
+		const sections: SelectItemSpec<number>[] = [
+			{
+				section: '游戏内料理',
+				options: FOOD_NAMES.map((f) => ({
+					value: f.id,
+					label: `[${f.id}] ${f.name}`,
+				})),
+			},
+		];
+		if (customFoods.length > 0) {
+			sections.push({
+				section: '自定义料理',
+				options: customFoods.map((f) => ({
+					value: f.id,
+					label: `[${f.id}] ${f.name}`,
+				})),
+			});
+		}
+		return sections;
+	}, [customFoods]);
+
+	const ingredientItems = useMemo<SelectItemSpec<number>[]>(() => {
+		const sections: SelectItemSpec<number>[] = [
+			{
+				section: '游戏内原料',
+				options: INGREDIENT_NAMES.map((i) => ({
+					value: i.id,
+					label: `[${i.id}] ${i.name}`,
+				})),
+			},
+		];
+		if (customIngredients.length > 0) {
+			sections.push({
+				section: '自定义原料',
+				options: customIngredients.map((i) => ({
+					value: i.id,
+					label: `[${i.id}] ${i.name}`,
+				})),
+			});
+		}
+		return sections;
+	}, [customIngredients]);
 
 	const updateIngredient = useCallback(
 		(index: number, value: string) => {
@@ -120,31 +165,13 @@ export const RecipeEditor = memo<RecipeEditorProps>(function RecipeEditor({
 
 					<div className="flex flex-col gap-1">
 						<Label htmlFor={idFoodId}>料理ID (Food ID)</Label>
-						<select
+						<Select<number>
 							id={idFoodId}
+							ariaLabel="料理ID"
 							value={recipe.foodId}
-							onChange={(e) =>
-								onUpdate({ foodId: parseInt(e.target.value) })
-							}
-							className="h-9 w-full rounded-lg border border-black/10 bg-white/40 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-black/30 focus:ring-2 focus:ring-black/10 dark:border-white/10 dark:bg-black/10 dark:focus:border-white/10 dark:focus:ring-white/10"
-						>
-							<optgroup label="游戏内料理">
-								{FOOD_NAMES.map((food) => (
-									<option key={food.id} value={food.id}>
-										[{food.id}] {food.name}
-									</option>
-								))}
-							</optgroup>
-							{customFoods.length > 0 && (
-								<optgroup label="自定义料理">
-									{customFoods.map((food) => (
-										<option key={food.id} value={food.id}>
-											[{food.id}] {food.name}
-										</option>
-									))}
-								</optgroup>
-							)}
-						</select>
+							onChange={(v) => onUpdate({ foodId: v })}
+							items={foodItems}
+						/>
 					</div>
 
 					<div className="flex flex-col gap-1">
@@ -166,22 +193,16 @@ export const RecipeEditor = memo<RecipeEditorProps>(function RecipeEditor({
 						<Label htmlFor={idCookerType}>
 							厨具类型 (Cooker Type)
 						</Label>
-						<select
+						<Select<CookerType>
 							id={idCookerType}
+							ariaLabel="厨具类型"
 							value={recipe.cookerType}
-							onChange={(e) =>
-								onUpdate({
-									cookerType: e.target.value as CookerType,
-								})
-							}
-							className="h-9 w-full rounded-lg border border-black/10 bg-white/40 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-black/30 focus:ring-2 focus:ring-black/10 dark:border-white/10 dark:bg-black/10 dark:focus:border-white/10 dark:focus:ring-white/10"
-						>
-							{COOKER_TYPES.map((cooker) => (
-								<option key={cooker.value} value={cooker.value}>
-									{cooker.label}
-								</option>
-							))}
-						</select>
+							onChange={(v) => onUpdate({ cookerType: v })}
+							items={COOKER_TYPES.map((c) => ({
+								value: c.value,
+								label: c.label,
+							}))}
+						/>
 					</div>
 				</div>
 			</div>
@@ -211,37 +232,15 @@ export const RecipeEditor = memo<RecipeEditorProps>(function RecipeEditor({
 							<span className="w-8 text-center text-sm font-medium opacity-60">
 								#{index + 1}
 							</span>
-							<select
+							<Select<number>
+								ariaLabel={`原料 #${index + 1}`}
+								className="flex-1"
 								value={ingredientId}
-								onChange={(e) =>
-									updateIngredient(index, e.target.value)
+								onChange={(v) =>
+									updateIngredient(index, String(v))
 								}
-								className="flex-1 rounded-lg border border-black/10 bg-white/40 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-black/30 focus:ring-2 focus:ring-black/10 dark:border-white/10 dark:bg-black/10 dark:focus:border-white/10 dark:focus:ring-white/10"
-							>
-								<optgroup label="游戏内原料">
-									{INGREDIENT_NAMES.map((ingredient) => (
-										<option
-											key={ingredient.id}
-											value={ingredient.id}
-										>
-											[{ingredient.id}] {ingredient.name}
-										</option>
-									))}
-								</optgroup>
-								{customIngredients.length > 0 && (
-									<optgroup label="自定义原料">
-										{customIngredients.map((ingredient) => (
-											<option
-												key={ingredient.id}
-												value={ingredient.id}
-											>
-												[{ingredient.id}]{' '}
-												{ingredient.name}
-											</option>
-										))}
-									</optgroup>
-								)}
-							</select>
+								items={ingredientItems}
+							/>
 							<Button
 								color="danger"
 								size="sm"
