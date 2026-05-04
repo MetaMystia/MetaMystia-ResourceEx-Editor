@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button } from '@/design/ui/components';
+import { Switch } from '@/design/ui/components';
 import { EmptyState } from '@/components/common/EmptyState';
 import { CharacterSpriteSet } from '@/types/resource';
 import { ChevronRight } from '@/components/icons/ChevronRight';
@@ -106,21 +106,26 @@ export function SpriteSetEditor({
 						</InfoTip>
 					</label>
 				</div>
-				<Button
-					color={spriteSet ? 'danger' : 'primary'}
-					size="sm"
-					radius="full"
-					onPress={() => {
-						if (spriteSet) {
-							onDisable();
-						} else {
-							onEnable();
-						}
-					}}
-					className="whitespace-nowrap"
-				>
-					{spriteSet ? '移除小人配置' : '启用小人配置'}
-				</Button>
+				<div className="flex items-center gap-2">
+					<span className="whitespace-nowrap text-xs font-medium">
+						{spriteSet ? '已启用小人配置' : '启用小人配置'}
+					</span>
+					<Switch
+						size="sm"
+						isSelected={Boolean(spriteSet)}
+						onValueChange={(v) => {
+							if (v) {
+								onEnable();
+							} else if (
+								confirm(
+									'关闭角色小人配置将丢失名称与贴图路径等所有小人配置数据，且不可恢复。\n\n确定要关闭吗？'
+								)
+							) {
+								onDisable();
+							}
+						}}
+					/>
+				</div>
 			</div>
 
 			{isExpanded && spriteSet && (
@@ -308,7 +313,7 @@ export function SpriteSetEditor({
 			{isExpanded && !spriteSet && (
 				<EmptyState
 					title="暂未启用角色小人配置"
-					description="点击右侧按钮启用"
+					description="点击右侧开关启用"
 				/>
 			)}
 		</div>

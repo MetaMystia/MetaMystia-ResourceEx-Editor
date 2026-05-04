@@ -4,6 +4,7 @@ import { Button } from '@/design/ui/components';
 import { cn } from '@/design/ui/utils';
 import { Label } from '@/components/common/Label';
 import { EmptyState } from '@/components/common/EmptyState';
+import { SectionAddButton } from '@/components/common/SectionAddButton';
 import { ProductEditor } from './ProductEditor';
 import type {
 	MerchandiseConfig,
@@ -87,14 +88,9 @@ export const MerchandiseListEditor = memo<MerchandiseListEditorProps>(
 					<h3 className="text-sm font-bold uppercase tracking-wider opacity-60">
 						商品列表 ({merchandiseList.length})
 					</h3>
-					<Button
-						variant="light"
-						size="sm"
-						onPress={handleAdd}
-						className="text-xs"
-					>
-						+ 添加商品
-					</Button>
+					<SectionAddButton onPress={handleAdd}>
+						添加商品
+					</SectionAddButton>
 				</div>
 
 				{merchandiseList.length === 0 && (

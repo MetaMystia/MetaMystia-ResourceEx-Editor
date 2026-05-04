@@ -1,5 +1,5 @@
 import { memo, useState, useCallback } from 'react';
-import { Button } from '@/design/ui/components';
+import { Switch } from '@/design/ui/components';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { KizunaInfo, EventNode, DialogPackage } from '@/types/resource';
 import { cn } from '@/design/ui/utils';
@@ -68,21 +68,26 @@ export const KizunaInfoEditor = memo<KizunaInfoEditorProps>(
 							配置角色的羁绊相关信息，包括事件前置条件、对话包等
 						</InfoTip>
 					</div>
-					<Button
-						color={kizuna ? 'danger' : 'primary'}
-						size="sm"
-						radius="full"
-						onPress={() => {
-							if (kizuna) {
-								onDisable();
-							} else {
-								onEnable();
-							}
-						}}
-						className="whitespace-nowrap"
-					>
-						{kizuna ? '禁用羪绊配置' : '启用羪绊配置'}
-					</Button>
+					<div className="flex items-center gap-2">
+						<span className="whitespace-nowrap text-xs font-medium">
+							{kizuna ? '已启用羁绊配置' : '启用羁绊配置'}
+						</span>
+						<Switch
+							size="sm"
+							isSelected={Boolean(kizuna)}
+							onValueChange={(v) => {
+								if (v) {
+									onEnable();
+								} else if (
+									confirm(
+										'关闭羁绊配置将丢失已填写的所有羁绊数据（升级前置事件、各等级对话包、委托区域等），且不可恢复。\n\n确定要关闭吗？'
+									)
+								) {
+									onDisable();
+								}
+							}}
+						/>
+					</div>
 				</div>
 
 				{isExpanded && kizuna && (
@@ -147,7 +152,7 @@ export const KizunaInfoEditor = memo<KizunaInfoEditorProps>(
 				{isExpanded && !kizuna && (
 					<EmptyState
 						title="暂未启用羁绊配置"
-						description="点击右侧按钮启用"
+						description="点击右侧开关启用"
 					/>
 				)}
 			</div>

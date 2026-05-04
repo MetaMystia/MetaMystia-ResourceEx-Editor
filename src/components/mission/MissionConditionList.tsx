@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Button, Select } from '@/design/ui/components';
 import { EditorField } from '@/components/common/EditorField';
 import { EmptyState } from '@/components/common/EmptyState';
+import { SectionAddButton } from '@/components/common/SectionAddButton';
 import { WarningNotice } from '@/components/common/WarningNotice';
 import { BEVERAGE_TAGS, FOOD_TAGS } from '@/data/tags';
 import type {
@@ -524,14 +525,9 @@ export const MissionConditionList = memo<MissionConditionListProps>(
 				className="gap-4"
 				label={`Finish Conditions (${conditions.length})`}
 				actions={
-					<Button
-						color="primary"
-						size="sm"
-						onPress={addCondition}
-						className="h-8 px-3 text-sm"
-					>
-						+ 添加完成条件
-					</Button>
+					<SectionAddButton onPress={addCondition}>
+						添加完成条件
+					</SectionAddButton>
 				}
 			>
 				<div className="flex flex-col gap-3">

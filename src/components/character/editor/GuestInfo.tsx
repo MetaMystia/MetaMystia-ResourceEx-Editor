@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Button } from '@/design/ui/components';
+import { Switch } from '@/design/ui/components';
 import { EmptyState } from '@/components/common/EmptyState';
+import { SectionAddButton } from '@/components/common/SectionAddButton';
 import { GuestInfo, Request, SpawnConfig } from '@/types/resource';
 import {
 	BEVERAGE_TAGS,
@@ -219,21 +220,26 @@ export function GuestInfoEditor({
 						为角色配置夜间顾客相关信息，包括喜好标签、闲聊文本等
 					</InfoTip>
 				</div>
-				<Button
-					color={guest ? 'danger' : 'primary'}
-					size="sm"
-					radius="full"
-					onPress={() => {
-						if (guest) {
-							onDisable();
-						} else {
-							onEnable();
-						}
-					}}
-					className="whitespace-nowrap"
-				>
-					{guest ? '移除顾客配置' : '启用顾客配置'}
-				</Button>
+				<div className="flex items-center gap-2">
+					<span className="whitespace-nowrap text-xs font-medium">
+						{guest ? '已启用顾客配置' : '启用顾客配置'}
+					</span>
+					<Switch
+						size="sm"
+						isSelected={Boolean(guest)}
+						onValueChange={(v) => {
+							if (v) {
+								onEnable();
+							} else if (
+								confirm(
+									'关闭顾客配置将丢失已填写的所有顾客数据（喜好、闲聊、评价等），且不可恢复。\n\n确定要关闭吗？'
+								)
+							) {
+								onDisable();
+							}
+						}}
+					/>
+				</div>
 			</div>
 
 			{isExpanded && guest && (
@@ -345,12 +351,9 @@ export function GuestInfoEditor({
 							>
 								闲聊文本 (Conversations)
 							</Label>
-							<button
-								onClick={addConversation}
-								className="rounded border border-white/10 bg-white/10 px-2 py-1 text-[10px] transition-all hover:bg-white/20"
-							>
-								+ 添加闲聊
-							</button>
+							<SectionAddButton onPress={addConversation}>
+								添加闲聊
+							</SectionAddButton>
 						</div>
 						<div className="flex flex-col gap-2">
 							{guest?.conversation?.map((conv, i) => (
@@ -935,7 +938,7 @@ export function GuestInfoEditor({
 			{isExpanded && !guest && (
 				<EmptyState
 					title="暂未启用顾客配置"
-					description="点击右侧按钮启用"
+					description="点击右侧开关启用"
 				/>
 			)}
 		</div>

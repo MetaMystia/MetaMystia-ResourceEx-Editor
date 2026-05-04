@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/design/ui/components';
 import { EmptyState } from '@/components/common/EmptyState';
+import { SectionAddButton } from '@/components/common/SectionAddButton';
 import { CharacterPortrait } from '@/types/resource';
 import { cn } from '@/design/ui/utils';
 import { ChevronRight } from '@/components/icons/ChevronRight';
@@ -63,15 +64,9 @@ export function Portraits({
 						{portraits?.length ? `(${portraits.length})` : ''}
 					</Label>
 				</div>
-				<Button
-					color="primary"
-					size="sm"
-					radius="full"
-					onPress={onAdd}
-					className="whitespace-nowrap"
-				>
+				<SectionAddButton onPress={onAdd}>
 					添加立绘配置
-				</Button>
+				</SectionAddButton>
 			</div>
 			{isExpanded && (
 				<div className="grid grid-cols-1 gap-3 duration-200">
@@ -189,21 +184,14 @@ export function Portraits({
 					})}
 					{portraits && portraits.length > 0 && (
 						<div className="mt-2 flex justify-end gap-2 border-t border-white/5 pt-4">
+							<SectionAddButton onPress={onAdd}>
+								添加立绘配置
+							</SectionAddButton>
 							<Button
-								color="primary"
+								variant="light"
 								size="sm"
-								radius="full"
-								onPress={onAdd}
-								className="whitespace-nowrap"
-							>
-								+ 添加立绘配置
-							</Button>
-							<Button
-								color="secondary"
-								size="sm"
-								radius="full"
 								onPress={() => setIsExpanded(false)}
-								className="whitespace-nowrap"
+								className="h-8 rounded-md px-3 text-xs"
 							>
 								收起列表
 							</Button>
@@ -212,7 +200,7 @@ export function Portraits({
 					{(!portraits || portraits.length === 0) && (
 						<EmptyState
 							title="暂无立绘配置"
-							description="点击右侧按钮添加"
+							description="点击右上角“添加立绘配置”按钮创建"
 						/>
 					)}
 				</div>

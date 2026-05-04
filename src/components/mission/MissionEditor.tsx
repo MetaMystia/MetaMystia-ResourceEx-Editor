@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useMemo } from 'react';
-import { Button } from '@/design/ui/components';
+import { SectionDeleteButton } from '@/components/common/SectionDeleteButton';
 import { BEVERAGE_NAMES } from '@/data/beverages';
 import { FOOD_NAMES } from '@/data/foods';
 import { INGREDIENT_NAMES } from '@/data/ingredients';
@@ -127,9 +127,9 @@ export default memo<MissionEditorProps>(function MissionEditor({
 		<div className="flex flex-col gap-6 rounded-lg bg-white/10 p-6 shadow-md backdrop-blur">
 			<div className="flex items-center justify-between border-b border-black/10 pb-4 dark:border-white/10">
 				<h2 className="text-2xl font-bold">任务节点编辑</h2>
-				<Button color="danger" size="sm" onPress={onRemove}>
+				<SectionDeleteButton onPress={onRemove}>
 					删除任务
-				</Button>
+				</SectionDeleteButton>
 			</div>
 
 			<MissionBasicInfo

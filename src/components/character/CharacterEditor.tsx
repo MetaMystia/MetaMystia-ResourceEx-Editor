@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect } from 'react';
 
-import { Button } from '@/design/ui/components';
+import { SectionDeleteButton } from '@/components/common/SectionDeleteButton';
 import { BasicInfo } from './editor/BasicInfo';
 import { Descriptions } from './editor/Descriptions';
 import { SpawnMarkerEditor } from './editor/SpawnMarker';
@@ -352,14 +352,9 @@ export const CharacterEditor = memo<CharacterEditorProps>(
 							{character.type || '未知类型'}
 						</span>
 					</div>
-					<Button
-						color="danger"
-						size="sm"
-						radius="full"
-						onPress={onRemove}
-					>
+					<SectionDeleteButton onPress={onRemove}>
 						删除角色
-					</Button>
+					</SectionDeleteButton>
 				</div>
 
 				<BasicInfo

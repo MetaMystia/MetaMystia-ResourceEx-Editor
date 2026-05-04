@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { Button, Select } from '@/design/ui/components';
 import type { ISelectOption } from '@/design/ui/components';
 import { EditorField } from '@/components/common/EditorField';
+import { SectionAddButton } from '@/components/common/SectionAddButton';
 import { WarningNotice } from '@/components/common/WarningNotice';
 import type { MissionReward, ObjectType, RewardType } from '@/types/resource';
 import { BEVERAGE_NAMES } from '@/data/beverages';
@@ -266,14 +267,9 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 				className="gap-4"
 				label={`${title} (${rewards?.length || 0})`}
 				actions={
-					<Button
-						color="primary"
-						size="sm"
-						onPress={addReward}
-						className="h-8 px-3 text-sm"
-					>
-						+ 添加奖励
-					</Button>
+					<SectionAddButton onPress={addReward}>
+						添加奖励
+					</SectionAddButton>
 				}
 			>
 				<div className="flex flex-col gap-3">

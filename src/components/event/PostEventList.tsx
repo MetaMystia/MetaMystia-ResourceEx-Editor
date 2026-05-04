@@ -2,6 +2,7 @@ import { memo, useCallback } from 'react';
 import { Button } from '@/design/ui/components';
 import { EmptyState } from '@/components/common/EmptyState';
 import { EditorField } from '@/components/common/EditorField';
+import { SectionAddButton } from '@/components/common/SectionAddButton';
 import type { EventNode } from '@/types/resource';
 
 interface PostEventListProps {
@@ -45,14 +46,9 @@ export const PostEventList = memo<PostEventListProps>(function PostEventList({
 			className="gap-4"
 			label={`后继事件(postEvents) (${postEvents?.length || 0})`}
 			actions={
-				<Button
-					color="primary"
-					size="sm"
-					onPress={addPostEvent}
-					className="h-8 px-3 text-sm"
-				>
-					+ 添加后继事件
-				</Button>
+				<SectionAddButton onPress={addPostEvent}>
+					添加后继事件
+				</SectionAddButton>
 			}
 		>
 			<div className="flex flex-col gap-3">

@@ -1,8 +1,10 @@
 import { memo, useCallback, useId, useMemo } from 'react';
 
-import { Button, Select } from '@/design/ui/components';
+import { Select } from '@/design/ui/components';
 import type { SelectItemSpec } from '@/design/ui/components';
 import { EmptyState } from '@/components/common/EmptyState';
+import { SectionAddButton } from '@/components/common/SectionAddButton';
+import { SectionDeleteButton } from '@/components/common/SectionDeleteButton';
 import { cn } from '@/design/ui/utils';
 import { ErrorBadge } from '@/components/common/ErrorBadge';
 import { IdRangeBadge } from '@/components/common/IdRangeBadge';
@@ -213,15 +215,12 @@ export const RecipeEditor = memo<RecipeEditorProps>(function RecipeEditor({
 					<h3 className="text-sm font-bold uppercase tracking-wider opacity-60">
 						原料配置 (最多5个)
 					</h3>
-					<Button
-						color="primary"
-						size="sm"
-						radius="full"
+					<SectionAddButton
 						onPress={addIngredient}
 						isDisabled={recipe.ingredients.length >= 5}
 					>
 						添加原料
-					</Button>
+					</SectionAddButton>
 				</div>
 				<div className="flex flex-col gap-3">
 					{recipe.ingredients.map((ingredientId, index) => (
@@ -241,14 +240,11 @@ export const RecipeEditor = memo<RecipeEditorProps>(function RecipeEditor({
 								}
 								items={ingredientItems}
 							/>
-							<Button
-								color="danger"
-								size="sm"
-								radius="full"
+							<SectionDeleteButton
+								iconOnly
 								onPress={() => removeIngredient(index)}
-							>
-								删除
-							</Button>
+								aria-label={`删除原料 #${index + 1}`}
+							/>
 						</div>
 					))}
 					{recipe.ingredients.length === 0 && (

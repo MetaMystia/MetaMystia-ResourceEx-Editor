@@ -1,8 +1,8 @@
 'use client';
 
-import { Button } from '@/design/ui/components';
 import { useData } from '@/components/context/DataContext';
 import { EditorField } from '@/components/common/EditorField';
+import { SectionAddButton } from '@/components/common/SectionAddButton';
 import { TextInput } from '@/components/common/TextInput';
 import { TextArea } from '@/components/common/TextArea';
 import { ArrayFieldEditor } from '@/components/common/ArrayFieldEditor';
@@ -111,14 +111,9 @@ export default function InfoPage() {
 					<EditorField
 						label="作者列表 (Authors)"
 						actions={
-							<Button
-								variant="light"
-								size="sm"
-								onPress={authorsHandlers.onAdd}
-								className="h-6 px-2 text-xs"
-							>
-								+ 添加
-							</Button>
+							<SectionAddButton onPress={authorsHandlers.onAdd}>
+								添加作者
+							</SectionAddButton>
 						}
 					>
 						<ArrayFieldEditor

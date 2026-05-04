@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useMemo } from 'react';
-import { Button } from '@/design/ui/components';
+import { SectionDeleteButton } from '@/components/common/SectionDeleteButton';
 import { FOOD_NAMES } from '@/data/foods';
 import { INGREDIENT_NAMES } from '@/data/ingredients';
 import { RECIPE_NAMES } from '@/data/recipes';
@@ -121,9 +121,9 @@ export default memo<EventEditorProps>(function EventEditor({
 		<div className="flex flex-col gap-6 rounded-lg bg-white/10 p-6 shadow-md backdrop-blur">
 			<div className="flex items-center justify-between border-b border-black/10 pb-4 dark:border-white/10">
 				<h2 className="text-2xl font-bold">事件节点编辑</h2>
-				<Button color="danger" size="sm" onPress={onRemove}>
+				<SectionDeleteButton onPress={onRemove}>
 					删除事件
-				</Button>
+				</SectionDeleteButton>
 			</div>
 
 			<div className="grid grid-cols-1 gap-6">

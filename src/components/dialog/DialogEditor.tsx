@@ -2,6 +2,7 @@ import { memo, useCallback, useId } from 'react';
 
 import { Button } from '@/design/ui/components';
 import { EmptyState } from '@/components/common/EmptyState';
+import { SectionAddButton } from '@/components/common/SectionAddButton';
 import { DialogItemWrapper } from './DialogItem';
 import { ErrorBadge } from '@/components/common/ErrorBadge';
 import { WarningBadge } from '@/components/common/WarningBadge';
@@ -103,16 +104,13 @@ export const DialogEditor = memo<DialogEditorProps>(function DialogEditor({
 				<span className="block w-full text-sm font-medium opacity-80">
 					对话列表（{dialogPackage.dialogList.length}）
 				</span>
-				<Button
-					color="primary"
-					size="sm"
+				<SectionAddButton
 					onPress={() => {
 						onAddDialog();
 					}}
-					className="whitespace-nowrap"
 				>
 					添加对话
-				</Button>
+				</SectionAddButton>
 			</div>
 			<div className="flex flex-col gap-2">
 				{/* 在列表首位添加插入按钮 */}

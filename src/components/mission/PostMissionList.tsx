@@ -2,6 +2,7 @@ import { memo, useCallback } from 'react';
 import { Button, Select } from '@/design/ui/components';
 import { EmptyState } from '@/components/common/EmptyState';
 import { EditorField } from '@/components/common/EditorField';
+import { SectionAddButton } from '@/components/common/SectionAddButton';
 import type { MissionNode } from '@/types/resource';
 
 interface PostMissionListProps {
@@ -44,14 +45,9 @@ export const PostMissionList = memo<PostMissionListProps>(
 					postMissions?.length || 0
 				})`}
 				actions={
-					<Button
-						color="primary"
-						size="sm"
-						onPress={addPostMission}
-						className="h-8 px-3 text-sm"
-					>
-						+ 添加后继任务
-					</Button>
+					<SectionAddButton onPress={addPostMission}>
+						添加后继任务
+					</SectionAddButton>
 				}
 			>
 				<div className="flex flex-col gap-3">
