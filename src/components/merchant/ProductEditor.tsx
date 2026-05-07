@@ -1,5 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 
+import { Select } from '@/design/ui/components';
+import type { SelectItemSpec } from '@/design/ui/components';
 import { Label } from '@/components/common/Label';
 import { WarningNotice } from '@/components/common/WarningNotice';
 import type {
@@ -123,6 +125,25 @@ export const ProductEditor = memo<ProductEditorProps>(function ProductEditor({
 		extRecipes,
 	]);
 
+	const typeItems = useMemo<SelectItemSpec<ProductType>[]>(() => {
+		return ALL_PRODUCT_TYPES.map((type) => ({
+			value: type.value,
+			label: `${type.label}${!SUPPORTED_TYPES.includes(type.value) ? ' (暂未实现)' : ''}`,
+			isDisabled: !SUPPORTED_TYPES.includes(type.value),
+		}));
+	}, []);
+
+	const idItems = useMemo<SelectItemSpec<number>[]>(() => {
+		if (idOptions.length === 0) {
+			return [{ value: 0, label: '暂无可选项', isDisabled: true }];
+		}
+
+		return idOptions.map((opt) => ({
+			value: opt.id,
+			label: `[${opt.id}] ${opt.name}`,
+		}));
+	}, [idOptions]);
+
 	const handleTypeChange = useCallback(
 		(type: ProductType) => {
 			onUpdate({
@@ -141,22 +162,12 @@ export const ProductEditor = memo<ProductEditorProps>(function ProductEditor({
 				{/* Product Type */}
 				<div className="flex flex-col gap-1">
 					<Label size="sm">商品类型</Label>
-					<select
+					<Select<ProductType>
 						value={product.productType}
-						onChange={(e) =>
-							handleTypeChange(e.target.value as ProductType)
-						}
-						className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/50"
-					>
-						{ALL_PRODUCT_TYPES.map((t) => (
-							<option key={t.value} value={t.value}>
-								{t.label}
-								{!SUPPORTED_TYPES.includes(t.value)
-									? ' (暂未实现)'
-									: ''}
-							</option>
-						))}
-					</select>
+						onChange={handleTypeChange}
+						placeholder="请选择商品类型"
+						items={typeItems}
+					/>
 				</div>
 
 				{/* Product Amount */}
@@ -178,27 +189,12 @@ export const ProductEditor = memo<ProductEditorProps>(function ProductEditor({
 			) : (
 				<div className="flex flex-col gap-1">
 					<Label size="sm">选择商品 (productId)</Label>
-					<select
+					<Select<number>
 						value={product.productId}
-						onChange={(e) =>
-							onUpdate({ productId: parseInt(e.target.value) })
-						}
-						className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/50"
-					>
-						{idOptions.map((opt) => (
-							<option
-								key={`${opt.source}-${opt.id}`}
-								value={opt.id}
-							>
-								[{opt.id}] {opt.name}
-							</option>
-						))}
-						{idOptions.length === 0 && (
-							<option value={0} disabled>
-								暂无可选项
-							</option>
-						)}
-					</select>
+						onChange={(value) => onUpdate({ productId: value })}
+						placeholder="请选择商品"
+						items={idItems}
+					/>
 				</div>
 			)}
 		</div>

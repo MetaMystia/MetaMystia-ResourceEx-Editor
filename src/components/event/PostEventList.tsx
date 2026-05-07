@@ -1,4 +1,6 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
+import { Select } from '@/design/ui/components';
+import type { SelectItemSpec } from '@/design/ui/components';
 import { Button } from '@/design/ui/components';
 import { EmptyState } from '@/components/common/EmptyState';
 import { EditorField } from '@/components/common/EditorField';
@@ -16,6 +18,13 @@ export const PostEventList = memo<PostEventListProps>(function PostEventList({
 	allEvents,
 	onUpdate,
 }) {
+	const eventItems = useMemo<SelectItemSpec<string>[]>(() => {
+		return allEvents.map((e) => ({
+			value: e.label,
+			label: `${e.debugLabel || e.label} (${e.label})`,
+		}));
+	}, [allEvents]);
+
 	const addPostEvent = useCallback(() => {
 		const newPostEvents = [...(postEvents || []), ''];
 		onUpdate(newPostEvents);
@@ -62,21 +71,14 @@ export const PostEventList = memo<PostEventListProps>(function PostEventList({
 								<label className="text-xs font-medium opacity-70">
 									事件 Label
 								</label>
-								<select
+								<Select<string>
 									value={pe}
-									onChange={(e) =>
-										updatePostEvent(index, e.target.value)
+									onChange={(value) =>
+										updatePostEvent(index, value)
 									}
-									className="rounded border border-black/10 bg-transparent px-2 py-1 text-sm focus:border-primary focus:outline-none dark:border-white/10"
-								>
-									<option value="">请选择事件...</option>
-									{allEvents.map((e) => (
-										<option key={e.label} value={e.label}>
-											{e.debugLabel || e.label} ({e.label}
-											)
-										</option>
-									))}
-								</select>
+									placeholder="请选择事件..."
+									items={eventItems}
+								/>
 							</div>
 							<Button
 								variant="light"

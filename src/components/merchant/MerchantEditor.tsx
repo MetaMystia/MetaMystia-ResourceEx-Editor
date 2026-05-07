@@ -1,5 +1,7 @@
-import { memo, useCallback, useId } from 'react';
+import { memo, useCallback, useId, useMemo, useState } from 'react';
 
+import { Select } from '@/design/ui/components';
+import type { SelectItemSpec } from '@/design/ui/components';
 import { Button } from '@/design/ui/components';
 import { Label } from '@/components/common/Label';
 import { MerchandiseListEditor } from './MerchandiseListEditor';
@@ -40,6 +42,13 @@ export const MerchantEditor = memo<MerchantEditorProps>(
 		const idPriceMin = useId();
 		const idPriceMax = useId();
 		const idLeastSellNum = useId();
+
+		const characterItems = useMemo<SelectItemSpec<string>[]>(() => {
+			return allCharacters.map((char) => ({
+				value: char.label,
+				label: `${char.name} (${char.label})`,
+			}));
+		}, [allCharacters]);
 
 		const handleWelcomeDialogAdd = useCallback(
 			(name: string) => {
@@ -127,21 +136,13 @@ export const MerchantEditor = memo<MerchantEditorProps>(
 						{/* Key - Character select */}
 						<div className="flex flex-col gap-1 md:col-span-2">
 							<Label htmlFor={idKey}>角色 (key)</Label>
-							<select
+							<Select<string>
 								id={idKey}
+								ariaLabel="角色"
 								value={merchant.key}
-								onChange={(e) =>
-									onUpdate({ key: e.target.value })
-								}
-								className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 transition-all focus:outline-none focus:ring-2 focus:ring-primary/50"
-							>
-								<option value="">请选择角色...</option>
-								{allCharacters.map((char) => (
-									<option key={char.label} value={char.label}>
-										{char.name} ({char.label})
-									</option>
-								))}
-							</select>
+								onChange={(v) => onUpdate({ key: v })}
+								items={characterItems}
+							/>
 						</div>
 
 						{/* Price Multiplier Min/Max */}
@@ -258,6 +259,26 @@ const DialogPackageArrayField = memo<DialogPackageArrayFieldProps>(
 		onAdd,
 		onRemove,
 	}) {
+		const [selectedValue, setSelectedValue] = useState<string>('');
+
+		const dialogItems = useMemo<SelectItemSpec<string>[]>(() => {
+			return allDialogPackages.map((d) => ({
+				value: d.name,
+				label: d.name,
+				isDisabled: dialogs.includes(d.name),
+			}));
+		}, [allDialogPackages, dialogs]);
+
+		const handleAdd = useCallback(
+			(value: string) => {
+				if (value) {
+					onAdd(value);
+					setSelectedValue('');
+				}
+			},
+			[onAdd]
+		);
+
 		return (
 			<div className="flex flex-col gap-2">
 				{dialogs.length > 0 && (
@@ -283,27 +304,12 @@ const DialogPackageArrayField = memo<DialogPackageArrayFieldProps>(
 						))}
 					</div>
 				)}
-				<select
-					onChange={(e) => {
-						onAdd(e.target.value);
-						e.target.value = '';
-					}}
-					className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/50"
-					defaultValue=""
-				>
-					<option value="" disabled>
-						添加对话包...
-					</option>
-					{allDialogPackages.map((d) => (
-						<option
-							key={d.name}
-							value={d.name}
-							disabled={dialogs.includes(d.name)}
-						>
-							{d.name}
-						</option>
-					))}
-				</select>
+				<Select<string>
+					value={selectedValue}
+					onChange={handleAdd}
+					placeholder="添加对话包..."
+					items={dialogItems}
+				/>
 			</div>
 		);
 	}
