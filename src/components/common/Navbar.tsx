@@ -14,6 +14,7 @@ import {
 import { useData } from '@/components/context/DataContext';
 import { validateResourcePack } from './validateResourcePack';
 import { ExportValidationDialog } from './ExportValidationDialog';
+import { openAnnouncementModal } from './AnnouncementModal';
 import type { ValidationIssue } from './validateResourcePack';
 
 interface NavDropdownProps {
@@ -189,6 +190,13 @@ export const Navbar = memo(function Navbar() {
 								</svg>
 							</Button>
 						</a>
+						<Button
+							variant="light"
+							size="md"
+							onPress={openAnnouncementModal}
+						>
+							公告
+						</Button>
 						<Button variant="light" size="md" onPress={createBlank}>
 							全新创建
 						</Button>

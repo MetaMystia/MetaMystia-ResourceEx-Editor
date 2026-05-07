@@ -18,6 +18,11 @@ import {
  * 用户关闭弹窗后将版本号写回，避免重复弹出。
  */
 const STORAGE_KEY = 'mm-rex-announcement-seen';
+const OPEN_EVENT = 'mm-rex-open-announcement';
+
+export function openAnnouncementModal() {
+	window.dispatchEvent(new Event(OPEN_EVENT));
+}
 
 /**
  * 站点公告自动弹窗。挂载在全局 `Providers` 中，每个页面访问时执行一次检查。
@@ -37,6 +42,13 @@ export const AnnouncementModal = memo(function AnnouncementModal() {
 		if (seen !== ANNOUNCEMENT_VERSION) {
 			setIsOpen(true);
 		}
+	}, [isMounted]);
+
+	useEffect(() => {
+		if (!isMounted) return;
+		const handleOpen = () => setIsOpen(true);
+		window.addEventListener(OPEN_EVENT, handleOpen);
+		return () => window.removeEventListener(OPEN_EVENT, handleOpen);
 	}, [isMounted]);
 
 	const handleClose = useCallback(() => {
