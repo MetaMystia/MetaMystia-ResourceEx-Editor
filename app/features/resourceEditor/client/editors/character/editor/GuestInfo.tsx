@@ -1015,7 +1015,7 @@ export function GuestInfoEditor({
 															<Label
 																size="sm"
 																className="whitespace-nowrap"
-																tip="默认为关闭，不过MetaMiku还没有测试过具体含义哦"
+																tip="仅在该稀客的夜间生成状态已解锁后出现"
 															>
 																解锁后出现
 															</Label>
@@ -1042,9 +1042,9 @@ export function GuestInfoEditor({
 															<Label
 																size="sm"
 																className="whitespace-nowrap"
-																tip="默认为关闭，不过MetaMiku还没有测试过具体含义哦"
+																tip="仅在剧情奖励已将该雀食堂加入角色的许可列表后出现"
 															>
-																记录后出现
+																按店铺许可后出现
 															</Label>
 															<Switch
 																size="sm"
