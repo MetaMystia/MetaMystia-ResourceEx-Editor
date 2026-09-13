@@ -13,6 +13,8 @@ import {
 import type { EventData, EventNodeTrigger } from './contracts/event';
 import type { MissionReward } from './contracts/mission';
 import type { ResourceEx } from './contracts/resourceEx';
+import { resolveDayMapAssetPath } from './dayMapAssets';
+import { validateDayMap } from './dayMapValidation';
 import { validateGift } from './giftValidation';
 
 export type IssueSeverity = 'error' | 'warning';
@@ -311,6 +313,49 @@ export function validateResourcePackRules(
 		);
 	}
 
+	const mapNames = (index: number) =>
+		data.dayMaps[index]?.name || `地图#${index + 1}`;
+	checkIdDuplicate(
+		data.dayMaps.map((map) => map.id),
+		'白天地图',
+		mapNames
+	);
+	data.dayMaps.forEach((map, index) => {
+		checkId(map.id, '白天地图', mapNames(index));
+		if (
+			map.id >= MANAGED_ID_MIN &&
+			map.id <= MANAGED_ID_MAX &&
+			(!hasIdRange || !idSignature)
+		)
+			issues.push({
+				severity: 'error',
+				category: '白天地图',
+				message: `${mapNames(index)}使用受管理 ID，需要分配段和有效签名。`,
+			});
+		for (const message of validateDayMap(map))
+			issues.push({
+				severity: 'error',
+				category: '白天地图',
+				message: `${mapNames(index)}：${message}`,
+			});
+		for (const path of [
+			...map.tiles.map((tile) => tile.image),
+			map.mapBGM.intro,
+			map.mapBGM.loop,
+		]) {
+			if (
+				path.startsWith('rex://') &&
+				resolveDayMapAssetPath(path, packLabel) === null
+			) {
+				checkedAssetReferences.add(path);
+				issues.push({
+					severity: 'warning',
+					category: '白天地图',
+					message: `${mapNames(index)}引用外部资源 ${path}，需要在游戏中核验依赖包。`,
+				});
+			}
+		}
+	});
 	// ── Characters ────────────────────────────────────────
 	const charNames = (i: number) =>
 		data.characters[i]?.name || `角色#${i + 1}`;

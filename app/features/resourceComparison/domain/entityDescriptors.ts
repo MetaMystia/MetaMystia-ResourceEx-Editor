@@ -62,6 +62,12 @@ export const RESOURCE_ENTITY_DESCRIPTORS = [
 		label: '料理',
 		stableKey: 'id',
 	},
+	{
+		collection: 'dayMaps',
+		displayField: 'name',
+		label: '白天地图',
+		stableKey: 'id',
+	},
 	{ collection: 'gifts', displayField: 'title', label: '礼物邮箱' },
 	{
 		collection: 'ingredients',
@@ -90,6 +96,18 @@ export const RESOURCE_ENTITY_DESCRIPTORS = [
 ] as const satisfies readonly IComparisonEntityDescriptor[];
 
 export const NESTED_ENTITY_DESCRIPTORS = [
+	{
+		displayField: 'key',
+		label: '瓦片',
+		path: 'dayMaps[].tiles',
+		stableKey: 'key',
+	},
+	{
+		displayField: 'name',
+		label: '出生点',
+		path: 'dayMaps[].spawnMarkers',
+		stableKey: 'name',
+	},
 	{
 		displayField: 'label',
 		label: '立绘',

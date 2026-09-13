@@ -11,6 +11,16 @@ import type {
 	TSpawnMarkerRotation,
 } from './contracts/character';
 import type {
+	IDayMap,
+	IDayMapCell,
+	IDayMapCollision,
+	IDayMapHeightCell,
+	IDayMapLayer,
+	IDayMapObject,
+	IDayMapSpawn,
+	IDayMapTile,
+} from './contracts/dayMap';
+import type {
 	Dialog,
 	DialogAction,
 	DialogBranchOption,
@@ -49,6 +59,7 @@ const COLLECTION_KEYS = [
 	'characters',
 	'dialogPackages',
 	'gifts',
+	'dayMaps',
 	'ingredients',
 	'foods',
 	'beverages',
@@ -1323,6 +1334,190 @@ function readGift(value: unknown, path: string): IGiftConfig {
 	};
 }
 
+function readDayMapTile(value: unknown, path: string): IDayMapTile {
+	const record = readRecord(value, path);
+	return {
+		...record,
+		key: readRequired(record, 'key', path, readString),
+		image: readRequired(record, 'image', path, readString),
+		rect: readOptionalValue(record, 'rect', path, readNumberArray) ?? [],
+		pivot: readOptionalValue(record, 'pivot', path, readNumberArray) ?? [
+			0, 0,
+		],
+		pixelsPerUnit:
+			readOptionalValue(record, 'pixelsPerUnit', path, readNumber) ?? 48,
+	};
+}
+
+function readDayMapCell(value: unknown, path: string): IDayMapCell {
+	const record = readRecord(value, path);
+	return {
+		...record,
+		x: readOptionalValue(record, 'x', path, readNumber) ?? 0,
+		y: readOptionalValue(record, 'y', path, readNumber) ?? 0,
+		tile: readRequired(record, 'tile', path, readString),
+	};
+}
+
+function readDayMapHeightCell(value: unknown, path: string): IDayMapHeightCell {
+	const record = readRecord(value, path);
+	return {
+		...record,
+		x: readOptionalValue(record, 'x', path, readNumber) ?? 0,
+		y: readOptionalValue(record, 'y', path, readNumber) ?? 0,
+		slope: readOptionalValue(record, 'slope', path, readNumber) ?? 0,
+	};
+}
+
+function readDayMapLayer(value: unknown, path: string): IDayMapLayer {
+	const record = readRecord(value, path);
+	return {
+		...record,
+		name: readOptionalValue(record, 'name', path, readString) ?? '',
+		sortingLayer:
+			readOptionalValue(record, 'sortingLayer', path, readString) ??
+			'Background',
+		sortingOrder:
+			readOptionalValue(record, 'sortingOrder', path, readNumber) ??
+			-2000,
+		cells:
+			readOptionalValue(record, 'cells', path, (value, path) =>
+				readArray(value, path, readDayMapCell)
+			) ?? [],
+	};
+}
+
+function readDayMapObject(value: unknown, path: string): IDayMapObject {
+	const record = readRecord(value, path);
+	return {
+		...record,
+		name: readOptionalValue(record, 'name', path, readString) ?? '',
+		tile: readRequired(record, 'tile', path, readString),
+		x: readOptionalValue(record, 'x', path, readNumber) ?? 0,
+		y: readOptionalValue(record, 'y', path, readNumber) ?? 0,
+		scale: readOptionalValue(record, 'scale', path, readNumberArray) ?? [
+			1, 1,
+		],
+		sortByY:
+			readOptionalValue(record, 'sortByY', path, readBoolean) ?? true,
+		sortingLayer:
+			readOptionalValue(record, 'sortingLayer', path, readString) ??
+			'Character',
+		sortingOrder:
+			readOptionalValue(record, 'sortingOrder', path, readNumber) ?? 0,
+	};
+}
+
+function readDayMapCollision(value: unknown, path: string): IDayMapCollision {
+	const record = readRecord(value, path);
+	return {
+		...record,
+		name: readOptionalValue(record, 'name', path, readString) ?? '',
+		x: readOptionalValue(record, 'x', path, readNumber) ?? 0,
+		y: readOptionalValue(record, 'y', path, readNumber) ?? 0,
+		width: readOptionalValue(record, 'width', path, readNumber) ?? 0,
+		height: readOptionalValue(record, 'height', path, readNumber) ?? 0,
+	};
+}
+
+function readDayMapSpawn(value: unknown, path: string): IDayMapSpawn {
+	const record = readRecord(value, path);
+	return {
+		...record,
+		name: readRequired(record, 'name', path, readString),
+		x: readOptionalValue(record, 'x', path, readNumber) ?? 0,
+		y: readOptionalValue(record, 'y', path, readNumber) ?? 0,
+		rotation:
+			readOptionalValue(
+				record,
+				'rotation',
+				path,
+				readSpawnMarkerRotation
+			) ?? 'Down',
+	};
+}
+
+function readDayMap(value: unknown, path: string): IDayMap {
+	const record = readRecord(value, path);
+	return {
+		...record,
+		id: readRequired(record, 'id', path, readNumber),
+		formatVersion:
+			readOptionalValue(record, 'formatVersion', path, readNumber) ?? 1,
+		name: readOptionalValue(record, 'name', path, readString) ?? '',
+		description:
+			readOptionalValue(record, 'description', path, readString) ?? '',
+		tiles:
+			readOptionalValue(record, 'tiles', path, (value, path) =>
+				readArray(value, path, readDayMapTile)
+			) ?? [],
+		layers:
+			readOptionalValue(record, 'layers', path, (value, path) =>
+				readArray(value, path, readDayMapLayer)
+			) ?? [],
+		objects:
+			readOptionalValue(record, 'objects', path, (value, path) =>
+				readArray(value, path, readDayMapObject)
+			) ?? [],
+		collisions:
+			readOptionalValue(record, 'collisions', path, (value, path) =>
+				readArray(value, path, readDayMapCollision)
+			) ?? [],
+		spawnMarkers:
+			readOptionalValue(record, 'spawnMarkers', path, (value, path) =>
+				readArray(value, path, readDayMapSpawn)
+			) ?? [],
+		defaultSpawnMarker:
+			readOptionalValue(record, 'defaultSpawnMarker', path, readString) ??
+			'',
+		...readOptionalProperty(record, 'height', path, (value, path) => {
+			if (value === null) return null;
+			const height = readRecord(value, path);
+			return {
+				...height,
+				cells:
+					readOptionalValue(height, 'cells', path, (value, path) =>
+						readArray(value, path, readDayMapHeightCell)
+					) ?? [],
+			};
+		}),
+		camera: readOptionalValue(record, 'camera', path, (value, path) => {
+			const camera = readRecord(value, path);
+			return {
+				...camera,
+				shouldFollow:
+					readOptionalValue(
+						camera,
+						'shouldFollow',
+						path,
+						readBoolean
+					) ?? true,
+				bounds:
+					readOptionalValue(
+						camera,
+						'bounds',
+						path,
+						readNumberArray
+					) ?? [],
+				position: readOptionalValue(
+					camera,
+					'position',
+					path,
+					readNumberArray
+				) ?? [0, 0, -10],
+			};
+		}) ?? { shouldFollow: true, bounds: [], position: [0, 0, -10] },
+		mapBGM: readOptionalValue(record, 'mapBGM', path, (value, path) => {
+			const bgm = readRecord(value, path);
+			return {
+				...bgm,
+				intro: readOptionalValue(bgm, 'intro', path, readString) ?? '',
+				loop: readOptionalValue(bgm, 'loop', path, readString) ?? '',
+			};
+		}) ?? { intro: '', loop: '' },
+	};
+}
+
 export function parseResourcePackWire(input: unknown): IResourcePackWire {
 	const record = readRecord(input, 'ResourceEx');
 	const legacyLabel = readOptionalValue(
@@ -1360,6 +1555,9 @@ export function parseResourcePackWire(input: unknown): IResourcePackWire {
 		dialogPackages: readCollection(record, 'dialogPackages').map(
 			(value, index) =>
 				readDialogPackage(value, `dialogPackages[${index}]`)
+		),
+		dayMaps: readCollection(record, 'dayMaps').map((value, index) =>
+			readDayMap(value, `dayMaps[${index}]`)
 		),
 		gifts: readCollection(record, 'gifts').map((value, index) =>
 			readGift(value, `gifts[${index}]`)
@@ -1498,6 +1696,7 @@ export function normalizeResourcePack(input: unknown): ResourceEx {
 		characters: (wire.characters ?? []).map(normalizeCharacter),
 		dialogPackages: [...(wire.dialogPackages ?? [])],
 		gifts: [...(wire.gifts ?? [])],
+		dayMaps: [...(wire.dayMaps ?? [])],
 		ingredients: [...(wire.ingredients ?? [])],
 		foods: (wire.foods ?? []).map((food) => ({
 			...food,

@@ -1,4 +1,5 @@
 import type { ResourceEx } from './contracts/resourceEx';
+import { resolveDayMapAssetPath } from './dayMapAssets';
 import { collectResourcePackReferenceLocations } from './referenceLocations';
 
 export function collectResourcePackAssetReferences(
@@ -128,9 +129,35 @@ export function remapResourcePackAssetReferences(
 		})),
 	}));
 
+	const remapMapPath = (path: string) => {
+		const localPath = resolveDayMapAssetPath(
+			path,
+			resourcePack.packInfo.label
+		);
+		if (localPath === null) return path;
+		const next = remapPath(localPath);
+		return next === localPath
+			? path
+			: path.startsWith('rex://')
+				? `rex://${resourcePack.packInfo.label}/${next}`
+				: next;
+	};
+	const dayMaps = (resourcePack.dayMaps ?? []).map((map) => ({
+		...map,
+		tiles: map.tiles.map((tile) => ({
+			...tile,
+			image: remapMapPath(tile.image),
+		})),
+		mapBGM: {
+			...map.mapBGM,
+			intro: remapMapPath(map.mapBGM.intro),
+			loop: remapMapPath(map.mapBGM.loop),
+		},
+	}));
 	if (!hasChanged) return resourcePack;
 	return {
 		...resourcePack,
+		dayMaps,
 		beverages,
 		characters,
 		clothes,

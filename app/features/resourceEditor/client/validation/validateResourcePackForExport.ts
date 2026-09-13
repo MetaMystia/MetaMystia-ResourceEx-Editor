@@ -8,11 +8,14 @@ import {
 
 import { verifyIdRange } from '@/infrastructure/browser/crypto/idRangeSignature';
 
+import { validateDayMapAssetFiles } from './validateDayMapAssetFiles';
+
 export type { IResourcePackValidationIssue };
 
 export async function validateResourcePackForExport(
 	resourcePack: ResourceEx,
-	availableAssetPaths?: Iterable<string>
+	availableAssetPaths?: Iterable<string>,
+	assetUrls?: Readonly<Record<string, string>>
 ): Promise<IResourcePackValidationIssue[]> {
 	const { idRangeEnd, idRangeStart, idSignature, label } =
 		resourcePack.packInfo;
@@ -27,10 +30,15 @@ export async function validateResourcePackForExport(
 		);
 	}
 
-	return validateResourcePackRules(resourcePack, {
+	const issues = validateResourcePackRules(resourcePack, {
 		...(availableAssetPaths
 			? { availableAssetPaths: new Set(availableAssetPaths) }
 			: {}),
 		...(isIdSignatureValid === undefined ? {} : { isIdSignatureValid }),
 	});
+	if (assetUrls)
+		issues.push(
+			...(await validateDayMapAssetFiles(resourcePack, assetUrls))
+		);
+	return issues;
 }

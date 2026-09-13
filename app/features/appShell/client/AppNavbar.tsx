@@ -73,8 +73,9 @@ const NAV_GROUPS = [
 		],
 	},
 	{
-		label: '节点',
+		label: '场景与节点',
 		items: [
+			{ href: '/map', label: '白天地图' },
 			{ href: '/mission', label: '任务节点' },
 			{ href: '/event', label: '事件节点' },
 		],
@@ -364,7 +365,8 @@ export const AppNavbar = memo(function AppNavbar() {
 			const expectedRevision = revision;
 			const issues = await validateResourcePackForExport(
 				resourcePack,
-				Object.keys(assetUrls)
+				Object.keys(assetUrls),
+				assetUrls
 			);
 			if (issues.length > 0) {
 				isWaitingForValidation = true;

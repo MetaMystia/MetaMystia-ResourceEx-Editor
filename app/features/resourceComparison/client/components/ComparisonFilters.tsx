@@ -41,6 +41,7 @@ const RESOURCE_TYPE_OPTIONS = [
 	{ label: '任务', value: 'missionNodes' },
 	{ label: '商人', value: 'merchants' },
 	{ label: '衣服', value: 'clothes' },
+	{ label: '白天地图', value: 'dayMaps' },
 	{ label: '礼物邮箱', value: 'gifts' },
 	{ label: '事件', value: 'eventNodes' },
 	{ label: 'License', value: 'license' },

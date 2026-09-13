@@ -1,4 +1,5 @@
 import type { Character } from './character';
+import type { IDayMap } from './dayMap';
 import type { DialogPackage } from './dialogue';
 import type { EventNode } from './event';
 import type { IGiftConfig } from './gift';
@@ -15,6 +16,7 @@ export interface IResourcePackWire {
 	description?: string;
 	version?: string;
 	characters?: Character[] | null;
+	dayMaps?: IDayMap[] | null;
 	dialogPackages?: DialogPackage[] | null;
 	gifts?: IGiftConfig[] | null;
 	ingredients?: Ingredient[] | null;

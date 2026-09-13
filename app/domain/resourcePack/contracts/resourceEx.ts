@@ -1,4 +1,5 @@
 import type { Character } from './character';
+import type { IDayMap } from './dayMap';
 import type { DialogPackage } from './dialogue';
 import type { EventNode } from './event';
 import type { IGiftConfig } from './gift';
@@ -21,6 +22,7 @@ export interface PackInfo {
 export interface ResourceEx {
 	packInfo: PackInfo;
 	characters: Character[];
+	dayMaps: IDayMap[];
 	dialogPackages: DialogPackage[];
 	gifts: IGiftConfig[];
 	ingredients: Ingredient[];

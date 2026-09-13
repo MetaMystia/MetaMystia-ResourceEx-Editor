@@ -1,6 +1,7 @@
 import type { EventData, EventNodeTrigger } from './contracts/event';
 import type { MissionCondition, MissionReward } from './contracts/mission';
 import type { ResourceEx } from './contracts/resourceEx';
+import { resolveDayMapAssetPath } from './dayMapAssets';
 
 export type TResourcePackReferenceKind =
 	| 'asset'
@@ -19,6 +20,7 @@ export type TResourcePackReferenceOwnerKind =
 	| 'beverage'
 	| 'character'
 	| 'clothes'
+	| 'dayMap'
 	| 'dialogPackage'
 	| 'event'
 	| 'food'
@@ -249,6 +251,31 @@ export function collectResourcePackReferenceLocations(
 ): readonly IResourcePackReferenceLocation[] {
 	const locations: IResourcePackReferenceLocation[] = [];
 
+	(resourcePack.dayMaps ?? []).forEach((map) => {
+		const owner = { key: map.id, kind: 'dayMap' } as const;
+		const resolvePath = (path: string) =>
+			resolveDayMapAssetPath(path, resourcePack.packInfo.label) ?? path;
+		map.tiles.forEach((tile, index) =>
+			addAssetReference(
+				locations,
+				owner,
+				['tiles', index, 'image'],
+				resolvePath(tile.image)
+			)
+		);
+		addAssetReference(
+			locations,
+			owner,
+			['mapBGM', 'intro'],
+			resolvePath(map.mapBGM.intro)
+		);
+		addAssetReference(
+			locations,
+			owner,
+			['mapBGM', 'loop'],
+			resolvePath(map.mapBGM.loop)
+		);
+	});
 	(resourcePack.gifts ?? []).forEach((gift, index) => {
 		const owner = { key: index, kind: 'gift' } as const;
 		addReference(

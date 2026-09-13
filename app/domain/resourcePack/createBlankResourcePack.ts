@@ -12,6 +12,7 @@ export function createBlankResourcePack(): ResourceEx {
 		characters: [],
 		dialogPackages: [],
 		gifts: [],
+		dayMaps: [],
 		ingredients: [],
 		foods: [],
 		beverages: [],

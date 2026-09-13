@@ -71,6 +71,7 @@ const ENTITY_REFERENCE_DESCRIPTORS: readonly IEntityReferenceDescriptor[] = [
 		referencedKind: 'ingredient',
 		stableKey: 'id',
 	},
+	{ collection: 'dayMaps', ownerKind: 'dayMap', stableKey: 'id' },
 	{ collection: 'merchants', ownerKind: 'merchant', stableKey: 'key' },
 	{
 		collection: 'missionNodes',
@@ -202,7 +203,11 @@ function collectDirectReferencedAssetPaths(
 				location.ownerKind === target.descriptor.ownerKind &&
 				Object.is(location.ownerKey, target.key) &&
 				location.referencedKind === 'asset' &&
-				typeof location.referencedValue === 'string'
+				typeof location.referencedValue === 'string' &&
+				!(
+					location.ownerKind === 'dayMap' &&
+					location.referencedValue.startsWith('rex://')
+				)
 					? [location.referencedValue]
 					: []
 			)
