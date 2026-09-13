@@ -1,9 +1,9 @@
-export const ANNOUNCEMENT_VERSION = 'v0.15.0-2026-09-13';
+export const ANNOUNCEMENT_VERSION = 'v0.15.1-2026-09-13';
 
 export const ANNOUNCEMENT_TITLE = 'MetaMystia ResourceEx Editor公告';
 
 export const ANNOUNCEMENT_SUMMARY =
-	'新增白天地图编辑器，支持瓦片、图层、坡面和碰撞编辑。目前为预览测试版本，UI 界面尚未完善。';
+	'修复旧版本本地资源包缺少新增字段时，打开地图页报错的问题。地图编辑器仍为预览测试版本。';
 
 export interface IAnnouncementSection {
 	title: string;
@@ -11,6 +11,12 @@ export interface IAnnouncementSection {
 }
 
 export const ANNOUNCEMENT_SECTIONS: IAnnouncementSection[] = [
+	{
+		title: 'v0.15.1 · 旧资源包兼容修复',
+		items: [
+			'读取本地草稿和恢复版本时自动补齐新增的可选字段，修复旧资源包打开地图页报错。',
+		],
+	},
 	{
 		title: 'v0.15.0 · 地图编辑器预览',
 		items: [

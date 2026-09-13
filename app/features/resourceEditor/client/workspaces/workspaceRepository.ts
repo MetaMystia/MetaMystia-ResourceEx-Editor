@@ -112,13 +112,25 @@ function assertWorkspaceRecord(
 		);
 	}
 	try {
-		normalizeResourcePack(record.currentDocument.resourcePack);
-		if (
-			record.checkpointDocument.resourcePack !==
+		const currentResourcePack = normalizeResourcePack(
 			record.currentDocument.resourcePack
-		) {
-			normalizeResourcePack(record.checkpointDocument.resourcePack);
-		}
+		);
+		const checkpointResourcePack =
+			record.checkpointDocument.resourcePack ===
+			record.currentDocument.resourcePack
+				? currentResourcePack
+				: normalizeResourcePack(record.checkpointDocument.resourcePack);
+		return {
+			...record,
+			currentDocument: {
+				...record.currentDocument,
+				resourcePack: currentResourcePack,
+			},
+			checkpointDocument: {
+				...record.checkpointDocument,
+				resourcePack: checkpointResourcePack,
+			},
+		};
 	} catch (error) {
 		throw new WorkspacePersistenceError(
 			'corrupt',
@@ -126,7 +138,6 @@ function assertWorkspaceRecord(
 			{ cause: error }
 		);
 	}
-	return record;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
