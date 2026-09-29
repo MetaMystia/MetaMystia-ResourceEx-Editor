@@ -39,13 +39,13 @@ export function sliceMapImage(
 		!Number.isFinite(settings.pixelsPerUnit) ||
 		settings.pixelsPerUnit <= 0
 	)
-		throw new Error('切片尺寸必须为正整数，每单位像素数必须大于零。');
+		throw new Error('切片尺寸必须为正整数，每单位像素数必须大于0。');
 	if (width % w || height % h)
 		throw new Error(
-			`图片为 ${width}×${height}，无法按 ${w}×${h} 整齐切分。请调整尺寸，或启用整图导入。`
+			`图片为${width}×${height}，无法按${w}×${h}整齐切分。请调整尺寸，或启用整图导入。`
 		);
 	if (map.tiles.length + (width / w) * (height / h) > 4096)
-		throw new Error('切片总数不能超过 4096。请增大切片尺寸。');
+		throw new Error('切片总数不能超过4096。请增大切片尺寸。');
 	const keys = new Set(map.tiles.map((tile) => tile.key));
 	const tiles: IDayMapTile[] = [];
 	for (let top = 0; top < height; top += h) {
@@ -243,7 +243,7 @@ export function TilePalette({
 				)}
 				{map.tiles.length === 0 && (
 					<p className="text-xs text-foreground-500">
-						先导入 PNG 切片，再选择画笔绘制地图。
+						先导入PNG切片，再选择画笔绘制地图。
 					</p>
 				)}
 			</MapSection>
@@ -256,8 +256,7 @@ export function TilePalette({
 				</summary>
 				<div className="mt-3 space-y-3">
 					<p className="text-xs text-foreground-500">
-						把 PNG
-						图片切成可反复绘制的小块，或整张加入瓦片库。导入后选择一个瓦片，再到画布绘制。
+						把PNG图片切成可反复绘制的小块，或整张加入瓦片库。导入后选择一个瓦片，再到画布绘制。
 					</p>
 					<Switch
 						size="sm"
@@ -289,13 +288,12 @@ export function TilePalette({
 						}
 					/>
 					<p className="text-xs text-foreground-500">
-						默认 48×48
-						像素对应一格。切片按图片从左到右、从上到下排列；导出自动转换为游戏的左下角坐标。
+						默认48×48像素对应一格。切片按图片从左到右、从上到下排列；导出自动转换为游戏的左下角坐标。
 					</p>
 					<label className="block text-xs">
-						按上述设置导入 PNG
+						按上述设置导入PNG
 						<input
-							aria-label="导入地图 PNG"
+							aria-label="导入地图PNG"
 							className="mt-2 block w-full text-xs"
 							disabled={isImporting}
 							type="file"
@@ -381,7 +379,7 @@ export function TilePalette({
 							onChange={(rect) => patchTile({ rect })}
 						/>
 						<MapVector
-							labels={['锚点 X', '锚点 Y']}
+							labels={['锚点X', '锚点Y']}
 							values={tile.pivot}
 							min={0}
 							max={1}
@@ -397,8 +395,7 @@ export function TilePalette({
 							}
 						/>
 						<p className="text-xs text-foreground-500">
-							地面锚点通常为 (0,0)，树木常用
-							(0.5,0)。调整会影响所有引用。
+							地面锚点通常为(0,0)，树木常用(0.5,0)。调整会影响所有引用。
 						</p>
 						<SectionDeleteButton
 							isDisabled={!!hasReferences}

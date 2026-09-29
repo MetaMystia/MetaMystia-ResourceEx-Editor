@@ -60,7 +60,7 @@ export function GiftEditor({ gift, onUpdate }: IProps) {
 					<div className="flex flex-col gap-1">
 						<Label
 							htmlFor={itemId}
-							tip="只接受 Item 及其派生类，不接受食材、料理或酒水。原版与外部资源包的 Item 可手填 ID。"
+							tip="只接受Item及其派生类，不接受食材、料理或酒水。原版与外部资源包的Item可手填ID。"
 						>
 							Item ID
 						</Label>
@@ -101,8 +101,7 @@ export function GiftEditor({ gift, onUpdate }: IProps) {
 					允许重复领取
 				</Switch>
 				<WarningNotice>
-					关闭时，当前已持有同一 Item
-					就不再发放；物品移除后可重新领取。衣服、装饰和唱片即使开启重复领取，仍按游戏规则去重。
+					关闭时，当前已持有同一Item就不再发放；物品移除后可重新领取。衣服、装饰和唱片即使开启重复领取，仍按游戏规则去重。
 				</WarningNotice>
 			</EditorSection>
 			<EditorSection title="绑定对话">
@@ -112,7 +111,7 @@ export function GiftEditor({ gift, onUpdate }: IProps) {
 					items={resourcePack.dialogPackages.map((dialog) => ({
 						value: dialog.name,
 						label: dialog.name,
-						description: `${dialog.dialogList.length} 条对话`,
+						description: `${dialog.dialogList.length}条对话`,
 					}))}
 					placeholder="选择本包对话"
 					isDisabled={resourcePack.dialogPackages.length === 0}
@@ -123,7 +122,7 @@ export function GiftEditor({ gift, onUpdate }: IProps) {
 				<div className="flex flex-col gap-1">
 					<Label
 						htmlFor={dialogId}
-						tip="填写 dialogPackages 中的 name。引用外部对话时，需确保对应 ResourceEx 包已加载。"
+						tip="填写dialogPackages中的name。引用外部对话时，需确保对应ResourceEx包已加载。"
 					>
 						对话包名称（dialogPackageName）
 					</Label>

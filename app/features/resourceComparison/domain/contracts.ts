@@ -2,11 +2,7 @@ import type { ResourceEx } from '@/domain/resourcePack/contracts/resourceEx';
 import { type IResourceEditorNavigationTarget } from '@/domain/resourcePack/editorNavigation';
 
 export type TComparisonDifferenceStatus =
-	| 'added'
-	| 'ambiguous'
-	| 'modified'
-	| 'removed'
-	| 'unchanged';
+	'added' | 'ambiguous' | 'modified' | 'removed' | 'unchanged';
 
 export type TComparisonNodeKind =
 	| 'asset'
@@ -21,8 +17,7 @@ export type TComparisonNodeKind =
 export type TComparisonPathSegment = number | string;
 
 export type TComparisonValue =
-	| { isPresent: false }
-	| { isPresent: true; value: unknown };
+	{ isPresent: false } | { isPresent: true; value: unknown };
 
 export type TComparisonEditCapability =
 	| 'adopt-old'
@@ -122,10 +117,7 @@ export interface IComparisonReferenceImpact {
 }
 
 export type TComparisonCommandKind =
-	| 'adopt-old'
-	| 'delete-added'
-	| 'restore-removed'
-	| 'undo';
+	'adopt-old' | 'delete-added' | 'restore-removed' | 'undo';
 
 export type TComparisonExecutableCommandKind = Exclude<
 	TComparisonCommandKind,

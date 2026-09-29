@@ -6,11 +6,7 @@ import type { MissionCondition, MissionReward } from './contracts/mission';
 import type { ResourceEx } from './contracts/resourceEx';
 
 export type TItemReferenceKind =
-	| 'Beverage'
-	| 'Food'
-	| 'Ingredient'
-	| 'Item'
-	| 'Recipe';
+	'Beverage' | 'Food' | 'Ingredient' | 'Item' | 'Recipe';
 
 export type TLabelReferenceKind = 'DialogPackage' | 'Event' | 'Mission';
 

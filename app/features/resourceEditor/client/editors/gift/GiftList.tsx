@@ -54,7 +54,7 @@ export function GiftList({
 								<Button
 									size="sm"
 									variant="light"
-									aria-label={`上移礼物 ${index + 1}`}
+									aria-label={`上移礼物${index + 1}`}
 									isDisabled={index === 0}
 									onPress={() => onMove(index, -1)}
 								>
@@ -63,7 +63,7 @@ export function GiftList({
 								<Button
 									size="sm"
 									variant="light"
-									aria-label={`下移礼物 ${index + 1}`}
+									aria-label={`下移礼物${index + 1}`}
 									isDisabled={index === gifts.length - 1}
 									onPress={() => onMove(index, 1)}
 								>

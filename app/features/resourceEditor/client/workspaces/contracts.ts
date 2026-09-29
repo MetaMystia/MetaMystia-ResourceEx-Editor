@@ -15,11 +15,7 @@ export type TWorkspaceLifecycleStatus =
 	| 'recovering';
 
 export type TWorkspaceSaveStatus =
-	| 'error'
-	| 'idle'
-	| 'memory-only'
-	| 'saved'
-	| 'saving';
+	'error' | 'idle' | 'memory-only' | 'saved' | 'saving';
 
 export type TWorkspaceStorageMode = 'memory' | 'persistent';
 

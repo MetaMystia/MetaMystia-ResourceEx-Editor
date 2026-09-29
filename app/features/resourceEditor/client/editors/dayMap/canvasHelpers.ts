@@ -8,12 +8,7 @@ export interface IMapView extends IMapPoint {
 	scale: number;
 }
 export type TMapCanvasMode =
-	| 'tile'
-	| 'height'
-	| 'collision'
-	| 'spawn'
-	| 'object'
-	| 'pan';
+	'tile' | 'height' | 'collision' | 'spawn' | 'object' | 'pan';
 export type TMapCanvasTool = 'paint' | 'erase' | 'rectangle';
 
 export function formatSlopeAngle(slope: number): string {

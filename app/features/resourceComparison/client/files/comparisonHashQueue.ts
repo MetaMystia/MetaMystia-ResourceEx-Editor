@@ -10,8 +10,7 @@ export interface IComparisonHashRequest {
 }
 
 export type TComparisonHashResult =
-	| { hash: string; status: 'hashed' }
-	| { error: string; status: 'failed' };
+	{ hash: string; status: 'hashed' } | { error: string; status: 'failed' };
 
 export interface IComparisonHashQueue {
 	clear(): void;

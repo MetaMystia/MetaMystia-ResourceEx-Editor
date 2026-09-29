@@ -459,7 +459,7 @@ export default function DayMapCanvas(props: IProps) {
 				collisions: [
 					...gesture.base.collisions,
 					{
-						name: `碰撞 ${gesture.base.collisions.length + 1}`,
+						name: `碰撞${gesture.base.collisions.length + 1}`,
 						x: left + width / 2,
 						y: bottom + height / 2,
 						width,
@@ -475,7 +475,7 @@ export default function DayMapCanvas(props: IProps) {
 			const bottom = Math.floor(Math.min(gesture.start.y, point.y)),
 				top = Math.floor(Math.max(gesture.start.y, point.y));
 			if ((right - left + 1) * (top - bottom + 1) > 100000) {
-				onError('单次填充不能超过 100000 格。');
+				onError('单次填充不能超过100000格。');
 				return;
 			}
 			gesture.cells.clear();
@@ -504,7 +504,7 @@ export default function DayMapCanvas(props: IProps) {
 						0
 					)) > 100000
 		) {
-			onError('地图瓦片和坡度层分别最多 100000 格。');
+			onError('地图瓦片和坡度层分别最多100000格。');
 			return;
 		}
 		publishDraft(next);
@@ -588,7 +588,7 @@ export default function DayMapCanvas(props: IProps) {
 					return;
 				}
 				if (map.spawnMarkers.length >= 256) {
-					onError('一张地图最多 256 个出生点。');
+					onError('一张地图最多256个出生点。');
 					return;
 				}
 				let suffix = map.spawnMarkers.length + 1;
@@ -613,7 +613,7 @@ export default function DayMapCanvas(props: IProps) {
 			if (mode === 'object') {
 				if (Math.abs(Math.round(point.y * 2) / 2) > 1023) {
 					onError(
-						'按脚部 Y 排序的装饰，Y 坐标必须介于 -1023 和 1023。'
+						'按脚部Y排序的装饰，Y坐标必须介于-1023和1023之间。'
 					);
 					return;
 				}
@@ -622,7 +622,7 @@ export default function DayMapCanvas(props: IProps) {
 					return;
 				}
 				if (map.objects.length >= 4096) {
-					onError('一张地图最多 4096 个装饰。');
+					onError('一张地图最多4096个装饰。');
 					return;
 				}
 				onChange({
@@ -630,7 +630,7 @@ export default function DayMapCanvas(props: IProps) {
 					objects: [
 						...map.objects,
 						{
-							name: `装饰 ${map.objects.length + 1}`,
+							name: `装饰${map.objects.length + 1}`,
 							tile: tileKey,
 							x: Math.round(point.x * 2) / 2,
 							y: Math.round(point.y * 2) / 2,
@@ -645,7 +645,7 @@ export default function DayMapCanvas(props: IProps) {
 				return;
 			}
 			if (map.collisions.length >= 4096) {
-				onError('一张地图最多 4096 个碰撞箱。');
+				onError('一张地图最多4096个碰撞箱。');
 				return;
 			}
 		}
@@ -665,7 +665,7 @@ export default function DayMapCanvas(props: IProps) {
 			mode === 'height' &&
 			(!Number.isFinite(slope) || Math.abs(slope) > 1)
 		) {
-			onError('坡度必须介于 -1 和 1。');
+			onError('坡度必须介于-1和1之间。');
 			return;
 		}
 		gestureRef.current = {
@@ -779,7 +779,7 @@ export default function DayMapCanvas(props: IProps) {
 			mode === 'height' &&
 			(!Number.isFinite(slope) || Math.abs(slope) > 1)
 		) {
-			onError('坡度必须介于 -1 和 1。');
+			onError('坡度必须介于-1和1之间。');
 			return;
 		}
 		const point = { x: Math.floor(cursor.x), y: Math.floor(cursor.y) };
@@ -800,7 +800,7 @@ export default function DayMapCanvas(props: IProps) {
 						0
 					)) > 100000
 		) {
-			onError('地图瓦片和坡度层分别最多 100000 格。');
+			onError('地图瓦片和坡度层分别最多100000格。');
 			return;
 		}
 		onChange(next);
@@ -872,7 +872,7 @@ export default function DayMapCanvas(props: IProps) {
 					ref={canvasRef}
 					tabIndex={0}
 					role="application"
-					aria-label="地图画布：方向键移动光标，空格绘制，Delete 擦除，Escape 取消；中键拖动平移"
+					aria-label="地图画布：方向键移动光标，空格绘制，Delete擦除，Escape取消；中键拖动平移"
 					className="h-full w-full touch-none outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
 					style={{
 						cursor:
@@ -916,12 +916,11 @@ export default function DayMapCanvas(props: IProps) {
 				</p>
 			)}
 			<p className="text-xs text-default-600" aria-live="off">
-				格子 ({Math.floor(cursor.x)}, {Math.floor(cursor.y)}) · 右为
-				+X，上为 +Y · 中键平移 · 蓝色虚线为相机中心范围
+				格子 ({Math.floor(cursor.x)}, {Math.floor(cursor.y)}) ·{' '}
+				右为+X，上为+Y · 中键平移 · 蓝色虚线为相机中心范围
 			</p>
 			<p className="text-xs text-default-500">
-				预览展示美术排序与辅助标记；碰撞、坡度和相机范围不会显示在游戏画面中。选中画布后可用方向键、空格和
-				Delete 编辑。
+				预览展示美术排序与辅助标记；碰撞、坡度和相机范围不会显示在游戏画面中。选中画布后可用方向键、空格和Delete编辑。
 			</p>
 		</div>
 	);

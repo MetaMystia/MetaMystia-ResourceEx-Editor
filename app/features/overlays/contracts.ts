@@ -25,12 +25,7 @@ export type TOverlayId =
 export type TOverlayPriority = 'blocking' | 'passive' | 'task';
 
 export type TOverlayPresentationState =
-	| 'active'
-	| 'closed'
-	| 'closing'
-	| 'covered'
-	| 'opening'
-	| 'queued';
+	'active' | 'closed' | 'closing' | 'covered' | 'opening' | 'queued';
 
 export type TOverlayCloseReason = 'coordinator' | 'escape';
 

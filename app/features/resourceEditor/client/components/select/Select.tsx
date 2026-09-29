@@ -32,8 +32,7 @@ export interface ISelectSection<V extends TSelectValue = TSelectValue> {
 }
 
 export type TSelectItem<V extends TSelectValue = TSelectValue> =
-	| ISelectOption<V>
-	| ISelectSection<V>;
+	ISelectOption<V> | ISelectSection<V>;
 
 export type SelectValue = TSelectValue;
 export type SelectItem<V extends TSelectValue = TSelectValue> = TSelectItem<V>;

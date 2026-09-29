@@ -11,17 +11,10 @@ import type {
 } from './comparisonHashQueue';
 
 export type TComparisonFileAnalysisStatus =
-	| 'added'
-	| 'modified'
-	| 'removed'
-	| 'unchanged'
-	| 'unknown';
+	'added' | 'modified' | 'removed' | 'unchanged' | 'unknown';
 
 export type TComparisonFileAnalysisReason =
-	| 'content'
-	| 'hash-failed'
-	| 'metadata'
-	| 'presence';
+	'content' | 'hash-failed' | 'metadata' | 'presence';
 
 export type TComparisonFileHashStatus = 'failed' | 'hashed' | 'not-requested';
 

@@ -40,7 +40,7 @@ export async function validateDayMapAssetFiles(
 					bitmap.close();
 					return dimensions;
 				} catch {
-					report(`图片 ${path} 无法解码，请重新导入有效图片。`);
+					report(`图片${path}无法解码，请重新导入有效图片。`);
 					return null;
 				}
 			})();
@@ -62,7 +62,7 @@ export async function validateDayMapAssetFiles(
 				(x + width > dimensions.width || y + height > dimensions.height)
 			)
 				report(
-					`${map.name}：瓦片 ${tile.key} 超出图片 ${path} 的 ${dimensions.width}×${dimensions.height} 像素边界。`
+					`${map.name}：瓦片${tile.key}超出图片${path}的${dimensions.width}×${dimensions.height}像素边界。`
 				);
 		}
 		for (const reference of [map.mapBGM.intro, map.mapBGM.loop]) {
@@ -84,7 +84,7 @@ export async function validateDayMapAssetFiles(
 				})();
 				sounds.set(path, result);
 				const error = await result;
-				if (error) report(`音频 ${path}：${error}`);
+				if (error) report(`音频${path}：${error}`);
 			}
 		}
 	}

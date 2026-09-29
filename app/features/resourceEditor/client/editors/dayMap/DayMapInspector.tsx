@@ -140,7 +140,7 @@ export function DayMapInspector({
 								onValueChange={(name) => patchSpawn({ name })}
 							/>
 							<MapVector
-								labels={['出生点 X', '出生点 Y']}
+								labels={['出生点X', '出生点Y']}
 								values={[spawn.x, spawn.y]}
 								min={-4096}
 								max={4096}
@@ -211,7 +211,7 @@ export function DayMapInspector({
 						value={selectedIndex ?? undefined}
 						items={map.collisions.map((item, i) => ({
 							value: i,
-							label: item.name || `碰撞 ${i + 1}`,
+							label: item.name || `碰撞${i + 1}`,
 						}))}
 						onChange={onSelect}
 					/>
@@ -225,7 +225,7 @@ export function DayMapInspector({
 								onValueChange={(name) => patchBox({ name })}
 							/>
 							<MapVector
-								labels={['碰撞中心 X', '碰撞中心 Y']}
+								labels={['碰撞中心X', '碰撞中心Y']}
 								values={[box.x, box.y]}
 								min={-4096}
 								max={4096}
@@ -269,7 +269,7 @@ export function DayMapInspector({
 						value={selectedIndex ?? undefined}
 						items={map.objects.map((item, i) => ({
 							value: i,
-							label: item.name || `装饰 ${i + 1}`,
+							label: item.name || `装饰${i + 1}`,
 						}))}
 						onChange={onSelect}
 					/>
@@ -293,7 +293,7 @@ export function DayMapInspector({
 							/>
 							<div className="grid grid-cols-2 gap-2">
 								<MapNumber
-									label="装饰 X"
+									label="装饰X"
 									value={object.x}
 									min={-4096}
 									max={4096}
@@ -301,7 +301,7 @@ export function DayMapInspector({
 									onChange={(x) => patchObject({ x })}
 								/>
 								<MapNumber
-									label="装饰 Y"
+									label="装饰Y"
 									value={object.y}
 									min={object.sortByY ? -1023 : -4096}
 									max={object.sortByY ? 1023 : 4096}
@@ -310,7 +310,7 @@ export function DayMapInspector({
 								/>
 							</div>
 							<MapVector
-								labels={['缩放 X', '缩放 Y']}
+								labels={['缩放X', '缩放Y']}
 								values={object.scale}
 								min={0.01}
 								onChange={(scale) => patchObject({ scale })}
@@ -322,7 +322,7 @@ export function DayMapInspector({
 									patchObject({ sortByY })
 								}
 							>
-								按脚部 Y 排序
+								按脚部Y排序
 							</Switch>
 							<Select
 								ariaLabel="装饰排序层"
@@ -380,7 +380,7 @@ export function DayMapInspector({
 						onValueChange={(name) => onChange({ ...map, name })}
 					/>
 					<MapNumber
-						label="地图 ID"
+						label="地图ID"
 						value={map.id}
 						min={9000}
 						max={2147483647}
@@ -419,10 +419,10 @@ export function DayMapInspector({
 					</Switch>
 					<MapVector
 						labels={[
-							'相机最小 X',
-							'相机最小 Y',
-							'相机最大 X',
-							'相机最大 Y',
+							'相机最小X',
+							'相机最小Y',
+							'相机最大X',
+							'相机最大Y',
 						]}
 						values={map.camera.bounds}
 						min={-4096}
@@ -436,7 +436,7 @@ export function DayMapInspector({
 					/>
 					{!map.camera.shouldFollow && (
 						<MapVector
-							labels={['相机位置 X', '相机位置 Y', '相机位置 Z']}
+							labels={['相机位置X', '相机位置Y', '相机位置Z']}
 							values={map.camera.position}
 							min={-4096}
 							max={4096}
@@ -475,7 +475,7 @@ export function DayMapInspector({
 						</div>
 					))}
 					<label className="block text-xs">
-						导入 WAV（自动用于前奏与循环）
+						导入WAV（自动用于前奏与循环）
 						<input
 							className="mt-2 block w-full text-xs"
 							type="file"
@@ -488,8 +488,7 @@ export function DayMapInspector({
 						/>
 					</label>
 					<p className="text-xs text-foreground-500">
-						音乐为必填，可以重复选择同一个
-						WAV。更多资产管理请使用顶部“资产”。
+						音乐为必填，可以重复选择同一个WAV。更多资产管理请使用顶部“资产”。
 					</p>
 				</div>
 			</details>

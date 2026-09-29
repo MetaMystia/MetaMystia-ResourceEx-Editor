@@ -14,8 +14,7 @@ export interface IComparisonAudioFallback {
 }
 
 export type TComparisonAudioDecodeResult =
-	| IComparisonAudioFallback
-	| IComparisonDecodedAudio;
+	IComparisonAudioFallback | IComparisonDecodedAudio;
 
 export interface IComparisonAudioDecoder {
 	decode(

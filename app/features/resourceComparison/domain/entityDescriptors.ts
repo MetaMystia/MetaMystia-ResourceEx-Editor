@@ -3,13 +3,7 @@ import type { ResourceEx } from '@/domain/resourcePack/contracts/resourceEx';
 export type TResourceEntityCollection = Exclude<keyof ResourceEx, 'packInfo'>;
 
 export type TComparisonStableKey =
-	| 'id'
-	| 'izakayaId'
-	| 'key'
-	| 'label'
-	| 'name'
-	| 'pid'
-	| 'tagId';
+	'id' | 'izakayaId' | 'key' | 'label' | 'name' | 'pid' | 'tagId';
 
 export interface IComparisonEntityDescriptor {
 	collection: TResourceEntityCollection;

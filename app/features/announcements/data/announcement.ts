@@ -1,4 +1,4 @@
-export const ANNOUNCEMENT_VERSION = 'v0.15.1-2026-09-13';
+export const ANNOUNCEMENT_VERSION = 'v0.15.2-2026-09-29';
 
 export const ANNOUNCEMENT_TITLE = 'MetaMystia ResourceEx Editor公告';
 
@@ -20,13 +20,13 @@ export const ANNOUNCEMENT_SECTIONS: IAnnouncementSection[] = [
 	{
 		title: 'v0.15.0 · 地图编辑器预览',
 		items: [
-			'新增白天地图编辑器，可在“场景与节点 → 白天地图”中编辑地图。',
-			'目前为预览测试版本，UI 界面尚未完善，后续会继续调整。',
+			'新增白天地图编辑器，可在“场景与节点→白天地图”中编辑地图。',
+			'目前为预览测试版本，UI界面尚未完善，后续会继续调整。',
 		],
 	},
 	{
 		title: 'v0.14.0 · 礼物邮箱',
-		items: ['可在“角色 → 礼物邮箱”中新增、编辑、删除和调整礼物顺序。'],
+		items: ['可在“角色→礼物邮箱”中新增、编辑、删除和调整礼物顺序。'],
 	},
 	{
 		title: '编辑更稳妥',

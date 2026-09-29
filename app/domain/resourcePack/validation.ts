@@ -330,7 +330,7 @@ export function validateResourcePackRules(
 			issues.push({
 				severity: 'error',
 				category: '白天地图',
-				message: `${mapNames(index)}使用受管理 ID，需要分配段和有效签名。`,
+				message: `${mapNames(index)}使用受管理ID，需要分配段和有效签名。`,
 			});
 		for (const message of validateDayMap(map))
 			issues.push({
@@ -351,7 +351,7 @@ export function validateResourcePackRules(
 				issues.push({
 					severity: 'warning',
 					category: '白天地图',
-					message: `${mapNames(index)}引用外部资源 ${path}，需要在游戏中核验依赖包。`,
+					message: `${mapNames(index)}引用外部资源${path}，需要在游戏中核验依赖包。`,
 				});
 			}
 		}

@@ -30,7 +30,7 @@ export function validateGift(
 			field: 'itemId',
 			severity: 'error',
 			message:
-				'Item ID 必须是 -2147483648～2147483647 范围内的整数，不能留空。',
+				'Item ID必须是-2147483648～2147483647范围内的整数，不能留空。',
 		});
 	} else if (
 		!resourcePack.clothes.some((clothes) => clothes.id === gift.itemId)
@@ -38,7 +38,7 @@ export function validateGift(
 		issues.push({
 			field: 'itemId',
 			severity: 'warning',
-			message: `Item ${gift.itemId} 不在本包衣服中，请在游戏中确认它是已注册的 Item。`,
+			message: `Item ${gift.itemId}不在本包衣服中，请在游戏中确认它是已注册的Item。`,
 		});
 	}
 	const dialogName = gift.dialogPackageName.trim();
@@ -67,7 +67,7 @@ export function validateGift(
 			severity: isLocalLabel ? 'error' : 'warning',
 			message: isLocalLabel
 				? `本包对话“${dialogName}”不存在。`
-				: `对话“${dialogName}”不在本包中，请确认提供它的 ResourceEx 包已加载。`,
+				: `对话“${dialogName}”不在本包中，请确认提供它的ResourceEx包已加载。`,
 		});
 	}
 	return issues;

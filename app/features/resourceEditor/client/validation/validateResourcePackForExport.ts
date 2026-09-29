@@ -36,9 +36,12 @@ export async function validateResourcePackForExport(
 			: {}),
 		...(isIdSignatureValid === undefined ? {} : { isIdSignatureValid }),
 	});
-	if (assetUrls)
+
+	if (assetUrls) {
 		issues.push(
 			...(await validateDayMapAssetFiles(resourcePack, assetUrls))
 		);
+	}
+
 	return issues;
 }

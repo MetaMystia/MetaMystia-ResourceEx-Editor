@@ -8,11 +8,7 @@ import {
 import { type IComparisonFilePairAnalysis } from './comparisonFileAnalysis';
 
 export type TAssetComparisonStatus =
-	| 'added'
-	| 'modified'
-	| 'removed'
-	| 'unchanged'
-	| 'unknown';
+	'added' | 'modified' | 'removed' | 'unchanged' | 'unknown';
 
 export interface IAssetComparisonCounts {
 	added: number;

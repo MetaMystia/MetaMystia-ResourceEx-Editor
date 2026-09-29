@@ -136,8 +136,8 @@ export function GuestInfoEditor({
 		weight: number
 	) => {
 		if (!guest) return;
-		const nextTags = guest[field].map(
-			(tag): LikeTag => (tag.tagId === tagId ? { ...tag, weight } : tag)
+		const nextTags = guest[field].map((tag): LikeTag =>
+			tag.tagId === tagId ? { ...tag, weight } : tag
 		);
 		onUpdate({ [field]: nextTags });
 	};

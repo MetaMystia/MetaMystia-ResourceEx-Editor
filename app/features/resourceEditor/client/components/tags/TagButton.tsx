@@ -6,11 +6,7 @@ import Button from '@/design/ui/components/button';
 import Tooltip from '@/design/ui/components/tooltip';
 
 export type TTagTone =
-	| 'beverage'
-	| 'ingredient'
-	| 'negative'
-	| 'neutral'
-	| 'positive';
+	'beverage' | 'ingredient' | 'negative' | 'neutral' | 'positive';
 
 const TAG_UNSELECTED_CLASS_NAME =
 	'border-divider bg-content1/40 text-foreground-700';

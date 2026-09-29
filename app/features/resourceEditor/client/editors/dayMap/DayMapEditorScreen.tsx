@@ -93,7 +93,7 @@ export function DayMapEditorScreen() {
 			)
 		);
 		if (id > (pack.packInfo.idRangeEnd ?? UNMANAGED_ID_MAX)) {
-			setError('当前资源包声明的 ID 范围已用完。');
+			setError('当前资源包声明的ID范围已用完。');
 			return;
 		}
 		const next: IDayMap = {
@@ -164,8 +164,7 @@ export function DayMapEditorScreen() {
 	return (
 		<div className="mx-auto w-full max-w-[1800px] space-y-4 px-3 py-4 sm:px-6">
 			<p className="rounded-medium border border-warning-300 bg-warning-50 px-4 py-3 text-sm text-warning-800">
-				测试阶段：地图编辑器目前为预览测试版本，UI
-				界面尚未完善，后续会继续调整。
+				测试阶段：地图编辑器目前为预览测试版本，UI界面尚未完善，后续会继续调整。
 			</p>
 			<header className="flex flex-wrap items-center gap-3">
 				<div className="mr-auto">
@@ -209,7 +208,7 @@ export function DayMapEditorScreen() {
 				/>
 			) : (
 				<div className="rounded-large border border-dashed border-divider p-12 text-center text-foreground-500">
-					暂无白天地图。点击“新建地图”，再导入你的 PNG 瓦片图。
+					暂无白天地图。点击“新建地图”，再导入你的PNG瓦片图。
 				</div>
 			)}
 		</div>
@@ -361,7 +360,7 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 					(value, i) => signature[i] === value
 				)
 			)
-				throw new Error('请导入 PNG 图片。');
+				throw new Error('请导入PNG图片。');
 			const bitmap = await createImageBitmap(blob);
 			const { width, height } = bitmap;
 			bitmap.close();
@@ -399,8 +398,7 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 		setIsImporting(true);
 		setError('');
 		try {
-			if (!/\.wav$/i.test(file.name))
-				throw new Error('请导入 WAV 音频。');
+			if (!/\.wav$/i.test(file.name)) throw new Error('请导入WAV音频。');
 			const audioError = validateDayMapWav(await file.arrayBuffer());
 			if (audioError) throw new Error(audioError);
 			if (!isMountedRef.current || workspaceIdRef.current !== workspaceId)
@@ -425,7 +423,7 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 		if (map.layers.length >= 32) return;
 		const name = findNextAvailableSuffixedValue(
 			map.layers.map((layer) => layer.name),
-			'图层 '
+			'图层'
 		);
 		if (
 			commit({
@@ -465,8 +463,8 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 					role="alert"
 					className="rounded-medium bg-warning/20 p-3 text-sm"
 				>
-					地图格式版本为 {map.formatVersion}，当前编辑器只编辑版本
-					1。原数据会保留。
+					地图格式版本为{map.formatVersion}
+					，当前编辑器只编辑版本1。原数据会保留。
 				</p>
 			)}
 			{(error || isImporting) && (
@@ -550,7 +548,7 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 											{layer.name} · {layer.cells.length}
 										</Button>
 										<Switch
-											aria-label={`显示图层 ${layer.name}`}
+											aria-label={`显示图层${layer.name}`}
 											size="sm"
 											isSelected={!hiddenLayers.has(i)}
 											onValueChange={(visible) => {
@@ -609,7 +607,7 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 						)}
 						{mode === 'height' && (
 							<MapSection
-								title={`坡面画笔 · ${map.height?.cells.length ?? 0} 格`}
+								title={`坡面画笔 · ${map.height?.cells.length ?? 0}格`}
 							>
 								<div className="flex flex-wrap gap-1">
 									<Button
@@ -632,7 +630,7 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 									</Button>
 								</div>
 								<MapNumber
-									label="坡度比例（-1 至 1）"
+									label="坡度比例（-1至1）"
 									value={slope}
 									min={-1}
 									max={1}
@@ -641,7 +639,7 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 								/>
 								<p className="text-xs text-foreground-500">
 									画笔角度约 {formatSlopeAngle(slope)}
-									。横向每走 1 格，纵向修正 {slope}{' '}
+									。横向每走1格，纵向修正{slope}
 									格。正值向右上坡，向左反向下降。这里只改变移动，不改变图片或遮挡。
 								</p>
 							</MapSection>
@@ -654,7 +652,7 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 								{mode === 'tile'
 									? `当前瓦片：${tileKey || '未选择'}`
 									: mode === 'height'
-										? `当前画笔：坡度 ${slope}（约 ${formatSlopeAngle(slope)}）`
+										? `当前画笔：坡度${slope}（约${formatSlopeAngle(slope)}）`
 										: '坐标右正、上正'}
 							</span>
 						</div>
@@ -760,7 +758,7 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 			{(issues.length > 0 || missingAssets.length > 0) && (
 				<details className="rounded-medium border border-warning/40 bg-warning/10 p-3">
 					<summary className="cursor-pointer text-sm">
-						地图检查 · {issues.length + missingAssets.length}{' '}
+						地图检查 · {issues.length + missingAssets.length}
 						项待处理
 					</summary>
 					<ul className="mt-2 list-inside list-disc space-y-1 text-xs">
