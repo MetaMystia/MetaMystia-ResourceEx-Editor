@@ -12,7 +12,7 @@ export function MapSection({
 	children: ReactNode;
 }) {
 	return (
-		<section className="space-y-3 rounded-medium border border-divider bg-content1 p-3">
+		<section className="flex flex-col gap-3 rounded-medium border border-divider bg-content1 p-3">
 			<h3 className="text-sm font-semibold">{title}</h3>
 			{children}
 		</section>

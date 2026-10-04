@@ -183,11 +183,12 @@ export function DayMapEditorScreen() {
 					}))}
 					onChange={setSelectedIndex}
 				/>
-				<Button size="sm" color="primary" onPress={addMap}>
+				<Button color="primary" onPress={addMap}>
 					新建地图
 				</Button>
 				{map && (
 					<SectionDeleteButton
+						className="sm:h-10"
 						confirmTitle={`删除地图“${map.name}”？`}
 						onPress={deleteMap}
 					>

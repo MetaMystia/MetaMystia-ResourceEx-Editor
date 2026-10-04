@@ -371,7 +371,7 @@ export function DayMapInspector({
 				<summary className="cursor-pointer text-sm font-semibold">
 					地图、相机与音乐
 				</summary>
-				<div className="mt-3 space-y-3">
+				<div className="mt-3 flex flex-col gap-3">
 					<Input
 						labelPlacement="outside"
 						label="地图名称"

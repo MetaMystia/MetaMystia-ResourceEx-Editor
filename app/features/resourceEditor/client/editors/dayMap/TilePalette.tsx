@@ -254,7 +254,7 @@ export function TilePalette({
 				<summary className="cursor-pointer text-sm font-semibold">
 					导入图片到瓦片库
 				</summary>
-				<div className="mt-3 space-y-3">
+				<div className="mt-3 flex flex-col gap-3">
 					<p className="text-xs text-foreground-500">
 						把PNG图片切成可反复绘制的小块，或整张加入瓦片库。导入后选择一个瓦片，再到画布绘制。
 					</p>
@@ -328,7 +328,7 @@ export function TilePalette({
 					<summary className="cursor-pointer truncate text-sm font-semibold">
 						瓦片图片设置 · {tile.key}
 					</summary>
-					<div className="mt-3 space-y-3">
+					<div className="mt-3 flex flex-col gap-3">
 						<p className="text-xs text-foreground-500">
 							调整选中瓦片取自图片的哪一块、对齐位置和显示大小。修改会影响地图中所有使用它的位置；普通绘制无需调整。
 						</p>
