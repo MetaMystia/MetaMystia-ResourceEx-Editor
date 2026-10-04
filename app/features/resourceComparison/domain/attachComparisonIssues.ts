@@ -27,6 +27,9 @@ interface IReferenceOwnerDescriptor {
 }
 
 const VALIDATION_CATEGORY_COLLECTIONS = {
+	符卡: 'spells',
+	Buff: 'buffs',
+	特效包: 'assetBundles',
 	事件节点: 'eventNodes',
 	任务节点: 'missionNodes',
 	商人: 'merchants',
@@ -51,6 +54,9 @@ const validationCategoryCollectionsByName: Readonly<Record<string, string>> =
 	VALIDATION_CATEGORY_COLLECTIONS;
 
 const REFERENCE_OWNER_DESCRIPTORS = {
+	spell: { collection: 'spells', stableKey: 'id' },
+	buff: { collection: 'buffs', stableKey: 'id' },
+	assetBundle: { collection: 'assetBundles', stableKey: 'path' },
 	beverage: { collection: 'beverages', stableKey: 'id' },
 	character: { collection: 'characters', stableKey: 'id' },
 	clothes: { collection: 'clothes', stableKey: 'id' },

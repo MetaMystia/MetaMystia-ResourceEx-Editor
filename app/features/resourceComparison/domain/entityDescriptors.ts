@@ -3,7 +3,7 @@ import type { ResourceEx } from '@/domain/resourcePack/contracts/resourceEx';
 export type TResourceEntityCollection = Exclude<keyof ResourceEx, 'packInfo'>;
 
 export type TComparisonStableKey =
-	'id' | 'izakayaId' | 'key' | 'label' | 'name' | 'pid' | 'tagId';
+	'id' | 'izakayaId' | 'key' | 'label' | 'name' | 'path' | 'pid' | 'tagId';
 
 export interface IComparisonEntityDescriptor {
 	collection: TResourceEntityCollection;
@@ -20,6 +20,24 @@ export interface IComparisonNestedEntityDescriptor {
 }
 
 export const RESOURCE_ENTITY_DESCRIPTORS = [
+	{
+		collection: 'spells',
+		displayField: 'implementation',
+		label: '符卡',
+		stableKey: 'id',
+	},
+	{
+		collection: 'buffs',
+		displayField: 'name',
+		label: 'Buff',
+		stableKey: 'id',
+	},
+	{
+		collection: 'assetBundles',
+		displayField: 'path',
+		label: '特效包',
+		stableKey: 'path',
+	},
 	{
 		collection: 'beverages',
 		displayField: 'name',

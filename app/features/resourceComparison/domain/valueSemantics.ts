@@ -4,6 +4,9 @@ export type TComparisonArraySemantics =
 	| { kind: 'set' };
 
 const KEYED_ARRAY_SEMANTICS = {
+	spells: { kind: 'keyed', stableKey: 'id' },
+	buffs: { kind: 'keyed', stableKey: 'id' },
+	assetBundles: { kind: 'keyed', stableKey: 'path' },
 	beverages: { kind: 'keyed', stableKey: 'id' },
 	characters: { kind: 'keyed', stableKey: 'id' },
 	'characters[].guest.bevRequests': { kind: 'keyed', stableKey: 'tagId' },
@@ -35,6 +38,7 @@ const SET_ARRAY_SEMANTICS = {
 } as const satisfies Record<string, TComparisonArraySemantics>;
 
 const ORDERED_ARRAY_PATHS = [
+	'spells[].portrayalPivot',
 	'characters[].characterSpriteSetCompact.eyeSprite',
 	'characters[].characterSpriteSetCompact.mainSprite',
 	'characters[].descriptions',

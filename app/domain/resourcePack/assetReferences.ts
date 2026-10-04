@@ -154,9 +154,34 @@ export function remapResourcePackAssetReferences(
 			loop: remapMapPath(map.mapBGM.loop),
 		},
 	}));
+	const spells = resourcePack.spells.map((spell) => ({
+		...spell,
+		positive: {
+			...spell.positive,
+			portrait: remapMapPath(spell.positive.portrait),
+		},
+		negative: {
+			...spell.negative,
+			portrait: remapMapPath(spell.negative.portrait),
+		},
+		...(spell.vfxBundle
+			? { vfxBundle: remapMapPath(spell.vfxBundle) }
+			: {}),
+	}));
+	const buffs = resourcePack.buffs.map((buff) => ({
+		...buff,
+		icon: remapMapPath(buff.icon),
+	}));
+	const assetBundles = resourcePack.assetBundles.map((bundle) => ({
+		...bundle,
+		path: remapMapPath(bundle.path),
+	}));
 	if (!hasChanged) return resourcePack;
 	return {
 		...resourcePack,
+		spells,
+		buffs,
+		assetBundles,
 		dayMaps,
 		beverages,
 		characters,

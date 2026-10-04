@@ -16,6 +16,7 @@ import type { ResourceEx } from './contracts/resourceEx';
 import { resolveDayMapAssetPath } from './dayMapAssets';
 import { validateDayMap } from './dayMapValidation';
 import { validateGift } from './giftValidation';
+import { validateSpellResources } from './spellValidation';
 
 export type IssueSeverity = 'error' | 'warning';
 
@@ -312,6 +313,43 @@ export function validateResourcePackRules(
 			)
 		);
 	}
+
+	issues.push(...validateSpellResources(data, options.availableAssetPaths));
+	for (const [collection, category] of [
+		['spells', '符卡'],
+		['buffs', 'Buff'],
+	] as const) {
+		checkIdDuplicate(
+			data[collection].map((item) => item.id),
+			category,
+			(index) => `${category}#${index + 1}`
+		);
+		data[collection].forEach((item) => {
+			checkId(item.id, category, `${category} ${item.id}`);
+			if (
+				item.id >= MANAGED_ID_MIN &&
+				item.id <= MANAGED_ID_MAX &&
+				(!hasIdRange || !idSignature)
+			)
+				issues.push({
+					severity: 'error',
+					category,
+					message: `${category} ${item.id}使用受管理 ID，需要分配段和有效签名。`,
+				});
+		});
+	}
+	for (const path of [
+		...data.spells.flatMap((spell) => [
+			spell.positive.portrait,
+			spell.negative.portrait,
+			...(spell.vfxBundle ? [spell.vfxBundle] : []),
+		]),
+		...data.buffs.map((buff) => buff.icon),
+		...data.assetBundles.map((bundle) => bundle.path),
+	])
+		checkedAssetReferences.add(
+			resolveDayMapAssetPath(path, packLabel) ?? path
+		);
 
 	const mapNames = (index: number) =>
 		data.dayMaps[index]?.name || `地图#${index + 1}`;

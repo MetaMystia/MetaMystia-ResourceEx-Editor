@@ -156,6 +156,9 @@ export function remapResourcePackCharacterReferences(
 ): ResourceEx {
 	const { fromId, fromLabel, fromType, toId, toLabel, toType } = remap;
 	const next = cloneJsonObject(resourcePack);
+	next.spells.forEach((spell) => {
+		spell.id = remapNumber(spell.id, fromId, toId);
+	});
 
 	next.dialogPackages.forEach((dialogPackage) =>
 		dialogPackage.dialogList.forEach((dialog) => {

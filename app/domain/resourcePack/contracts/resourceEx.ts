@@ -6,6 +6,7 @@ import type { IGiftConfig } from './gift';
 import type { Beverage, Clothes, Food, Ingredient, Recipe } from './items';
 import type { MerchantConfig } from './merchant';
 import type { MissionNode } from './mission';
+import type { IAssetBundleConfig, IBuffConfig, ISpellConfig } from './spell';
 
 export interface PackInfo {
 	name?: string;
@@ -21,6 +22,9 @@ export interface PackInfo {
 
 export interface ResourceEx {
 	packInfo: PackInfo;
+	spells: ISpellConfig[];
+	buffs: IBuffConfig[];
+	assetBundles: IAssetBundleConfig[];
 	characters: Character[];
 	dayMaps: IDayMap[];
 	dialogPackages: DialogPackage[];

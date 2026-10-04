@@ -7,6 +7,7 @@ import type { Beverage, Clothes, Food, Ingredient, Recipe } from './items';
 import type { MerchantConfig } from './merchant';
 import type { MissionNode } from './mission';
 import type { PackInfo } from './resourceEx';
+import type { IAssetBundleConfig, IBuffConfig, ISpellConfig } from './spell';
 
 export interface IResourcePackWire {
 	packInfo?: PackInfo;
@@ -15,6 +16,9 @@ export interface IResourcePackWire {
 	authors?: string[];
 	description?: string;
 	version?: string;
+	spells?: ISpellConfig[] | null;
+	buffs?: IBuffConfig[] | null;
+	assetBundles?: IAssetBundleConfig[] | null;
 	characters?: Character[] | null;
 	dayMaps?: IDayMap[] | null;
 	dialogPackages?: DialogPackage[] | null;

@@ -29,6 +29,9 @@ interface IEntityReferenceDescriptor {
 }
 
 const ENTITY_REFERENCE_DESCRIPTORS: readonly IEntityReferenceDescriptor[] = [
+	{ collection: 'spells', ownerKind: 'spell', stableKey: 'id' },
+	{ collection: 'buffs', ownerKind: 'buff', stableKey: 'id' },
+	{ collection: 'assetBundles', ownerKind: 'assetBundle', stableKey: 'path' },
 	{
 		collection: 'beverages',
 		ownerKind: 'beverage',

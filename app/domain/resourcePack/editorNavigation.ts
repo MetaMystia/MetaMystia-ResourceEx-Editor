@@ -2,6 +2,9 @@ import type { ResourceEx } from '@/domain/resourcePack/contracts/resourceEx';
 
 export const RESOURCE_EDITOR_ROUTE_BY_ENTITY_KIND = {
 	asset: '/asset',
+	spell: '/spell',
+	buff: '/spell',
+	assetBundle: '/spell',
 	beverage: '/beverage',
 	character: '/character',
 	clothes: '/clothes',
@@ -34,6 +37,9 @@ export interface IResourceEditorNavigationTarget {
 export type TResourceEditorCollection = Exclude<keyof ResourceEx, 'packInfo'>;
 
 export const RESOURCE_EDITOR_TARGET_BY_COLLECTION = {
+	spells: { entityKind: 'spell', route: '/spell' },
+	buffs: { entityKind: 'buff', route: '/spell' },
+	assetBundles: { entityKind: 'assetBundle', route: '/spell' },
 	beverages: { entityKind: 'beverage', route: '/beverage' },
 	characters: { entityKind: 'character', route: '/character' },
 	clothes: { entityKind: 'clothes', route: '/clothes' },

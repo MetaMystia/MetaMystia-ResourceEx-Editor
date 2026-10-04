@@ -54,8 +54,17 @@ import type {
 } from './contracts/mission';
 import type { PackInfo, ResourceEx } from './contracts/resourceEx';
 import type { IResourcePackWire } from './contracts/resourcePackWire';
+import type {
+	IAssetBundleConfig,
+	IBuffConfig,
+	ISpellCardConfig,
+	ISpellConfig,
+} from './contracts/spell';
 
 const COLLECTION_KEYS = [
+	'spells',
+	'buffs',
+	'assetBundles',
 	'characters',
 	'dialogPackages',
 	'gifts',
@@ -1518,6 +1527,58 @@ function readDayMap(value: unknown, path: string): IDayMap {
 	};
 }
 
+function readSpellCard(value: unknown, path: string): ISpellCardConfig {
+	const record = readRecord(value, path);
+	return {
+		...record,
+		name: readRequired(record, 'name', path, readString),
+		description: readRequired(record, 'description', path, readString),
+		portrait: readRequired(record, 'portrait', path, readString),
+	};
+}
+
+function readSpell(value: unknown, path: string): ISpellConfig {
+	const record = readRecord(value, path);
+	return {
+		...record,
+		id: readRequired(record, 'id', path, readNumber),
+		implementation: readRequired(
+			record,
+			'implementation',
+			path,
+			readString
+		),
+		positive: readRequired(record, 'positive', path, readSpellCard),
+		negative: readRequired(record, 'negative', path, readSpellCard),
+		...readOptionalProperty(record, 'vfxBundle', path, (value, path) =>
+			value === null ? null : readString(value, path)
+		),
+		...readOptionalProperty(
+			record,
+			'portrayalPivot',
+			path,
+			(value, path) =>
+				value === null ? null : readNumberArray(value, path)
+		),
+	};
+}
+
+function readBuff(value: unknown, path: string): IBuffConfig {
+	const record = readRecord(value, path);
+	return {
+		...record,
+		id: readRequired(record, 'id', path, readNumber),
+		name: readRequired(record, 'name', path, readString),
+		description: readRequired(record, 'description', path, readString),
+		icon: readRequired(record, 'icon', path, readString),
+	};
+}
+
+function readAssetBundle(value: unknown, path: string): IAssetBundleConfig {
+	const record = readRecord(value, path);
+	return { ...record, path: readRequired(record, 'path', path, readString) };
+}
+
 export function parseResourcePackWire(input: unknown): IResourcePackWire {
 	const record = readRecord(input, 'ResourceEx');
 	const legacyLabel = readOptionalValue(
@@ -1549,6 +1610,15 @@ export function parseResourcePackWire(input: unknown): IResourcePackWire {
 		),
 		...readOptionalProperty(record, 'version', 'ResourceEx', readString),
 		...(packInfo === undefined ? {} : { packInfo }),
+		spells: readCollection(record, 'spells').map((value, index) =>
+			readSpell(value, `spells[${index}]`)
+		),
+		buffs: readCollection(record, 'buffs').map((value, index) =>
+			readBuff(value, `buffs[${index}]`)
+		),
+		assetBundles: readCollection(record, 'assetBundles').map(
+			(value, index) => readAssetBundle(value, `assetBundles[${index}]`)
+		),
 		characters: readCollection(record, 'characters').map((value, index) =>
 			readCharacter(value, `characters[${index}]`)
 		),
@@ -1693,6 +1763,9 @@ export function normalizeResourcePack(input: unknown): ResourceEx {
 
 	return {
 		packInfo: normalizePackInfo(wire),
+		spells: [...(wire.spells ?? [])],
+		buffs: [...(wire.buffs ?? [])],
+		assetBundles: [...(wire.assetBundles ?? [])],
 		characters: (wire.characters ?? []).map(normalizeCharacter),
 		dialogPackages: [...(wire.dialogPackages ?? [])],
 		gifts: [...(wire.gifts ?? [])],

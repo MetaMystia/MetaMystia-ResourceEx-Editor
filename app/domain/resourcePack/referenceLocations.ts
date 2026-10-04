@@ -17,6 +17,9 @@ export type TResourcePackReferenceKind =
 	| 'recipe';
 
 export type TResourcePackReferenceOwnerKind =
+	| 'spell'
+	| 'buff'
+	| 'assetBundle'
 	| 'beverage'
 	| 'character'
 	| 'clothes'
@@ -251,6 +254,47 @@ export function collectResourcePackReferenceLocations(
 ): readonly IResourcePackReferenceLocation[] {
 	const locations: IResourcePackReferenceLocation[] = [];
 
+	const resolveSpellPath = (path: string) =>
+		resolveDayMapAssetPath(path, resourcePack.packInfo.label) ?? path;
+	resourcePack.spells.forEach((spell) => {
+		const owner = { key: spell.id, kind: 'spell' } as const;
+		addReference(locations, owner, ['id'], 'character', spell.id);
+		addAssetReference(
+			locations,
+			owner,
+			['positive', 'portrait'],
+			resolveSpellPath(spell.positive.portrait)
+		);
+		addAssetReference(
+			locations,
+			owner,
+			['negative', 'portrait'],
+			resolveSpellPath(spell.negative.portrait)
+		);
+		if (spell.vfxBundle)
+			addAssetReference(
+				locations,
+				owner,
+				['vfxBundle'],
+				resolveSpellPath(spell.vfxBundle)
+			);
+	});
+	resourcePack.buffs.forEach((buff) =>
+		addAssetReference(
+			locations,
+			{ key: buff.id, kind: 'buff' },
+			['icon'],
+			resolveSpellPath(buff.icon)
+		)
+	);
+	resourcePack.assetBundles.forEach((bundle) =>
+		addAssetReference(
+			locations,
+			{ key: bundle.path, kind: 'assetBundle' },
+			['path'],
+			resolveSpellPath(bundle.path)
+		)
+	);
 	(resourcePack.dayMaps ?? []).forEach((map) => {
 		const owner = { key: map.id, kind: 'dayMap' } as const;
 		const resolvePath = (path: string) =>
