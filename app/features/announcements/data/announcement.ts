@@ -1,9 +1,9 @@
-export const ANNOUNCEMENT_VERSION = 'v0.15.2-2026-09-29';
+export const ANNOUNCEMENT_VERSION = 'v0.15.3-2026-10-04';
 
 export const ANNOUNCEMENT_TITLE = 'MetaMystia ResourceEx Editor公告';
 
 export const ANNOUNCEMENT_SUMMARY =
-	'修复旧版本本地资源包缺少新增字段时，打开地图页报错的问题。地图编辑器仍为预览测试版本。';
+	'左侧列表改为独立滚动，不再带动右侧内容；同时调整立绘配置与地图编辑器的界面细节。地图编辑器仍为预览测试版本。';
 
 export interface IAnnouncementSection {
 	title: string;
@@ -11,23 +11,6 @@ export interface IAnnouncementSection {
 }
 
 export const ANNOUNCEMENT_SECTIONS: IAnnouncementSection[] = [
-	{
-		title: 'v0.15.1 · 旧资源包兼容修复',
-		items: [
-			'读取本地草稿和恢复版本时自动补齐新增的可选字段，修复旧资源包打开地图页报错。',
-		],
-	},
-	{
-		title: 'v0.15.0 · 地图编辑器预览',
-		items: [
-			'新增白天地图编辑器，可在“场景与节点→白天地图”中编辑地图。',
-			'目前为预览测试版本，UI界面尚未完善，后续会继续调整。',
-		],
-	},
-	{
-		title: 'v0.14.0 · 礼物邮箱',
-		items: ['可在“角色→礼物邮箱”中新增、编辑、删除和调整礼物顺序。'],
-	},
 	{
 		title: '编辑更稳妥',
 		items: [
@@ -50,6 +33,15 @@ export const ANNOUNCEMENT_SECTIONS: IAnnouncementSection[] = [
 			'管理页可以同时保留多个资源包，并分别打开、复制、导出或删除。',
 			'同一标识符的不同版本可以分别保留。再次导入同一版本时，可以打开已有工作区、创建副本或覆盖。',
 			'导出前会指出填写错误、关联内容缺失以及图片或其他文件找不到等问题。',
+		],
+	},
+	{
+		title: '更新日志',
+		items: [
+			'v0.15.3：左侧列表改为独立滚动，滚动时不再带动右侧内容；立绘配置默认折叠；地图编辑器统一头部按钮高度，并修复输入框标签与上方内容重叠。',
+			'v0.15.1：读取本地草稿和恢复版本时自动补齐新增的可选字段，修复旧资源包打开地图页报错。',
+			'v0.15.0：新增白天地图编辑器，可在“场景与节点→白天地图”中编辑地图；目前为预览测试版本，UI界面尚未完善，后续会继续调整。',
+			'v0.14.0：可在“角色→礼物邮箱”中新增、编辑、删除和调整礼物顺序。',
 		],
 	},
 ];
