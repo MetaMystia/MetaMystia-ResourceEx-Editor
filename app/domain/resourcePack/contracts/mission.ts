@@ -107,6 +107,7 @@ export interface MissionReward {
 	rewardId?: string;
 	objectType?: ObjectType;
 	rewardIntArray?: number[];
+	should?: boolean;
 }
 
 export type MissionFailedAction = 'None' | 'BackToMainMenu' | 'Rewind';
