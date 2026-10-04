@@ -37,7 +37,7 @@ export function Portraits({
 	onRemove,
 	onSetDefault,
 }: PortraitsProps) {
-	const [isExpanded, setIsExpanded] = useState(true);
+	const [isExpanded, setIsExpanded] = useState(false);
 	const portraitsRef = useFocusOnItemAppend(portraits.length);
 	const { updateAsset } = useResourceEditor();
 
