@@ -41,7 +41,7 @@ export const EditorCollapsiblePanel = memo<IProps>(
 			<EditorPanel
 				as="aside"
 				className={cn(
-					'flex h-min min-w-0 flex-col gap-0 lg:sticky lg:top-24 lg:gap-4 lg:overflow-hidden',
+					'flex h-min min-w-0 flex-col gap-0 lg:sticky lg:top-24 lg:max-h-[calc(var(--safe-h-dvh)_-_7rem)] lg:gap-4 lg:overflow-hidden',
 					className
 				)}
 			>
