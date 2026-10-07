@@ -200,6 +200,26 @@ function addMissionConditionReferences(
 	condition: MissionCondition
 ): void {
 	switch (condition.conditionType) {
+		case 'SellInWork':
+			addReference(
+				locations,
+				owner,
+				[...fieldPrefix, 'amount'],
+				'food',
+				condition.amount
+			);
+			break;
+		case 'CompleteSpecifiedFollowingEvents':
+			condition.events?.forEach((event, index) =>
+				addReference(
+					locations,
+					owner,
+					[...fieldPrefix, 'events', index, 'label'],
+					'event',
+					event.label
+				)
+			);
+			break;
 		case 'SubmitItem':
 			addItemReference(
 				locations,

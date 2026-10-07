@@ -38,6 +38,8 @@ export function createMissionCondition(
 			return { conditionType, tags: [], amount: 0 };
 		case 'ReachTargetCharacterKisunaLevel':
 			return { conditionType, amount: 0 };
+		case 'CompleteSpecifiedFollowingEvents':
+			return { conditionType, amount: 1, events: [] };
 		case 'BillRepayment':
 			return { conditionType, amount: 1 };
 		default:
