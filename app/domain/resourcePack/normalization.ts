@@ -1039,6 +1039,17 @@ function readMissionCondition(value: unknown, path: string): MissionCondition {
 	validateOptional(record, 'productType', path, readString);
 	validateOptional(record, 'productId', path, readNumber);
 	validateOptional(record, 'productAmount', path, readNumber);
+	validateOptional(record, 'text', path, readString);
+	validateOptional(record, 'events', path, (items, childPath) =>
+		readArray(items, childPath, (item, itemPath) => {
+			const entry = readEntity(item, itemPath);
+			return {
+				...entry,
+				label: readString(entry['label'], `${itemPath}.label`),
+				text: readString(entry['text'], `${itemPath}.text`),
+			};
+		})
+	);
 	return { ...record, conditionType };
 }
 

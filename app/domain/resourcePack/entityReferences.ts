@@ -50,7 +50,8 @@ function remapConditionItem(
 	}
 	if (
 		kind === 'Food' &&
-		condition.conditionType === 'ServeInWork' &&
+		(condition.conditionType === 'ServeInWork' ||
+			condition.conditionType === 'SellInWork') &&
 		condition.amount === fromId
 	) {
 		condition.amount = toId;
@@ -317,6 +318,18 @@ export function remapResourcePackLabelReferences(
 		});
 	}
 	if (kind === 'Event') {
+		next.missionNodes.forEach((mission) =>
+			mission.finishConditions.forEach((condition) => {
+				if (
+					condition.conditionType !==
+					'CompleteSpecifiedFollowingEvents'
+				)
+					return;
+				condition.events?.forEach((event) => {
+					event.label = remapString(event.label, fromLabel, toLabel);
+				});
+			})
+		);
 		next.missionNodes.forEach((mission) =>
 			remapLabelArray(mission.postEvents, fromLabel, toLabel)
 		);

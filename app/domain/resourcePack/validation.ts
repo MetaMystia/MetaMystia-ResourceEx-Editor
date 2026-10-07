@@ -1023,6 +1023,12 @@ export function validateResourcePackRules(
 		owner: string
 	): void {
 		rewards?.forEach((reward) => {
+			if (
+				reward.rewardType === 'FinishFakeMission' &&
+				!reward.rewardId?.trim()
+			) {
+				reportDanglingReference(`${owner}的任务完成信号未填写标识`);
+			}
 			if (reward.rewardType === 'UpgradeKizunaLevel') {
 				if (!reward.rewardId?.trim()) {
 					reportDanglingReference(`${owner}的羁绊奖励未选择目标角色`);
@@ -1144,6 +1150,47 @@ export function validateResourcePackRules(
 		owner: string
 	): void {
 		switch (condition.conditionType) {
+			case 'InspectInteractable':
+				if (!condition.label?.trim())
+					reportDanglingReference(`${owner}未填写交互物标识`);
+				break;
+			case 'SellInWork':
+				checkRequiredInteger(condition.amount, '料理 ID', owner);
+				break;
+			case 'FakeMission':
+				if (!condition.label?.trim())
+					reportDanglingReference(`${owner}未填写信号标识`);
+				if (!condition.text?.trim())
+					reportDanglingReference(`${owner}未填写条件说明`);
+				break;
+			case 'CompleteSpecifiedFollowingEvents': {
+				const events = condition.events ?? [];
+				checkRequiredPositiveInteger(
+					condition.amount,
+					'需要完成的事件数',
+					owner
+				);
+				if (events.length === 0)
+					reportDanglingReference(`${owner}未添加事件`);
+				const labels = new Set(events.map((event) => event.label));
+				if (labels.size !== events.length)
+					reportDanglingReference(`${owner}的事件标识重复`);
+				if ((condition.amount ?? 0) > labels.size)
+					reportDanglingReference(`${owner}的目标数量超过事件数量`);
+				events.forEach((event) => {
+					if (!event.label.trim())
+						reportDanglingReference(`${owner}未填写事件标识`);
+					if (!event.text.trim())
+						reportDanglingReference(`${owner}未填写事件说明`);
+					checkLocalLabelReference(
+						event.label,
+						eventLabels,
+						'事件',
+						owner
+					);
+				});
+				break;
+			}
 			case 'SubmitItem':
 				if (!condition.productType?.trim()) {
 					reportDanglingReference(`${owner}未选择物品类型`);
@@ -1353,7 +1400,8 @@ export function validateResourcePackRules(
 				);
 			}
 			if (
-				condition.conditionType === 'ServeInWork' &&
+				(condition.conditionType === 'ServeInWork' ||
+					condition.conditionType === 'SellInWork') &&
 				condition.amount !== undefined
 			) {
 				checkItemReference('Food', condition.amount, owner);

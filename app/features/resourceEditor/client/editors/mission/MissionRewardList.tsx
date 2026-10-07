@@ -204,7 +204,7 @@ const REWARD_TYPES: { type: RewardType; label: string }[] = [
 		type: 'RemoveKourindouMerchandise',
 		label: '【未实现】尝试移除香霖堂的货物',
 	},
-	{ type: 'FinishFakeMission', label: '【未实现】完成伪造任务' },
+	{ type: 'FinishFakeMission', label: '发送任务完成信号' },
 	{ type: 'ForceCompleteMission', label: '【未实现】强制完成计划中的任务' },
 	{ type: 'RefreshRandomSpawnNpc', label: '【未实现】刷新随机生成的NPC' },
 	{ type: 'AddLockedRecipe', label: '【未实现】添加固定食谱' },
@@ -564,7 +564,31 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 								</div>
 							)}
 
+							{reward.rewardType === 'FinishFakeMission' && (
+								<div className="flex flex-col gap-3">
+									<div className="flex flex-col gap-1">
+										<Label size="sm">
+											信号标识（Reward ID）
+										</Label>
+										<Input
+											aria-label="发送的信号标识"
+											value={reward.rewardId ?? ''}
+											onChange={(e) =>
+												updateReward(index, {
+													rewardId: e.target.value,
+												})
+											}
+											placeholder="与目标任务外部信号条件的标识一致"
+										/>
+									</div>
+									<WarningNotice>
+										通知已开始的任务：同名外部信号条件已满足。这里填写条件的信号标识，不是任务标识。
+									</WarningNotice>
+								</div>
+							)}
+
 							{reward.rewardType !== 'UpgradeKizunaLevel' &&
+								reward.rewardType !== 'FinishFakeMission' &&
 								reward.rewardType !== 'GiveItem' && (
 									<WarningNotice>
 										当前编辑器尚未支持配置此奖励类型的详细参数。

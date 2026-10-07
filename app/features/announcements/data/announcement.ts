@@ -1,9 +1,9 @@
-export const ANNOUNCEMENT_VERSION = 'v0.16.0-2026-10-07';
+export const ANNOUNCEMENT_VERSION = 'v0.16.1-2026-10-07';
 
 export const ANNOUNCEMENT_TITLE = 'MetaMystia ResourceEx Editor公告';
 
 export const ANNOUNCEMENT_SUMMARY =
-	'新增符卡、Buff 显示资源编辑及 AssetBundle 加载声明管理；实际效果仍需 Mod 代码支持。地图编辑器仍为预览测试版本。';
+	'新增四项任务完成条件和任务完成信号配置入口，沿用游戏原生判定，需配套新版 Mod。地图编辑器仍为预览测试版本。';
 
 export interface IAnnouncementSection {
 	title: string;
@@ -38,6 +38,7 @@ export const ANNOUNCEMENT_SECTIONS: IAnnouncementSection[] = [
 	{
 		title: '更新日志',
 		items: [
+			'v0.16.1：新增调查交互物、营业售卖记录、外部信号及指定事件完成数量的配置入口，并支持发送任务完成信号；补充导入导出、引用更新和配置校验。',
 			'v0.16.0：新增「角色→符卡」「角色→Buff」独立页面及「资产→AssetBundle」加载声明管理，支持导入导出和资源校验，并补充编辑范围与符卡实现名说明。',
 			'v0.15.3：左侧列表改为独立滚动，滚动时不再带动右侧内容；立绘配置默认折叠；地图编辑器统一头部按钮高度，并修复输入框标签与上方内容重叠。',
 			'v0.15.1：读取本地草稿和恢复版本时自动补齐新增的可选字段，修复旧资源包打开地图页报错。',
