@@ -17,6 +17,8 @@ import type {
 	IDayMapHeightCell,
 	IDayMapLayer,
 	IDayMapObject,
+	IDayMapNativeCollider,
+	IDayMapPlacement,
 	IDayMapSpawn,
 	IDayMapTile,
 } from './contracts/dayMap';
@@ -1343,10 +1345,47 @@ function readGift(value: unknown, path: string): IGiftConfig {
 	};
 }
 
+function readDayMapPlacement(
+	record: Record<string, unknown>,
+	path: string
+): IDayMapPlacement {
+	return {
+		...readOptionalProperty(record, 'transform', path, readNumberArray),
+		...readOptionalProperty(record, 'color', path, readNumberArray),
+		...readOptionalProperty(record, 'active', path, readBoolean),
+		...readOptionalProperty(record, 'shader', path, readString),
+		...readOptionalProperty(record, 'sortingValue', path, readNumber),
+	};
+}
+
 function readDayMapTile(value: unknown, path: string): IDayMapTile {
 	const record = readRecord(value, path);
 	return {
 		...record,
+		...readOptionalProperty(record, 'mesh', path, (value, path) => {
+			const mesh = readRecord(value, path);
+			return {
+				...mesh,
+				vertices: readRequired(mesh, 'vertices', path, (value, path) =>
+					readArray(value, path, readNumberArray)
+				),
+				uvs: readRequired(mesh, 'uvs', path, (value, path) =>
+					readArray(value, path, readNumberArray)
+				),
+				triangles: readRequired(
+					mesh,
+					'triangles',
+					path,
+					readNumberArray
+				),
+				pixelsPerUnit: readRequired(
+					mesh,
+					'pixelsPerUnit',
+					path,
+					readNumber
+				),
+			};
+		}),
 		key: readRequired(record, 'key', path, readString),
 		image: readRequired(record, 'image', path, readString),
 		rect: readOptionalValue(record, 'rect', path, readNumberArray) ?? [],
@@ -1362,6 +1401,7 @@ function readDayMapCell(value: unknown, path: string): IDayMapCell {
 	const record = readRecord(value, path);
 	return {
 		...record,
+		...readDayMapPlacement(record, path),
 		x: readOptionalValue(record, 'x', path, readNumber) ?? 0,
 		y: readOptionalValue(record, 'y', path, readNumber) ?? 0,
 		tile: readRequired(record, 'tile', path, readString),
@@ -1382,6 +1422,8 @@ function readDayMapLayer(value: unknown, path: string): IDayMapLayer {
 	const record = readRecord(value, path);
 	return {
 		...record,
+		...readDayMapPlacement(record, path),
+		...readOptionalProperty(record, 'isHeight', path, readBoolean),
 		name: readOptionalValue(record, 'name', path, readString) ?? '',
 		sortingLayer:
 			readOptionalValue(record, 'sortingLayer', path, readString) ??
@@ -1400,6 +1442,7 @@ function readDayMapObject(value: unknown, path: string): IDayMapObject {
 	const record = readRecord(value, path);
 	return {
 		...record,
+		...readDayMapPlacement(record, path),
 		name: readOptionalValue(record, 'name', path, readString) ?? '',
 		tile: readRequired(record, 'tile', path, readString),
 		x: readOptionalValue(record, 'x', path, readNumber) ?? 0,
@@ -1446,10 +1489,57 @@ function readDayMapSpawn(value: unknown, path: string): IDayMapSpawn {
 	};
 }
 
+function readDayMapNativeCollider(
+	value: unknown,
+	path: string
+): IDayMapNativeCollider {
+	const record = readRecord(value, path);
+	const nullableNumber = (value: unknown, path: string) =>
+		value === null ? null : readNumber(value, path);
+	return {
+		...record,
+		name: readRequired(record, 'name', path, readString),
+		type: readRequired(record, 'type', path, readString),
+		matrix: readRequired(record, 'matrix', path, readNumberArray),
+		offset: readRequired(record, 'offset', path, readNumberArray),
+		paths: readRequired(record, 'paths', path, (value, path) =>
+			readArray(value, path, (value, path) =>
+				readArray(value, path, readNumberArray)
+			)
+		),
+		size: readRequired(record, 'size', path, (value, path) =>
+			value === null ? null : readNumberArray(value, path)
+		),
+		radius: readRequired(record, 'radius', path, nullableNumber),
+		edgeRadius: readRequired(record, 'edgeRadius', path, nullableNumber),
+		geometry: readRequired(record, 'geometry', path, (value, path) =>
+			value === null ? null : readString(value, path)
+		),
+		isTrigger: readRequired(record, 'isTrigger', path, readBoolean),
+		enabled: readRequired(record, 'enabled', path, readBoolean),
+		active: readRequired(record, 'active', path, readBoolean),
+		usedByComposite: readRequired(
+			record,
+			'usedByComposite',
+			path,
+			readBoolean
+		),
+		camera: readRequired(record, 'camera', path, readBoolean),
+		layer: readRequired(record, 'layer', path, readString),
+	};
+}
+
 function readDayMap(value: unknown, path: string): IDayMap {
 	const record = readRecord(value, path);
 	return {
 		...record,
+		...readOptionalProperty(record, 'artOnly', path, readBoolean),
+		...readOptionalProperty(
+			record,
+			'nativeColliders',
+			path,
+			(value, path) => readArray(value, path, readDayMapNativeCollider)
+		),
 		id: readRequired(record, 'id', path, readNumber),
 		formatVersion:
 			readOptionalValue(record, 'formatVersion', path, readNumber) ?? 1,

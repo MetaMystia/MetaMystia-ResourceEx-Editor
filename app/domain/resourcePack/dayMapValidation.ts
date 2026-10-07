@@ -1,4 +1,6 @@
-import type { IDayMap } from './contracts/dayMap';
+import type { IDayMap, IDayMapPlacement } from './contracts/dayMap';
+
+import { DAY_MAP_TILE_LIMIT } from './dayMapGeometry';
 
 const isCoordinate = (value: number) =>
 	Number.isFinite(value) && Math.abs(value) <= 4096;
@@ -11,26 +13,71 @@ const isOrder = (value: number) =>
 /** 静态配置检查；图片边界、音频解码和实际排序层由资产检查及游戏核验。 */
 export function validateDayMap(map: IDayMap): string[] {
 	const errors: string[] = [];
-	if (map.formatVersion !== 1)
+	if (![1, 2].includes(map.formatVersion))
 		errors.push(
 			`不支持地图格式版本${map.formatVersion}，请保留原数据并使用支持该版本的编辑器。`
 		);
 	if (!map.name.trim()) errors.push('地图名称不能为空。');
 	if (
-		map.tiles.length > 4096 ||
+		map.tiles.length > DAY_MAP_TILE_LIMIT ||
 		map.layers.length > 32 ||
 		map.objects.length > 4096 ||
 		map.collisions.length > 4096 ||
 		map.spawnMarkers.length > 256
 	)
 		errors.push(
-			'超过地图容量限制（4096切片、32层、4096装饰、4096碰撞、256出生点）。'
+			'超过地图容量限制（100000切片、32层、4096装饰、4096碰撞、256出生点）。'
 		);
+	const checkPlacement = (placement: IDayMapPlacement, name: string) => {
+		if (
+			map.formatVersion !== 2 &&
+			(placement.transform ||
+				placement.color ||
+				placement.active === false ||
+				placement.shader)
+		)
+			errors.push(`${name}的原始属性需要地图格式版本2。`);
+		if (
+			(placement.transform && !isVector(placement.transform, 6)) ||
+			(placement.color &&
+				(!isVector(placement.color, 4) ||
+					(!map.artOnly &&
+						placement.color.some(
+							(value) => value < 0 || value > 1
+						))))
+		)
+			errors.push(`${name}的变换或颜色无效。`);
+	};
 	const keys = new Set<string>();
 	for (const tile of map.tiles) {
 		if (!tile.key.trim() || keys.has(tile.key))
 			errors.push(`瓦片键为空或重复：${tile.key}`);
 		keys.add(tile.key);
+		if (tile.mesh) {
+			const mesh = tile.mesh;
+			if (
+				!isPositive(mesh.pixelsPerUnit) ||
+				mesh.vertices.length < 3 ||
+				mesh.vertices.length !== mesh.uvs.length ||
+				mesh.vertices.some((point) => !isVector(point, 2)) ||
+				mesh.uvs.some(
+					(point) =>
+						!isVector(point, 2) ||
+						point.some((value) => value < -1e-6 || value > 1 + 1e-6)
+				) ||
+				!mesh.triangles.length ||
+				mesh.triangles.length % 3 !== 0 ||
+				mesh.triangles.some(
+					(index) =>
+						!Number.isInteger(index) ||
+						index < 0 ||
+						index >= mesh.vertices.length
+				)
+			)
+				errors.push(`瓦片${tile.key}的原始网格或UV无效。`);
+			if (map.formatVersion !== 2)
+				errors.push('原始网格和变换需要地图格式版本2。');
+		}
 		if (!tile.image.trim()) errors.push(`瓦片${tile.key}缺少图片。`);
 		const [x = -1, y = -1, w = 0, h = 0] = tile.rect;
 		if (
@@ -46,18 +93,25 @@ export function validateDayMap(map: IDayMap): string[] {
 			);
 		if (
 			!isVector(tile.pivot, 2) ||
-			tile.pivot.some((value) => value < 0 || value > 1) ||
+			(!tile.mesh &&
+				tile.pivot.some((value) => value < 0 || value > 1)) ||
 			!isPositive(tile.pixelsPerUnit)
 		)
 			errors.push(`瓦片${tile.key}的锚点或每单位像素无效。`);
 	}
 	let cellCount = 0;
 	for (const layer of map.layers) {
+		if (layer.transform)
+			errors.push('图层整体变换尚未支持，请保留逐格原始变换。');
+		if (layer.isHeight && map.formatVersion !== 2)
+			errors.push('原始高度层需要地图格式版本2。');
+		checkPlacement(layer, `图层${layer.name}`);
 		if (!layer.sortingLayer.trim() || !isOrder(layer.sortingOrder))
 			errors.push(`图层${layer.name}的排序设置无效。`);
 		cellCount += layer.cells.length;
 		const positions = new Set<string>();
 		for (const cell of layer.cells) {
+			checkPlacement(cell, `格子${cell.x},${cell.y}`);
 			const key = `${cell.x},${cell.y}`;
 			if (
 				!isCoordinate(cell.x) ||
@@ -75,6 +129,7 @@ export function validateDayMap(map: IDayMap): string[] {
 	}
 	if (cellCount > 100000) errors.push('显示图层总格子数超过100000。');
 	for (const object of map.objects) {
+		checkPlacement(object, `装饰${object.name}`);
 		if (
 			!keys.has(object.tile) ||
 			!isCoordinate(object.x) ||
@@ -112,6 +167,21 @@ export function validateDayMap(map: IDayMap): string[] {
 			!isPositive(box.height)
 		)
 			errors.push(`碰撞箱${box.name}的中心坐标或尺寸无效。`);
+	for (const collider of map.nativeColliders ?? []) {
+		if (map.formatVersion !== 2) errors.push('原生碰撞需要地图格式版本2。');
+		if (
+			!isVector(collider.matrix, 16) ||
+			!isVector(collider.offset, 2) ||
+			collider.paths.some((path) =>
+				path.some((point) => !isVector(point, 2))
+			) ||
+			(collider.size !== null &&
+				(!isVector(collider.size, 2) ||
+					!collider.size.every(isPositive))) ||
+			(collider.radius !== null && !isPositive(collider.radius))
+		)
+			errors.push(`原生碰撞${collider.name}的形状或变换无效。`);
+	}
 	const names = new Set<string>();
 	for (const marker of map.spawnMarkers) {
 		if (
@@ -138,13 +208,18 @@ export function validateDayMap(map: IDayMap): string[] {
 		errors.push('固定相机位置需要三个有限数值。');
 	if (
 		map.camera.shouldFollow &&
+		!map.artOnly &&
+		!map.nativeColliders?.some((collider) => collider.camera) &&
 		(!isVector(map.camera.bounds, 4) || minX >= maxX || minY >= maxY)
 	)
 		errors.push(
 			'跟随相机中心边界需要[最小X,最小Y,最大X,最大Y]，下界须小于上界。'
 		);
 	for (const path of [map.mapBGM.intro, map.mapBGM.loop])
-		if (!path.trim() || !path.toLowerCase().endsWith('.wav'))
+		if (
+			(!map.artOnly || path.trim()) &&
+			(!path.trim() || !path.toLowerCase().endsWith('.wav'))
+		)
 			errors.push('背景音乐的前奏与循环都必须指定WAV文件。');
 	return [...new Set(errors)];
 }

@@ -11,10 +11,16 @@ import type {
 	IDayMapTile,
 } from '@/domain/resourcePack/contracts/dayMap';
 import { resolveDayMapAssetPath } from '@/domain/resourcePack/dayMapAssets';
+import {
+	DAY_MAP_TILE_LIMIT,
+	getDayMapVertices,
+} from '@/domain/resourcePack/dayMapGeometry';
 
 import { SectionDeleteButton } from '@/features/resourceEditor/client/components/actions/SectionDeleteButton';
 import { Select } from '@/features/resourceEditor/client/components/select/Select';
 import { findNextAvailableSuffixedValue } from '@/features/resourceEditor/client/editorValueAllocation';
+
+import { drawMapTile } from './drawMapTile';
 
 import { MapNumber, MapSection, MapVector } from './MapFields';
 
@@ -44,8 +50,8 @@ export function sliceMapImage(
 		throw new Error(
 			`图片为${width}×${height}，无法按${w}×${h}整齐切分。请调整尺寸，或启用整图导入。`
 		);
-	if (map.tiles.length + (width / w) * (height / h) > 4096)
-		throw new Error('切片总数不能超过4096。请增大切片尺寸。');
+	if (map.tiles.length + (width / w) * (height / h) > DAY_MAP_TILE_LIMIT)
+		throw new Error('切片总数不能超过100000。请拆分地图，保留原切片。');
 	const keys = new Set(map.tiles.map((tile) => tile.key));
 	const tiles: IDayMapTile[] = [];
 	for (let top = 0; top < height; top += h) {
@@ -82,6 +88,29 @@ function TilePreview({
 		const image = new Image();
 		image.onload = () => {
 			if (isCancelled) return;
+			if (tile.mesh) {
+				const points = getDayMapVertices(tile);
+				const xs = points.map((point) => point[0] ?? 0),
+					ys = points.map((point) => point[1] ?? 0);
+				const minX = Math.min(...xs),
+					maxX = Math.max(...xs),
+					minY = Math.min(...ys),
+					maxY = Math.max(...ys);
+				const scale = Math.min(
+					60 / (maxX - minX || 1),
+					60 / (maxY - minY || 1)
+				);
+				context.imageSmoothingEnabled = false;
+				drawMapTile(
+					context,
+					image,
+					tile,
+					32 - ((minX + maxX) * scale) / 2,
+					32 + ((minY + maxY) * scale) / 2,
+					scale
+				);
+				return;
+			}
 			const [x = 0, y = 0, width = 0, height = 0] = tile.rect;
 			if (
 				width <= 0 ||
@@ -111,7 +140,7 @@ function TilePreview({
 			isCancelled = true;
 			image.onload = null;
 		};
-	}, [tile.rect, url]);
+	}, [tile, url]);
 	return (
 		<canvas
 			ref={canvasRef}
@@ -371,20 +400,33 @@ export function TilePalette({
 						<p className="break-all text-xs text-foreground-500">
 							{tile.image}
 						</p>
-						<MapVector
-							labels={['切片左', '切片下', '切片宽', '切片高']}
-							values={tile.rect}
-							min={0}
-							step={1}
-							onChange={(rect) => patchTile({ rect })}
-						/>
-						<MapVector
-							labels={['锚点X', '锚点Y']}
-							values={tile.pivot}
-							min={0}
-							max={1}
-							onChange={(pivot) => patchTile({ pivot })}
-						/>
+						{tile.mesh ? (
+							<p className="text-xs text-foreground-500">
+								原始网格使用UV定位图集，保留原锚点与裁切。修改PPU只改变显示比例，不修改图片。
+							</p>
+						) : (
+							<>
+								<MapVector
+									labels={[
+										'切片左',
+										'切片下',
+										'切片宽',
+										'切片高',
+									]}
+									values={tile.rect}
+									min={0}
+									step={1}
+									onChange={(rect) => patchTile({ rect })}
+								/>
+								<MapVector
+									labels={['锚点X', '锚点Y']}
+									values={tile.pivot}
+									min={0}
+									max={1}
+									onChange={(pivot) => patchTile({ pivot })}
+								/>
+							</>
+						)}
 						<MapNumber
 							label="切片每单位像素数"
 							value={tile.pixelsPerUnit}

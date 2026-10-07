@@ -58,6 +58,7 @@ export async function validateDayMapAssetFiles(
 			const dimensions = await readImage(path);
 			const [x = 0, y = 0, width = 0, height = 0] = tile.rect;
 			if (
+				!tile.mesh &&
 				dimensions &&
 				(x + width > dimensions.width || y + height > dimensions.height)
 			)

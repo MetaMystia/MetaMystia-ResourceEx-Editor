@@ -46,9 +46,15 @@ export function DayMapInspector({
 			map.mapBGM.loop,
 		])
 	).filter(Boolean);
-	const sortingOptions = ['Background', 'Character', 'Overlay'].map(
-		(value) => ({ value, label: value })
-	);
+	const sortingOptions = [
+		...new Set([
+			'Background',
+			'Character',
+			'Overlay',
+			...map.layers.map((layer) => layer.sortingLayer),
+			...map.objects.map((object) => object.sortingLayer),
+		]),
+	].map((value) => ({ value, label: value }));
 	function patchLayer(updates: Partial<NonNullable<typeof layer>>) {
 		onChange({
 			...map,
@@ -102,7 +108,15 @@ export function DayMapInspector({
 						value={layer.sortingLayer}
 						items={sortingOptions}
 						onChange={(sortingLayer) =>
-							patchLayer({ sortingLayer })
+							patchLayer({
+								sortingLayer,
+								sortingValue: [
+									...map.layers,
+									...map.objects,
+								].find(
+									(item) => item.sortingLayer === sortingLayer
+								)?.sortingValue,
+							})
 						}
 					/>
 					<MapNumber
@@ -329,7 +343,17 @@ export function DayMapInspector({
 								value={object.sortingLayer}
 								items={sortingOptions}
 								onChange={(sortingLayer) =>
-									patchObject({ sortingLayer })
+									patchObject({
+										sortingLayer,
+										sortingValue: [
+											...map.layers,
+											...map.objects,
+										].find(
+											(item) =>
+												item.sortingLayer ===
+												sortingLayer
+										)?.sortingValue,
+									})
 								}
 							/>
 							{!object.sortByY && (

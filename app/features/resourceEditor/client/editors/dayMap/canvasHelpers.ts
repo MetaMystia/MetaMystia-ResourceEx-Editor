@@ -1,4 +1,12 @@
-import type { IDayMap } from '@/domain/resourcePack/contracts/dayMap';
+import type {
+	IDayMap,
+	IDayMapPlacement,
+} from '@/domain/resourcePack/contracts/dayMap';
+
+import {
+	getDayMapVertices,
+	transformDayMapPoint,
+} from '@/domain/resourcePack/dayMapGeometry';
 
 export interface IMapPoint {
 	x: number;
@@ -28,8 +36,27 @@ export function getMapBounds(map: IDayMap) {
 		maxY = Math.max(maxY, y);
 	};
 	const tiles = new Map(map.tiles.map((tile) => [tile.key, tile]));
-	const includeTile = (key: string, x: number, y: number, sx = 1, sy = 1) => {
+	const includeTile = (
+		key: string,
+		x: number,
+		y: number,
+		sx = 1,
+		sy = 1,
+		placement: IDayMapPlacement = {}
+	) => {
 		const tile = tiles.get(key);
+		if (tile?.mesh || placement.transform) {
+			if (tile)
+				getDayMapVertices(tile).forEach(([vx = 0, vy = 0]) => {
+					const [tx = 0, ty = 0] = transformDayMapPoint(
+						vx * sx,
+						vy * sy,
+						placement
+					);
+					include(x + tx, y + ty);
+				});
+			return;
+		}
 		const w = ((tile?.rect[2] ?? 48) / (tile?.pixelsPerUnit || 48)) * sx;
 		const h = ((tile?.rect[3] ?? 48) / (tile?.pixelsPerUnit || 48)) * sy;
 		const left = x - w * (tile?.pivot[0] ?? 0),
@@ -38,10 +65,12 @@ export function getMapBounds(map: IDayMap) {
 		include(left + w, bottom + h);
 	};
 	map.layers.forEach((layer) =>
-		layer.cells.forEach((cell) => includeTile(cell.tile, cell.x, cell.y))
+		layer.cells.forEach((cell) =>
+			includeTile(cell.tile, cell.x, cell.y, 1, 1, cell)
+		)
 	);
 	map.objects.forEach((obj) =>
-		includeTile(obj.tile, obj.x, obj.y, obj.scale[0], obj.scale[1])
+		includeTile(obj.tile, obj.x, obj.y, obj.scale[0], obj.scale[1], obj)
 	);
 	map.collisions.forEach((box) => {
 		include(box.x - box.width / 2, box.y - box.height / 2);

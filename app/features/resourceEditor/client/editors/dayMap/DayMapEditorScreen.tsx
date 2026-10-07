@@ -245,7 +245,7 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 	const workspaceIdRef = useRef(activeWorkspaceId);
 	workspaceIdRef.current = activeWorkspaceId;
 	const issues = useMemo(() => validateDayMap(map), [map]);
-	const isReadOnly = map.formatVersion !== 1;
+	const isReadOnly = ![1, 2].includes(map.formatVersion);
 	const effectiveLayerIndex = Math.min(
 		layerIndex,
 		Math.max(0, map.layers.length - 1)
@@ -465,7 +465,7 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 					className="rounded-medium bg-warning/20 p-3 text-sm"
 				>
 					地图格式版本为{map.formatVersion}
-					，当前编辑器只编辑版本1。原数据会保留。
+					，当前编辑器只编辑版本1和2。原数据会保留。
 				</p>
 			)}
 			{(error || isImporting) && (
@@ -476,6 +476,16 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 					{isImporting ? '正在读取资源…' : error}
 				</p>
 			)}
+			{map.formatVersion === 2 && (
+				<p className="rounded-medium bg-warning/10 p-3 text-sm">
+					原始素材模式：图片、UV、PPU和逐格变换独立保存，不合并或烘焙图片。特殊材质默认不参与普通画布预览，可通过“显示特殊材质源图”查看；源数据始终保留。原生碰撞显示精确轮廓，暂不提供顶点编辑；互动脚本与动态材质仍需模组支持。
+				</p>
+			)}
+			{map.artOnly && (
+				<p className="rounded-medium bg-warning/10 p-3 text-sm">
+					静态美术参考包：不含音乐、互动与动态效果，供查看和编辑素材结构，不能直接作为完整游戏地图安装。
+				</p>
+			)}
 			<fieldset disabled={isReadOnly} className="min-w-0 space-y-3">
 				<div
 					className="flex flex-wrap items-center gap-2"
@@ -484,6 +494,10 @@ function DayMapEditor({ map, index }: { map: IDayMap; index: number }) {
 					{MODES.map((item) => (
 						<Button
 							key={item.value}
+							isDisabled={
+								item.value === 'height' &&
+								map.layers.some((layer) => layer.isHeight)
+							}
 							size="sm"
 							variant={mode === item.value ? 'flat' : 'light'}
 							color={mode === item.value ? 'primary' : 'default'}

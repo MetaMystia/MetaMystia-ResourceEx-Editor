@@ -11,7 +11,10 @@ import {
 
 import Button from '@/design/ui/components/button';
 
-import type { IDayMap } from '@/domain/resourcePack/contracts/dayMap';
+import type {
+	IDayMap,
+	IDayMapPlacement,
+} from '@/domain/resourcePack/contracts/dayMap';
 import { resolveDayMapAssetPath } from '@/domain/resourcePack/dayMapAssets';
 
 import {
@@ -24,6 +27,9 @@ import {
 	type TMapCanvasMode,
 	type TMapCanvasTool,
 } from './canvasHelpers';
+
+import { drawMapTile } from './drawMapTile';
+import { drawNativeColliders } from './drawNativeColliders';
 
 interface IProps {
 	map: IDayMap;
@@ -85,6 +91,7 @@ export default function DayMapCanvas(props: IProps) {
 	const [size, setSize] = useState({ width: 800, height: 480 });
 	const [cursor, setCursor] = useState<IMapPoint>({ x: 0, y: 0 });
 	const [isGridVisible, setIsGridVisible] = useState(true);
+	const [showMaterialSources, setShowMaterialSources] = useState(false);
 	const [images, setImages] = useState<ReadonlyMap<string, HTMLImageElement>>(
 		new Map()
 	);
@@ -170,10 +177,37 @@ export default function DayMapCanvas(props: IProps) {
 			x: number,
 			y: number,
 			scaleX = 1,
-			scaleY = 1
+			scaleY = 1,
+			placement: IDayMapPlacement = {}
 		) => {
 			const tile = tiles.get(key);
-			if (!tile) return;
+			if (!tile || placement.active === false) return;
+			if (
+				!showMaterialSources &&
+				placement.shader &&
+				!['Sprites/Default', 'Custom/DefaultSprite'].includes(
+					placement.shader
+				)
+			)
+				return;
+			const nativeImage = images.get(tile.image);
+			if (
+				nativeImage &&
+				(tile.mesh || placement.transform || placement.color)
+			) {
+				drawMapTile(
+					context,
+					nativeImage,
+					tile,
+					px(x),
+					py(y),
+					view.scale,
+					placement,
+					scaleX,
+					scaleY
+				);
+				return;
+			}
 			const [sx = 0, sy = 0, sw = 0, sh = 0] = tile.rect;
 			const width = (sw / tile.pixelsPerUnit) * scaleX * view.scale;
 			const height = (sh / tile.pixelsPerUnit) * scaleY * view.scale;
@@ -227,21 +261,41 @@ export default function DayMapCanvas(props: IProps) {
 						: 1;
 		const entries = [
 			...shownMap.layers.flatMap((layer, index) =>
-				hiddenLayers.has(index)
+				hiddenLayers.has(index) || layer.active === false
 					? []
 					: [
 							{
-								rank: sortingRank(layer.sortingLayer),
+								rank:
+									layer.sortingValue ??
+									sortingRank(layer.sortingLayer),
 								order: layer.sortingOrder,
 								draw: () =>
 									layer.cells.forEach((cell) =>
-										drawTile(cell.tile, cell.x, cell.y)
+										drawTile(
+											cell.tile,
+											cell.x,
+											cell.y,
+											1,
+											1,
+											{
+												...layer,
+												...cell,
+												color: (
+													cell.color ?? [1, 1, 1, 1]
+												).map(
+													(value, index) =>
+														value *
+														(layer.color?.[index] ??
+															1)
+												),
+											}
+										)
 									),
 							},
 						]
 			),
 			...shownMap.objects.map((obj) => ({
-				rank: sortingRank(obj.sortingLayer),
+				rank: obj.sortingValue ?? sortingRank(obj.sortingLayer),
 				order: obj.sortByY ? Math.trunc(-32 * obj.y) : obj.sortingOrder,
 				draw: () =>
 					drawTile(
@@ -249,7 +303,8 @@ export default function DayMapCanvas(props: IProps) {
 						obj.x,
 						obj.y,
 						obj.scale[0],
-						obj.scale[1]
+						obj.scale[1],
+						obj
 					),
 			})),
 		];
@@ -330,6 +385,13 @@ export default function DayMapCanvas(props: IProps) {
 					);
 				}
 			});
+		drawNativeColliders(
+			context,
+			shownMap.nativeColliders ?? [],
+			px,
+			py,
+			view.scale
+		);
 		shownMap.collisions.forEach((box, index) => {
 			const isSelected = mode === 'collision' && index === selectedIndex;
 			context.fillStyle =
@@ -410,6 +472,7 @@ export default function DayMapCanvas(props: IProps) {
 		view,
 		hiddenLayers,
 		isGridVisible,
+		showMaterialSources,
 		mode,
 		selectedIndex,
 		cursor,
@@ -835,6 +898,16 @@ export default function DayMapCanvas(props: IProps) {
 					aria-label="缩小地图"
 				>
 					−
+				</Button>
+				<Button
+					size="sm"
+					variant="flat"
+					aria-pressed={showMaterialSources}
+					onPress={() => setShowMaterialSources(!showMaterialSources)}
+				>
+					{showMaterialSources
+						? '隐藏特殊材质源图'
+						: '显示特殊材质源图'}
 				</Button>
 				<span className="min-w-14 text-center text-sm">
 					{Math.round((view.scale / 48) * 100)}%
