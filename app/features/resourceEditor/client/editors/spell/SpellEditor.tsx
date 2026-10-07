@@ -42,7 +42,7 @@ export function SpellEditor({ spell, onUpdate }: IProps) {
 				/>
 				<Input
 					label="符卡实现名"
-					description="填写 Mod 已注册的实现名，例如 Mai。符卡效果由 Mod 代码决定。"
+					description="用于选择 Mod 已实现的符卡效果，须由开发者提供并准确填写（区分大小写）。例如 Mai 对应舞的符卡逻辑；不是显示名称，随意填写不会创建新效果。"
 					value={spell.implementation}
 					onValueChange={(implementation) =>
 						onUpdate({ ...spell, implementation })
@@ -162,7 +162,8 @@ export function SpellEditor({ spell, onUpdate }: IProps) {
 					}}
 				/>
 				<p className="text-sm text-foreground-500">
-					选择文件后，需在「特效包」中声明同一路径。无特效的实现可留空，Mai
+					选择文件后，需在「资产 →
+					AssetBundle」中声明同一路径，也可点击下方按钮添加声明。无特效的实现可留空，Mai
 					需要特效包和 Buff 11002、11003。
 				</p>
 				{spell.vfxBundle &&
@@ -193,7 +194,7 @@ function DeclareBundle({ path }: { path: string }) {
 				)
 			}
 		>
-			添加特效包声明
+			添加 AssetBundle 声明
 		</Button>
 	);
 }

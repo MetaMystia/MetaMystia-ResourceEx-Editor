@@ -1,8 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-
-import Button from '@/design/ui/components/button';
 import Input from '@/design/ui/components/input';
 import Textarea from '@/design/ui/components/textarea';
 
@@ -30,44 +27,46 @@ import {
 	findNextAvailableInteger,
 	parseIntegerInput,
 } from '@/features/resourceEditor/client/editorValueAllocation';
-import { useEditorPageNavigationIntent } from '@/features/resourceEditor/client/navigation/editorNavigationIntent';
+import { SpellAssetField } from '@/features/resourceEditor/client/editors/spell/SpellAssetField';
+import { SpellEditor } from '@/features/resourceEditor/client/editors/spell/SpellEditor';
+import { useEditorEntityNavigationIntent } from '@/features/resourceEditor/client/navigation/editorNavigationIntent';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
-
-import { SpellAssetField } from './SpellAssetField';
-import { SpellEditor } from './SpellEditor';
 
 const COLLECTION_LABELS = {
 	spells: '符卡',
 	buffs: 'Buff',
-	assetBundles: '特效包',
+	assetBundles: 'AssetBundle',
 } as const;
 type TCollection = keyof typeof COLLECTION_LABELS;
 
-export function SpellEditorScreen() {
+const ENTITY_KINDS = {
+	spells: 'spell',
+	buffs: 'buff',
+	assetBundles: 'assetBundle',
+} as const;
+
+const COLLECTION_DESCRIPTIONS = {
+	spells: '编辑符卡显示资源，效果由 Mod 中的符卡实现决定。',
+	buffs: '编辑 Buff 的名称、说明与图标，效果由 Mod 代码决定。',
+	assetBundles:
+		'声明启动时需要加载的 AssetBundle 文件。仅上传文件不会自动加载。',
+} as const;
+
+interface IProps {
+	collection: TCollection;
+}
+
+export function ResourceDisplayEditorScreen({ collection }: IProps) {
 	const { resourcePack, updateResourcePack } = useResourceEditor();
-	const [collection, setCollection] = useState<TCollection>('spells');
 	const { detailKey, replaceSelection, selectedIndex, setSelectedIndex } =
 		useEditorSelection();
 	const items = resourcePack[collection];
 	const label = COLLECTION_LABELS[collection];
-	useEditorPageNavigationIntent({
-		entityKinds: ['spell', 'buff', 'assetBundle'],
-		onTarget: (target) => {
-			const targetCollection =
-				target.entityKind === 'spell'
-					? 'spells'
-					: target.entityKind === 'buff'
-						? 'buffs'
-						: 'assetBundles';
-			const index = resourcePack[targetCollection].findIndex(
-				(item) =>
-					('id' in item ? item.id : item.path) === target.stableKey
-			);
-			if (index < 0) return false;
-			setCollection(targetCollection);
-			replaceSelection(index);
-			return true;
-		},
+	useEditorEntityNavigationIntent<(typeof items)[number]>({
+		entityKind: ENTITY_KINDS[collection],
+		items,
+		getStableKey: (item) => ('id' in item ? item.id : item.path),
+		onSelect: replaceSelection,
 	});
 
 	function add() {
@@ -153,28 +152,23 @@ export function SpellEditorScreen() {
 
 	return (
 		<>
-			<div
-				className="mx-auto flex w-full max-w-7xl flex-wrap gap-2 px-4 pt-4 sm:px-6"
-				aria-label="符卡资源类型"
-			>
-				{(Object.keys(COLLECTION_LABELS) as TCollection[]).map(
-					(key) => (
-						<Button
-							key={key}
-							aria-pressed={collection === key}
-							color={collection === key ? 'primary' : 'default'}
-							variant="flat"
-							onPress={() => {
-								setCollection(key);
-								replaceSelection(null);
-							}}
-						>
-							{COLLECTION_LABELS[key]}
-						</Button>
-					)
-				)}
-			</div>
 			<EditorWorkspace detailKey={`${collection}:${detailKey}`}>
+				{collection !== 'assetBundles' && (
+					<aside
+						role="note"
+						aria-label="编辑范围说明"
+						className="col-span-full rounded-medium border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground-700"
+					>
+						<p className="font-semibold">
+							这里只编辑显示资源，不编写实际效果
+						</p>
+						<p className="mt-1">
+							{collection === 'spells'
+								? '可配置符卡名称、说明、立绘和特效资源。新增条目或修改说明不会生成或改变效果；符卡需要使用 Mod 已实现的效果，并配齐所需资源。'
+								: '可配置 Buff 名称、说明和图标。新增条目不会自动产生或触发 Buff；需要 Mod 中的效果代码使用对应的 Buff ID。'}
+						</p>
+					</aside>
+				)}
 				<EditorCollectionPanel
 					title={`${label}列表`}
 					addLabel={`新建${label}`}
@@ -202,7 +196,7 @@ export function SpellEditorScreen() {
 									? `[${item.id}] ${item.positive.name || '未命名符卡'}`
 									: 'id' in item
 										? `[${item.id}] ${item.name}`
-										: item.path || '未选择特效包'}
+										: item.path || '未选择 AssetBundle'}
 							</EditorCollectionItemTitle>
 						</EditorCollectionItem>
 					))}
@@ -213,7 +207,7 @@ export function SpellEditorScreen() {
 					<EditorDetailPanel key={`${collection}:${detailKey}`}>
 						<EditorDetailHeader
 							title={`${label}编辑`}
-							description="编辑符卡及配套显示资源，效果由 Mod 中的符卡实现决定。"
+							description={COLLECTION_DESCRIPTIONS[collection]}
 						/>
 						{spell && (
 							<SpellEditor spell={spell} onUpdate={updateSpell} />
@@ -222,6 +216,7 @@ export function SpellEditorScreen() {
 							<EditorSection title="Buff 显示信息">
 								<Input
 									label="Buff ID"
+									description="需与 Mod 效果代码使用的 ID 一致，不要随意更改已有 ID。"
 									type="number"
 									value={String(buff.id)}
 									onValueChange={(raw) => {
@@ -239,7 +234,7 @@ export function SpellEditorScreen() {
 								/>
 								<Textarea
 									label="Buff 说明"
-									description="保留 $a、$b、$c 等占位符，具体含义由符卡实现决定。"
+									description="保留 $a、$b、$c 等占位符，具体含义由使用该 Buff 的代码决定。"
 									value={buff.description}
 									onValueChange={(description) =>
 										updateBuff({ ...buff, description })
@@ -275,8 +270,8 @@ export function SpellEditorScreen() {
 								/>
 								<p className="text-sm text-foreground-500">
 									选择已构建的 AssetBundle
-									文件，可无扩展名；这里不构建或预览 Unity
-									特效。
+									文件，可无扩展名。当前 Mod
+									主要用于符卡特效预制件，不支持在此构建或预览包内资源。
 								</p>
 							</EditorSection>
 						)}

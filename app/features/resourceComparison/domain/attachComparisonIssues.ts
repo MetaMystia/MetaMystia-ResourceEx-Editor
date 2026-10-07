@@ -29,7 +29,7 @@ interface IReferenceOwnerDescriptor {
 const VALIDATION_CATEGORY_COLLECTIONS = {
 	符卡: 'spells',
 	Buff: 'buffs',
-	特效包: 'assetBundles',
+	AssetBundle: 'assetBundles',
 	事件节点: 'eventNodes',
 	任务节点: 'missionNodes',
 	商人: 'merchants',

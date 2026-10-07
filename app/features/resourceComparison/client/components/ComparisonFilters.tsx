@@ -35,7 +35,7 @@ const RESOURCE_TYPE_OPTIONS = [
 	{ label: '稀客', value: 'characters' },
 	{ label: '符卡', value: 'spells' },
 	{ label: 'Buff', value: 'buffs' },
-	{ label: '特效包', value: 'assetBundles' },
+	{ label: 'AssetBundle', value: 'assetBundles' },
 	{ label: '对话包', value: 'dialogPackages' },
 	{ label: '食材', value: 'ingredients' },
 	{ label: '料理', value: 'foods' },

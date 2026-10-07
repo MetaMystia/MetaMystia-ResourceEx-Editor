@@ -35,7 +35,7 @@ export const RESOURCE_ENTITY_DESCRIPTORS = [
 	{
 		collection: 'assetBundles',
 		displayField: 'path',
-		label: '特效包',
+		label: 'AssetBundle',
 		stableKey: 'path',
 	},
 	{

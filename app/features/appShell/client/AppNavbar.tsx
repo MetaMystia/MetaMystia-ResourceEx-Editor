@@ -58,6 +58,7 @@ const NAV_GROUPS = [
 		items: [
 			{ href: '/character', label: '稀客' },
 			{ href: '/spell', label: '符卡' },
+			{ href: '/buff', label: 'Buff' },
 			{ href: '/dialogue', label: '对话' },
 			{ href: '/merchant', label: '商人' },
 			{ href: '/gift', label: '礼物邮箱' },
@@ -81,12 +82,18 @@ const NAV_GROUPS = [
 			{ href: '/event', label: '事件节点' },
 		],
 	},
+	{
+		label: '资产',
+		items: [
+			{ href: '/asset', label: '资产管理' },
+			{ href: '/asset-bundle', label: 'AssetBundle' },
+		],
+	},
 ] as const satisfies readonly INavGroup[];
 
 const MOBILE_NAV_GROUPS: readonly INavGroup[] = [
 	{ label: '资源包', items: [{ href: '/info', label: '基础信息' }] },
 	...NAV_GROUPS,
-	{ label: '资产', items: [{ href: '/asset', label: '资产管理' }] },
 ] as const;
 
 const MOBILE_NAV_ITEMS = MOBILE_NAV_GROUPS.flatMap((group) => group.items);
@@ -631,22 +638,6 @@ export const AppNavbar = memo(function AppNavbar() {
 							{NAV_GROUPS.map((group) => (
 								<NavDropdown key={group.label} {...group} />
 							))}
-							<NavbarItem>
-								<Button
-									as={Link}
-									href="/asset"
-									variant={
-										pathname === '/asset' ? 'flat' : 'light'
-									}
-									color={
-										pathname === '/asset'
-											? 'primary'
-											: 'default'
-									}
-								>
-									资产
-								</Button>
-							</NavbarItem>
 						</nav>
 					)}
 				</NavbarContent>

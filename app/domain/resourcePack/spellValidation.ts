@@ -51,9 +51,9 @@ export function validateSpellResources(
 		(bundle) => resolve(bundle.path) ?? bundle.path
 	);
 	data.assetBundles.forEach((bundle, index) => {
-		checkPath(bundle.path, '特效包', `特效包#${index + 1}`);
+		checkPath(bundle.path, 'AssetBundle', `AssetBundle #${index + 1}`);
 		if (bundlePaths.indexOf(bundlePaths[index] ?? '') !== index)
-			report('特效包', `特效包重复声明：${bundle.path}`);
+			report('AssetBundle', `AssetBundle 重复声明：${bundle.path}`);
 	});
 	data.spells.forEach((spell) => {
 		const owner = `符卡 ${spell.id}`;
