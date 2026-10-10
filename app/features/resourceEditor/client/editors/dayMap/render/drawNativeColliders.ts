@@ -1,23 +1,30 @@
 import type { IDayMapNativeCollider } from '@/domain/resourcePack/contracts/dayMap';
 
+/** 原生碰撞只画轮廓：相机青色、触发器黄色、实体红色。 */
 export function drawNativeColliders(
 	context: CanvasRenderingContext2D,
-	colliders: IDayMapNativeCollider[],
+	colliders: readonly IDayMapNativeCollider[],
 	px: (x: number) => number,
 	py: (y: number) => number,
-	scale: number
+	scale: number,
+	isEmphasized: boolean
 ) {
+	if (colliders.length === 0) return;
+	context.save();
+	context.globalAlpha = isEmphasized ? 0.95 : 0.45;
 	for (const collider of colliders) {
 		if (!collider.active || !collider.enabled || collider.usedByComposite)
 			continue;
 		const m = collider.matrix;
 		context.save();
 		context.strokeStyle = collider.camera
-			? '#38bdf8'
+			? '#22d3ee'
 			: collider.isTrigger
 				? '#facc15'
-				: '#ef4444';
-		context.lineWidth = 1 / scale;
+				: '#f87171';
+		context.lineWidth = (isEmphasized ? 1.5 : 1) / scale;
+		if (collider.isTrigger || collider.camera)
+			context.setLineDash([4 / scale, 3 / scale]);
 		context.transform(
 			(m[0] ?? 1) * scale,
 			-(m[4] ?? 0) * scale,
@@ -44,4 +51,5 @@ export function drawNativeColliders(
 		context.stroke();
 		context.restore();
 	}
+	context.restore();
 }

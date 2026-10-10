@@ -1,9 +1,9 @@
-export const ANNOUNCEMENT_VERSION = 'v0.16.2-2026-10-08';
+export const ANNOUNCEMENT_VERSION = 'v0.16.3-2026-10-10';
 
 export const ANNOUNCEMENT_TITLE = 'MetaMystia ResourceEx Editor公告';
 
 export const ANNOUNCEMENT_SUMMARY =
-	'地图编辑器新增原始素材与静态美术参考包支持，保留原图、网格和不同 PPU，并显示原生碰撞轮廓。特殊材质效果暂未还原，地图编辑器仍为预览测试版本。';
+	'白天地图编辑器重新设计界面与操作，画布改用 WebGL 绘制，大地图的平移、缩放和绘制更流畅，地图数据格式不变。地图编辑器仍为预览测试版本。';
 
 export interface IAnnouncementSection {
 	title: string;
@@ -38,6 +38,7 @@ export const ANNOUNCEMENT_SECTIONS: IAnnouncementSection[] = [
 	{
 		title: '更新日志',
 		items: [
+			'v0.16.3：重新设计白天地图编辑器的界面与操作，画布改用WebGL绘制（不支持时自动改用兼容渲染），大地图平移、缩放和绘制更流畅；新增填充、多格图章和框选多选，可直接拖动调整碰撞框和相机范围，撤销记录增加到100步。地图数据格式不变。',
 			'v0.16.2：地图编辑器支持版本2原始素材格式，保留网格、UV、不同PPU及逐格变换，不合并或重绘原图；新增原生碰撞轮廓预览和特殊材质源图开关，切片上限提高至100000。支持不含音乐的静态美术参考包，并明确提示其不能直接作为完整游戏地图安装。',
 			'v0.16.1：新增调查交互物、营业售卖记录、外部信号及指定事件完成数量的配置入口，并支持发送任务完成信号；补充导入导出、引用更新和配置校验。',
 			'v0.16.0：新增「角色→符卡」「角色→Buff」独立页面及「资产→AssetBundle」加载声明管理，支持导入导出和资源校验，并补充编辑范围与符卡实现名说明。',
