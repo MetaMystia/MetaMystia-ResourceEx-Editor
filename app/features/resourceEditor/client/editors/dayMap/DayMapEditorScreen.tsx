@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
@@ -20,6 +20,7 @@ import {
 	findNextAvailableInteger,
 	getEntityIdAllocationStart,
 } from '@/features/resourceEditor/client/editorValueAllocation';
+import { useViewportFillHeight } from '@/features/resourceEditor/client/hooks/useViewportFillHeight';
 import { useEditorEntityNavigationIntent } from '@/features/resourceEditor/client/navigation/editorNavigationIntent';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
@@ -68,35 +69,7 @@ export function DayMapEditorScreen() {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const maps = resourcePack.dayMaps;
 
-	// 宽屏时编辑器占满导航以下的窗口；导航下方的状态栏高度随屏宽和存储状态变化，按实际位置计算。
-	useLayoutEffect(() => {
-		const element = containerRef.current;
-		if (!element) return;
-		const query = window.matchMedia('(min-width: 1024px)');
-		const update = () => {
-			if (!query.matches) {
-				element.style.height = '';
-				return;
-			}
-			const top = element.getBoundingClientRect().top + window.scrollY;
-			element.style.height = `${Math.max(560, Math.floor(window.innerHeight - top))}px`;
-		};
-		update();
-		const observer = new ResizeObserver(update);
-		for (
-			let node = element.closest('main')?.previousElementSibling;
-			node;
-			node = node.previousElementSibling
-		)
-			observer.observe(node);
-		window.addEventListener('resize', update);
-		query.addEventListener('change', update);
-		return () => {
-			observer.disconnect();
-			window.removeEventListener('resize', update);
-			query.removeEventListener('change', update);
-		};
-	}, []);
+	useViewportFillHeight(containerRef, 560);
 	const index = Math.min(selectedIndex, Math.max(0, maps.length - 1));
 	const map = maps[index];
 	useEditorEntityNavigationIntent({

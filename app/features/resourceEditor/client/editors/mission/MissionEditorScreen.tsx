@@ -2,33 +2,19 @@
 
 import { useCallback, useState } from 'react';
 
-import type {
-	MissionCondition,
-	MissionNode,
-	MissionReward,
-} from '@/domain/resourcePack/contracts/mission';
-import { remapResourcePackLabelReferences } from '@/domain/resourcePack/entityReferences';
+import type { MissionNode } from '@/domain/resourcePack/contracts/mission';
 
 import { EditorWorkspace } from '@/features/resourceEditor/client/components/layout/EditorWorkspace';
-import { findNextAvailableSuffixedValue } from '@/features/resourceEditor/client/editorValueAllocation';
 import { useEditorEntityNavigationIntent } from '@/features/resourceEditor/client/navigation/editorNavigationIntent';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
 import MissionEditor from './MissionEditor';
 import { MissionList } from './MissionList';
-
-const DEFAULT_MISSION = {
-	title: '',
-	description: '',
-	debugLabel: '新任务',
-	missionType: 'Kitsuna' as MissionNode['missionType'],
-	sender: '',
-	reciever: '', // ignore: typo
-	rewards: [] as MissionReward[],
-	postRewards: [] as MissionReward[],
-	finishConditions: [] as MissionCondition[],
-	missionFailedAction: 'None' as const,
-};
+import {
+	appendMissionNode,
+	removeMissionNodeAt,
+	updateMissionNodeAt,
+} from './missionNodeEdits';
 
 export function MissionEditorScreen() {
 	const { resourcePack: data, updateResourcePack } = useResourceEditor();
@@ -40,56 +26,31 @@ export function MissionEditorScreen() {
 		onSelect: setSelectedIndex,
 	});
 
+	const missionCount = data.missionNodes.length;
 	const addMission = useCallback(() => {
-		const packLabel = data.packInfo.label;
-		const labelPrefix = packLabel ? `_${packLabel}_` : '_';
-		const newMission: MissionNode = {
-			...DEFAULT_MISSION,
-			label: findNextAvailableSuffixedValue(
-				data.missionNodes.map((mission) => mission.label),
-				`${labelPrefix}Mission_`
-			),
-		};
-		const newMissions = [...data.missionNodes, newMission];
-		updateResourcePack(() => ({ ...data, missionNodes: newMissions }));
-		setSelectedIndex(newMissions.length - 1);
-	}, [data, updateResourcePack]);
+		updateResourcePack(appendMissionNode);
+		setSelectedIndex(missionCount);
+	}, [missionCount, updateResourcePack]);
 
 	const updateMission = useCallback(
 		(index: number | null, updates: Partial<MissionNode>) => {
 			if (index === null) return;
-			const newMissions = [...data.missionNodes];
-			const previousMission = newMissions[index];
-			if (!previousMission) return;
-			newMissions[index] = {
-				...previousMission,
-				...(updates as Partial<MissionNode>),
-			} as MissionNode;
-			let nextData = { ...data, missionNodes: newMissions };
-			if (
-				updates.label !== undefined &&
-				updates.label !== previousMission.label
-			) {
-				nextData = remapResourcePackLabelReferences(
-					nextData,
-					'Mission',
-					previousMission.label,
-					updates.label
-				);
-			}
-			updateResourcePack(() => nextData);
+			updateResourcePack((current) =>
+				updateMissionNodeAt(current, index, updates)
+			);
 		},
-		[data, updateResourcePack]
+		[updateResourcePack]
 	);
 
 	const removeMission = useCallback(
 		(index: number | null) => {
 			if (index === null) return;
-			const newMissions = data.missionNodes.filter((_, i) => i !== index);
-			updateResourcePack(() => ({ ...data, missionNodes: newMissions }));
+			updateResourcePack((current) =>
+				removeMissionNodeAt(current, index)
+			);
 			setSelectedIndex(null);
 		},
-		[data, updateResourcePack]
+		[updateResourcePack]
 	);
 
 	const selectedMission =

@@ -80,6 +80,7 @@ const NAV_GROUPS = [
 			{ href: '/map', label: '白天地图' },
 			{ href: '/mission', label: '任务节点' },
 			{ href: '/event', label: '事件节点' },
+			{ href: '/node-graph', label: '节点图' },
 		],
 	},
 	{

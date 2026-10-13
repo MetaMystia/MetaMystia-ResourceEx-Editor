@@ -1,0 +1,56 @@
+// React Flow 的配色跟随 HeroUI 主题变量，浅色和深色主题都由 html 上的主题类切换。
+.node-graph-canvas {
+	--xy-background-color: transparent;
+	--xy-background-pattern-color: hsl(var(--heroui-default-300));
+	--xy-edge-label-background-color: hsl(var(--heroui-content1));
+	--xy-edge-label-color: hsl(var(--heroui-foreground-600));
+	--xy-minimap-background-color: hsl(var(--heroui-content1) / 0.9);
+	--xy-minimap-mask-background-color: hsl(var(--heroui-default-200) / 0.55);
+	--xy-minimap-mask-stroke-color: hsl(var(--heroui-primary) / 0.6);
+	--xy-attribution-background-color: hsl(var(--heroui-content1) / 0.6);
+	--xy-node-boxshadow-selected: none;
+
+	.react-flow__node {
+		border-radius: var(--heroui-radius-large, 14px);
+
+		&:focus-visible {
+			outline: 2px solid hsl(var(--heroui-focus));
+			outline-offset: 3px;
+		}
+	}
+
+	// 可拖出或可接入的端点：悬停与拖拽时加一圈光晕，可接入的目标显示为成功色。
+	.react-flow__handle.node-graph-handle {
+		transition: box-shadow 120ms ease;
+
+		@media (prefers-reduced-motion: reduce) {
+			transition: none;
+		}
+
+		&.connectable {
+			cursor: crosshair;
+		}
+
+		&.connectable:hover,
+		&.connectingfrom {
+			box-shadow: 0 0 0 4px hsl(var(--heroui-focus) / 0.3);
+		}
+
+		&.connectingto.valid {
+			box-shadow: 0 0 0 5px hsl(var(--heroui-success) / 0.45);
+		}
+	}
+
+	.react-flow__node,
+	.react-flow__edge {
+		transition: opacity 160ms ease;
+
+		@media (prefers-reduced-motion: reduce) {
+			transition: none;
+		}
+	}
+
+	.react-flow__attribution a {
+		color: hsl(var(--heroui-foreground-500));
+	}
+}

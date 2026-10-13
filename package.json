@@ -1,6 +1,6 @@
 {
 	"name": "metamystia-resourceex-editor",
-	"version": "0.16.3",
+	"version": "0.17.0",
 	"private": true,
 	"type": "module",
 	"scripts": {
@@ -13,6 +13,7 @@
 		"update": "pnpm up && pnpm dedupe"
 	},
 	"dependencies": {
+		"@dagrejs/dagre": "^3.1.1",
 		"@heroui/button": "2.2.10",
 		"@heroui/card": "2.2.10",
 		"@heroui/dropdown": "2.3.10",
@@ -27,6 +28,7 @@
 		"@heroui/system": "2.4.7",
 		"@heroui/theme": "2.4.6",
 		"@heroui/tooltip": "2.2.8",
+		"@xyflow/react": "^12.12.0",
 		"file-saver": "^2.0.5",
 		"framer-motion": "^14.0.0",
 		"jszip": "^3.10.2",

@@ -33,7 +33,7 @@ import {
 // 常量
 // -----------------------------------------------------------------------------
 
-const CONDITION_TYPES: { type: ConditionType; label: string }[] = [
+export const CONDITION_TYPES: { type: ConditionType; label: string }[] = [
 	{ type: 'BillRepayment', label: '还债' },
 	{ type: 'TalkWithCharacter', label: '和角色交谈' },
 	{ type: 'InspectInteractable', label: '调查白天交互物品' },
