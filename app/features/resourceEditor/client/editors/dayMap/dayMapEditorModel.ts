@@ -1,17 +1,21 @@
-import type { IDayMapPlacement } from '@/domain/resourcePack/contracts/dayMap';
-
 export type TMapMode =
-	'tile' | 'object' | 'height' | 'collision' | 'spawn' | 'map';
+	'collision' | 'height' | 'layer' | 'map' | 'object' | 'spawn';
 export type TMapTool =
-	| 'select'
 	| 'brush'
-	| 'rectangle'
-	| 'fill'
+	| 'circle'
+	| 'edge'
 	| 'eraser'
+	| 'hand'
 	| 'picker'
 	| 'place'
-	| 'hand';
-export type TMapEntityKind = 'object' | 'collision' | 'spawn';
+	| 'polygon'
+	| 'rectangle'
+	| 'select';
+export type TMapEntityKind = 'collider' | 'object' | 'spawn';
+
+/** 碰撞编辑对象：地图碰撞，或以某个物件为锚点编辑其模板碰撞（所有实例共用）。 */
+export type TColliderTarget =
+	{ kind: 'map' } | { kind: 'prefab'; objectIndex: number };
 
 export interface IMapPoint {
 	x: number;
@@ -30,29 +34,16 @@ export interface IMapRect {
 	maxY: number;
 }
 
-export interface ITileBrushCell {
-	dx: number;
-	dy: number;
-	tile: string;
-}
-
-/** 单格画笔为一项；从图集框选得到多格图章。`placement` 来自吸取的原始格子。 */
-export interface ITileBrush {
-	cells: readonly ITileBrushCell[];
-	placement?: IDayMapPlacement;
-}
-
-export interface IMapCellSelection {
-	layerIndex: number;
-	x: number;
-	y: number;
+/** 选中折线或多边形的一个顶点；pathIndex 只对多边形有意义。 */
+export interface IMapVertexSelection {
+	pathIndex: number;
+	pointIndex: number;
 }
 
 export interface IMapViewOptions {
 	shouldDimInactiveLayers: boolean;
 	shouldShowCollisions: boolean;
 	shouldShowGrid: boolean;
-	shouldShowMaterialSources: boolean;
 	shouldShowSlopes: boolean;
 	shouldShowViewportPreview: boolean;
 }
@@ -60,31 +51,21 @@ export interface IMapViewOptions {
 export const DEFAULT_MAP_VIEW_OPTIONS = {
 	shouldDimInactiveLayers: false,
 	shouldShowCollisions: true,
-	shouldShowGrid: true,
-	shouldShowMaterialSources: false,
+	shouldShowGrid: false,
 	shouldShowSlopes: false,
 	shouldShowViewportPreview: true,
 } as const satisfies IMapViewOptions;
 
-export const MAP_LIMITS = {
-	cellCount: 100000,
-	collisionCount: 4096,
-	coordinate: 4096,
-	heightCellCount: 100000,
-	layerCount: 32,
-	objectCount: 4096,
-	sortedObjectY: 1023,
-	spawnCount: 256,
-} as const;
-
 export const MAP_HISTORY_LIMIT = 100;
 export const MAP_BRUSH_SIZE_MAX = 9;
-export const MAP_SNAP_STEPS = [0, 0.125, 0.25, 0.5, 1] as const;
-export const DEFAULT_MAP_SNAP_STEP = 0.25;
-export const MAP_ZOOM_MIN_PX_PER_UNIT = 2;
+/** 吸附步长（格）；0 为不吸附，1/48 为原版 48 像素每格下的 1 像素。 */
+export const MAP_SNAP_STEPS = [0, 1 / 48, 0.125, 0.25, 0.5, 1] as const;
+export const DEFAULT_MAP_SNAP_STEP = 1 / 48;
+export const MAP_ZOOM_MIN_PX_PER_UNIT = 1;
 export const MAP_ZOOM_MAX_PX_PER_UNIT = 320;
 /** 编辑器把 48 像素每单位记作 100%。 */
 export const MAP_ZOOM_REFERENCE_PX_PER_UNIT = 48;
+export const DEFAULT_MAP_PIXELS_PER_UNIT = 48;
 
 /** 16:9 画幅、正交半高 7.5、相机 Y 偏移 +0.5 时，相机中心看到的范围。 */
 export const GAME_VIEWPORT = {
@@ -101,21 +82,23 @@ interface IMapModeDefinition {
 }
 
 export const MAP_MODES = [
-	{ value: 'tile', label: '瓦片', shortcut: '1' },
-	{ value: 'object', label: '装饰', shortcut: '2' },
-	{ value: 'height', label: '坡面', shortcut: '3' },
-	{ value: 'collision', label: '碰撞', shortcut: '4' },
+	{ value: 'layer', label: '图层', shortcut: '1' },
+	{ value: 'object', label: '物件', shortcut: '2' },
+	{ value: 'collision', label: '碰撞', shortcut: '3' },
+	{ value: 'height', label: '坡面', shortcut: '4' },
 	{ value: 'spawn', label: '出生点', shortcut: '5' },
 	{ value: 'map', label: '地图', shortcut: '6' },
 ] as const satisfies readonly IMapModeDefinition[];
 
 export const MAP_TOOL_SHORTCUTS = {
 	brush: 'B',
+	circle: 'O',
+	edge: 'L',
 	eraser: 'E',
-	fill: 'G',
 	hand: 'H',
 	picker: 'I',
 	place: 'P',
+	polygon: 'N',
 	rectangle: 'R',
 	select: 'V',
 } as const satisfies Record<TMapTool, string>;
@@ -124,88 +107,97 @@ export function getToolLabel(mode: TMapMode, tool: TMapTool) {
 	switch (tool) {
 		case 'brush':
 			return '画笔';
+		case 'circle':
+			return '圆形碰撞';
+		case 'edge':
+			return '折线碰撞';
 		case 'eraser':
 			return '橡皮';
-		case 'fill':
-			return '填充';
 		case 'hand':
 			return '平移';
 		case 'picker':
 			return '吸管';
 		case 'place':
-			return mode === 'spawn' ? '放置出生点' : '放置装饰';
+			return mode === 'spawn' ? '放置出生点' : '放置物件';
+		case 'polygon':
+			return mode === 'map' ? '绘制相机多边形' : '多边形碰撞';
 		case 'rectangle':
 			return mode === 'collision'
-				? '绘制碰撞框'
+				? '矩形碰撞'
 				: mode === 'map'
-					? '绘制相机范围'
+					? '绘制相机矩形'
 					: '矩形';
 		case 'select':
-			return mode === 'tile'
-				? '查看格子'
+			return mode === 'layer'
+				? '移动图层'
 				: mode === 'map'
-					? '调整相机范围'
+					? '编辑相机范围'
 					: '选择';
 	}
 }
 
 export function getToolDescription(mode: TMapMode, tool: TMapTool) {
-	const target = mode === 'height' ? '坡度' : '瓦片';
 	switch (tool) {
 		case 'brush':
-			return `拖动绘制${target}；右键擦除，按住 Alt 吸取，Shift 点击连成直线`;
+			return '拖动绘制坡度；右键擦除，按住 Alt 吸取';
+		case 'circle':
+			return '从圆心拖出半径';
+		case 'edge':
+			return '逐点单击；双击或回车结束，单击起点闭合。只有线段阻挡，适合围出可走区域';
 		case 'eraser':
-			return mode === 'height' ? '拖动清除坡度' : '拖动擦除当前图层';
-		case 'fill':
-			return '填充相连的同类格子；右键清除该区域';
+			return '拖动清除坡度';
 		case 'hand':
 			return '拖动画布；任何工具下也可按住空格或中键';
 		case 'picker':
-			return `点击吸取${target}，随后回到画笔`;
+			return '点击吸取坡度，随后回到画笔';
 		case 'place':
 			return mode === 'spawn'
 				? '点击空白处添加出生点，拖动已有点移动'
-				: '点击放置所选瓦片；拖动脚点移动，按住 Alt 不吸附';
+				: '点击放置所选物件模板；按住 Alt 不吸附';
+		case 'polygon':
+			return mode === 'map'
+				? '逐点单击；双击、回车或单击起点结束'
+				: '逐点单击，双击、回车或单击起点结束。实心阻挡；选中多边形后按住 Shift 开始绘制，加为洞';
 		case 'rectangle':
 			return mode === 'collision'
-				? '拖出新的碰撞框；单击选中已有碰撞框'
+				? '拖出矩形碰撞'
 				: mode === 'map'
-					? '拖出新的相机中心范围'
-					: `拖出矩形铺满${target}；右键拖动清除`;
+					? '拖出矩形相机中心范围'
+					: '拖出矩形铺满坡度；右键拖动清除';
 		case 'select':
-			return mode === 'tile'
-				? '点击格子查看属性'
+			return mode === 'layer'
+				? '拖动当前图层，按整像素移动'
 				: mode === 'map'
-					? '拖动相机范围或控制点；方向键微调'
-					: '点击选择，拖动移动；Shift 加选，空白处框选';
+					? '拖动顶点或整体；双击边插入顶点，选中顶点后 Delete 删除'
+					: '点击选择，拖动移动；Shift 加选，空白处框选。选中多边形或折线后可拖动顶点';
 	}
 }
 
 export const MAP_TOOLS_BY_MODE = {
-	tile: ['select', 'brush', 'rectangle', 'fill', 'eraser', 'picker', 'hand'],
+	collision: ['select', 'polygon', 'edge', 'rectangle', 'circle', 'hand'],
+	height: ['brush', 'rectangle', 'eraser', 'picker', 'hand'],
+	layer: ['select', 'hand'],
+	map: ['select', 'polygon', 'rectangle', 'hand'],
 	object: ['select', 'place', 'hand'],
-	height: ['brush', 'rectangle', 'fill', 'eraser', 'picker', 'hand'],
-	collision: ['select', 'rectangle', 'hand'],
 	spawn: ['select', 'place', 'hand'],
-	map: ['select', 'rectangle', 'hand'],
 } as const satisfies Record<TMapMode, readonly TMapTool[]>;
 
 export const DEFAULT_MAP_TOOL_BY_MODE = {
-	tile: 'brush',
-	object: 'select',
-	height: 'brush',
 	collision: 'select',
-	spawn: 'select',
+	height: 'brush',
+	layer: 'select',
 	map: 'select',
+	object: 'select',
+	spawn: 'select',
 } as const satisfies Record<TMapMode, TMapTool>;
 
 export const MAP_ENTITY_KIND_BY_MODE = {
-	collision: 'collision',
+	collision: 'collider',
 	height: null,
+	layer: null,
 	map: null,
 	object: 'object',
 	spawn: 'spawn',
-	tile: null,
 } as const satisfies Record<TMapMode, TMapEntityKind | null>;
 
 export const SLOPE_PRESETS = [
@@ -214,19 +206,6 @@ export const SLOPE_PRESETS = [
 	{ value: 0.66, label: '陡坡' },
 	{ value: 1, label: '45°' },
 ] as const;
-
-const DEFAULT_MAP_SHADERS = new Set([
-	'Sprites/Default',
-	'Custom/DefaultSprite',
-]);
-
-/** 使用特殊材质的图层或格子默认不参与预览。 */
-export function hasSpecialShader(placement: IDayMapPlacement) {
-	return (
-		placement.shader !== undefined &&
-		!DEFAULT_MAP_SHADERS.has(placement.shader)
-	);
-}
 
 export function isToolAvailable(mode: TMapMode, tool: TMapTool) {
 	return (MAP_TOOLS_BY_MODE[mode] as readonly TMapTool[]).includes(tool);
@@ -240,4 +219,11 @@ export function formatMapNumber(value: number, fractionDigits = 2) {
 	if (!Number.isFinite(value)) return String(value);
 	const rounded = Number(value.toFixed(fractionDigits));
 	return Object.is(rounded, -0) ? '0' : String(rounded);
+}
+
+/** 吸附步长的显示文字。 */
+export function formatSnapStep(step: number) {
+	if (step === 0) return '不吸附';
+	if (Math.abs(step - 1 / 48) < 1e-9) return '1 像素';
+	return `${formatMapNumber(step, 3)} 格`;
 }

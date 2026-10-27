@@ -15,10 +15,10 @@ import Tooltip from '@/design/ui/components/tooltip';
 import {
 	formatMapNumber,
 	formatSlopeAngle,
+	formatSnapStep,
 	getToolDescription,
 	getToolLabel,
 	type IMapViewOptions,
-	type ITileBrush,
 	MAP_BRUSH_SIZE_MAX,
 	MAP_SNAP_STEPS,
 	MAP_TOOL_SHORTCUTS,
@@ -39,7 +39,6 @@ import {
 	PlusIcon,
 	SlidersIcon,
 } from './MapIcons';
-import { getStampSize } from './mapToolActions';
 import {
 	type MapViewportStore,
 	useMapViewportStatus,
@@ -194,31 +193,28 @@ function Divider() {
 }
 
 interface IToolOptionsProps {
-	brush: ITileBrush | null;
 	brushSize: number;
 	mode: TMapMode;
-	onBrushPlacementClear(): void;
 	onBrushSizeChange(size: number): void;
 	onSnapStepChange(step: number): void;
+	placePrefab: string | null;
 	slope: number;
 	snapStep: number;
 	tool: TMapTool;
 }
 
-/** 当前工具的参数条：画笔尺寸、当前画笔、吸附步长等。 */
+/** 当前工具的参数条：笔刷尺寸、坡度、当前模板、吸附步长等。 */
 export function MapToolOptions({
-	brush,
 	brushSize,
 	mode,
-	onBrushPlacementClear,
 	onBrushSizeChange,
 	onSnapStepChange,
+	placePrefab,
 	slope,
 	snapStep,
 	tool,
 }: IToolOptionsProps) {
 	const parts: ReactNode[] = [];
-	const isPaintMode = mode === 'tile' || mode === 'height';
 	if (tool === 'hand') return null;
 	parts.push(
 		<span
@@ -231,12 +227,7 @@ export function MapToolOptions({
 			{getToolLabel(mode, tool)}
 		</span>
 	);
-	const isMultiTile = (brush?.cells.length ?? 0) > 1;
-	if (
-		isPaintMode &&
-		(tool === 'brush' || tool === 'eraser') &&
-		!(mode === 'tile' && tool === 'brush' && isMultiTile)
-	)
+	if (mode === 'height' && (tool === 'brush' || tool === 'eraser'))
 		parts.push(
 			<Stepper
 				key="size"
@@ -247,46 +238,6 @@ export function MapToolOptions({
 				onChange={onBrushSizeChange}
 			/>
 		);
-	if (mode === 'tile' && ['brush', 'rectangle', 'fill'].includes(tool)) {
-		const label = !brush
-			? '未选择瓦片'
-			: isMultiTile
-				? (() => {
-						const size = getStampSize(brush.cells);
-						return `图章 ${size.width}×${size.height}`;
-					})()
-				: (brush.cells[0]?.tile ?? '');
-		parts.push(
-			<span
-				key="brush"
-				title={label}
-				className={cn(
-					TYPOGRAPHY_STYLES.metadata,
-					'max-w-36 truncate rounded-small bg-default/40 px-1.5 py-0.5 text-foreground-600'
-				)}
-			>
-				{label}
-			</span>
-		);
-		if (brush?.placement)
-			parts.push(
-				<Tooltip
-					key="placement"
-					content="画笔带有吸取的原始变换或颜色，点击改用默认属性"
-				>
-					<Button
-						size="sm"
-						variant="flat"
-						color="warning"
-						className="h-6 min-w-0 gap-1 px-1.5 text-[11px]"
-						endContent={<CloseIcon className="size-3" />}
-						onPress={onBrushPlacementClear}
-					>
-						原始属性
-					</Button>
-				</Tooltip>
-			);
-	}
 	if (mode === 'height' && tool !== 'eraser' && tool !== 'picker')
 		parts.push(
 			<span
@@ -307,7 +258,32 @@ export function MapToolOptions({
 				{formatMapNumber(slope)} · {formatSlopeAngle(slope)}
 			</span>
 		);
-	if (!isPaintMode) {
+	if (mode === 'object' && tool === 'place')
+		parts.push(
+			<span
+				key="prefab"
+				title={placePrefab ?? undefined}
+				className={cn(
+					TYPOGRAPHY_STYLES.metadata,
+					'max-w-36 truncate rounded-small bg-default/40 px-1.5 py-0.5 text-foreground-600'
+				)}
+			>
+				{placePrefab ?? '未选择模板'}
+			</span>
+		);
+	if (tool === 'polygon' || tool === 'edge')
+		parts.push(
+			<span
+				key="pen"
+				className={cn(
+					TYPOGRAPHY_STYLES.caption,
+					'whitespace-nowrap px-1'
+				)}
+			>
+				回车结束 · Esc 取消 · 退格撤点
+			</span>
+		);
+	if (mode !== 'height' && mode !== 'layer') {
 		parts.push(<Divider key="divider" />);
 		parts.push(
 			<Popover key="snap" placement="bottom" offset={8}>
@@ -319,7 +295,7 @@ export function MapToolOptions({
 						startContent={<MagnetIcon className="size-4" />}
 						aria-label="吸附步长"
 					>
-						{snapStep > 0 ? formatMapNumber(snapStep, 3) : '关'}
+						{formatSnapStep(snapStep)}
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent className="p-1">
@@ -345,9 +321,7 @@ export function MapToolOptions({
 								}
 								onPress={() => onSnapStepChange(step)}
 							>
-								{step === 0
-									? '不吸附'
-									: `${formatMapNumber(step, 3)} 格`}
+								{formatSnapStep(step)}
 							</Button>
 						))}
 						<p
@@ -356,7 +330,7 @@ export function MapToolOptions({
 								'max-w-44 px-2 pb-1 pt-1'
 							)}
 						>
-							拖动时按住 Alt 临时取消吸附。
+							拖动或绘制时按住 Alt 临时取消吸附。
 						</p>
 					</div>
 				</PopoverContent>
@@ -376,18 +350,12 @@ export function MapToolOptions({
 }
 
 interface IViewMenuProps {
-	canShowMaterialSources: boolean;
 	mode: TMapMode;
 	onChange(options: IMapViewOptions): void;
 	options: IMapViewOptions;
 }
 
-export function MapViewMenu({
-	canShowMaterialSources,
-	mode,
-	onChange,
-	options,
-}: IViewMenuProps) {
+export function MapViewMenu({ mode, onChange, options }: IViewMenuProps) {
 	const items: {
 		description: string;
 		isVisible: boolean;
@@ -403,7 +371,7 @@ export function MapViewMenu({
 		{
 			key: 'shouldShowCollisions',
 			label: '碰撞轮廓',
-			description: '在其他模式中淡显碰撞框和原生碰撞。',
+			description: '在其他模式中淡显碰撞。',
 			isVisible: mode !== 'collision',
 		},
 		{
@@ -415,20 +383,14 @@ export function MapViewMenu({
 		{
 			key: 'shouldDimInactiveLayers',
 			label: '淡化其他图层',
-			description: '瓦片模式下突出当前图层。',
-			isVisible: mode === 'tile',
+			description: '图层模式下突出当前图层。',
+			isVisible: mode === 'layer',
 		},
 		{
 			key: 'shouldShowViewportPreview',
 			label: '游戏画面预览',
 			description: '地图模式下，光标处显示 16:9 游戏视口范围。',
 			isVisible: mode === 'map',
-		},
-		{
-			key: 'shouldShowMaterialSources',
-			label: '特殊材质源图',
-			description: '显示使用特殊 Shader 的原始贴图，不复刻材质效果。',
-			isVisible: canShowMaterialSources,
 		},
 	];
 	return (

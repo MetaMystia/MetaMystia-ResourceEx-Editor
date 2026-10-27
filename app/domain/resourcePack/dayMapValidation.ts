@@ -1,225 +1,260 @@
-import type { IDayMap, IDayMapPlacement } from './contracts/dayMap';
+import type {
+	IDayMap,
+	IDayMapImage,
+	TDayMapCollider,
+} from './contracts/dayMap';
 
-import { DAY_MAP_TILE_LIMIT } from './dayMapGeometry';
+import { DAY_MAP_CHUNK_SIZE_PX } from './dayMapAssets';
+import { isPointInCollider, placeCollider } from './dayMapGeometry';
+
+export const DAY_MAP_FORMAT_VERSION = 3;
+/** 与 Mod 的 DayMapRegistry 一致的单图上限。 */
+export const DAY_MAP_LIMITS = {
+	colliderCount: 4096,
+	coordinate: 4096,
+	heightCellCount: 100000,
+	imageSizePx: 16384,
+	layerCount: 32,
+	objectCount: 8192,
+	pathCount: 64,
+	pointCount: 4096,
+	prefabCount: 4096,
+	sortedObjectY: 1023,
+	spawnCount: 256,
+} as const;
+
+/** 原游戏的排序层，自下而上。 */
+export const DAY_MAP_SORTING_LAYERS = [
+	'Default',
+	'Background',
+	'BelowCharacter',
+	'Character',
+	'Overlay',
+	'OnTop',
+	'EffectOverlay',
+	'UI',
+] as const;
 
 const isCoordinate = (value: number) =>
-	Number.isFinite(value) && Math.abs(value) <= 4096;
-const isPositive = (value: number) => Number.isFinite(value) && value > 0;
-const isVector = (values: number[], size: number) =>
-	values.length === size && values.every(Number.isFinite);
+	Number.isFinite(value) && Math.abs(value) <= DAY_MAP_LIMITS.coordinate;
+const isVector = (values: readonly number[] | undefined, size: number) =>
+	values !== undefined &&
+	values.length === size &&
+	values.every(Number.isFinite);
+const isPoint = (point: readonly number[]) =>
+	isVector(point, 2) && point.every(isCoordinate);
+const isPoints = (points: readonly number[][], min: number) =>
+	points.length >= min &&
+	points.length <= DAY_MAP_LIMITS.pointCount &&
+	points.every(isPoint);
 const isOrder = (value: number) =>
 	Number.isInteger(value) && value >= -32768 && value <= 32767;
+const isSortingLayer = (value: string) =>
+	(DAY_MAP_SORTING_LAYERS as readonly string[]).includes(value);
 
-/** 静态配置检查；图片边界、音频解码和实际排序层由资产检查及游戏核验。 */
+function checkImage(image: IDayMapImage): string | null {
+	const { chunks, dir, height, width } = image;
+	if (
+		!Number.isInteger(width) ||
+		!Number.isInteger(height) ||
+		width <= 0 ||
+		height <= 0 ||
+		width > DAY_MAP_LIMITS.imageSizePx ||
+		height > DAY_MAP_LIMITS.imageSizePx
+	)
+		return `图片尺寸应为 1 到 ${DAY_MAP_LIMITS.imageSizePx} 像素的整数`;
+	if (!dir.trim()) return '缺少图块目录';
+	const columns = Math.ceil(width / DAY_MAP_CHUNK_SIZE_PX);
+	const rows = Math.ceil(height / DAY_MAP_CHUNK_SIZE_PX);
+	const seen = new Set<string>();
+	for (const chunk of chunks) {
+		const [column = -1, row = -1] = chunk;
+		const key = `${column},${row}`;
+		if (
+			chunk.length !== 2 ||
+			!Number.isInteger(column) ||
+			!Number.isInteger(row) ||
+			column < 0 ||
+			row < 0 ||
+			column >= columns ||
+			row >= rows ||
+			seen.has(key)
+		)
+			return `图块编号无效：${key}`;
+		seen.add(key);
+	}
+	return null;
+}
+
+export function checkCollider(collider: TDayMapCollider): string | null {
+	switch (collider.shape) {
+		case 'polygon':
+			return collider.paths.length > 0 &&
+				collider.paths.length <= DAY_MAP_LIMITS.pathCount &&
+				collider.paths.every((path) => isPoints(path, 3))
+				? null
+				: '多边形每条路径至少 3 个有效顶点';
+		case 'edge':
+			return isPoints(collider.points, 2)
+				? null
+				: '折线至少 2 个有效顶点';
+		case 'box':
+			return isCoordinate(collider.x) &&
+				isCoordinate(collider.y) &&
+				Number.isFinite(collider.rotation ?? 0) &&
+				collider.width > 0 &&
+				collider.height > 0 &&
+				Number.isFinite(collider.width) &&
+				Number.isFinite(collider.height)
+				? null
+				: '矩形的位置、尺寸或角度无效';
+		case 'circle':
+			return isCoordinate(collider.x) &&
+				isCoordinate(collider.y) &&
+				collider.radius > 0 &&
+				Number.isFinite(collider.radius)
+				? null
+				: '圆的位置或半径无效';
+	}
+}
+
+/** 静态配置检查，与 Mod 的加载校验一致；图块尺寸、音频解码和原版音乐地址由资产检查及游戏核验。 */
 export function validateDayMap(map: IDayMap): string[] {
 	const errors: string[] = [];
-	if (![1, 2].includes(map.formatVersion))
-		errors.push(
-			`不支持地图格式版本${map.formatVersion}，请保留原数据并使用支持该版本的编辑器。`
-		);
+	if (map.formatVersion !== DAY_MAP_FORMAT_VERSION)
+		return [
+			`不支持地图格式版本${map.formatVersion}，当前只支持画布地图（版本${DAY_MAP_FORMAT_VERSION}）。`,
+		];
 	if (!map.name.trim()) errors.push('地图名称不能为空。');
+	if (!Number.isInteger(map.pixelsPerUnit) || map.pixelsPerUnit <= 0)
+		errors.push('每单位像素必须是正整数。');
 	if (
-		map.tiles.length > DAY_MAP_TILE_LIMIT ||
-		map.layers.length > 32 ||
-		map.objects.length > 4096 ||
-		map.collisions.length > 4096 ||
-		map.spawnMarkers.length > 256
+		map.layers.length > DAY_MAP_LIMITS.layerCount ||
+		map.prefabs.length > DAY_MAP_LIMITS.prefabCount ||
+		map.objects.length > DAY_MAP_LIMITS.objectCount ||
+		map.colliders.length > DAY_MAP_LIMITS.colliderCount ||
+		map.spawnMarkers.length > DAY_MAP_LIMITS.spawnCount
 	)
 		errors.push(
-			'超过地图容量限制（100000切片、32层、4096装饰、4096碰撞、256出生点）。'
+			`超过地图容量限制（${DAY_MAP_LIMITS.layerCount}图层、${DAY_MAP_LIMITS.prefabCount}物件模板、${DAY_MAP_LIMITS.objectCount}物件、${DAY_MAP_LIMITS.colliderCount}碰撞、${DAY_MAP_LIMITS.spawnCount}出生点）。`
 		);
-	const checkPlacement = (placement: IDayMapPlacement, name: string) => {
-		if (
-			map.formatVersion !== 2 &&
-			(placement.transform ||
-				placement.color ||
-				placement.active === false ||
-				placement.shader)
-		)
-			errors.push(`${name}的原始属性需要地图格式版本2。`);
-		if (
-			(placement.transform && !isVector(placement.transform, 6)) ||
-			(placement.color &&
-				(!isVector(placement.color, 4) ||
-					(!map.artOnly &&
-						placement.color.some(
-							(value) => value < 0 || value > 1
-						))))
-		)
-			errors.push(`${name}的变换或颜色无效。`);
-	};
-	const keys = new Set<string>();
-	for (const tile of map.tiles) {
-		if (!tile.key.trim() || keys.has(tile.key))
-			errors.push(`瓦片键为空或重复：${tile.key}`);
-		keys.add(tile.key);
-		if (tile.mesh) {
-			const mesh = tile.mesh;
-			if (
-				!isPositive(mesh.pixelsPerUnit) ||
-				mesh.vertices.length < 3 ||
-				mesh.vertices.length !== mesh.uvs.length ||
-				mesh.vertices.some((point) => !isVector(point, 2)) ||
-				mesh.uvs.some(
-					(point) =>
-						!isVector(point, 2) ||
-						point.some((value) => value < -1e-6 || value > 1 + 1e-6)
-				) ||
-				!mesh.triangles.length ||
-				mesh.triangles.length % 3 !== 0 ||
-				mesh.triangles.some(
-					(index) =>
-						!Number.isInteger(index) ||
-						index < 0 ||
-						index >= mesh.vertices.length
-				)
-			)
-				errors.push(`瓦片${tile.key}的原始网格或UV无效。`);
-			if (map.formatVersion !== 2)
-				errors.push('原始网格和变换需要地图格式版本2。');
-		}
-		if (!tile.image.trim()) errors.push(`瓦片${tile.key}缺少图片。`);
-		const [x = -1, y = -1, w = 0, h = 0] = tile.rect;
-		if (
-			!isVector(tile.rect, 4) ||
-			!tile.rect.every(Number.isInteger) ||
-			x < 0 ||
-			y < 0 ||
-			w <= 0 ||
-			h <= 0
-		)
-			errors.push(
-				`瓦片${tile.key}的切片应为[左,下,宽,高]像素整数，宽高大于零。`
-			);
-		if (
-			!isVector(tile.pivot, 2) ||
-			(!tile.mesh &&
-				tile.pivot.some((value) => value < 0 || value > 1)) ||
-			!isPositive(tile.pixelsPerUnit)
-		)
-			errors.push(`瓦片${tile.key}的锚点或每单位像素无效。`);
-	}
-	let cellCount = 0;
 	for (const layer of map.layers) {
-		if (layer.transform)
-			errors.push('图层整体变换尚未支持，请保留逐格原始变换。');
-		if (layer.isHeight && map.formatVersion !== 2)
-			errors.push('原始高度层需要地图格式版本2。');
-		checkPlacement(layer, `图层${layer.name}`);
-		if (!layer.sortingLayer.trim() || !isOrder(layer.sortingOrder))
+		if (!isSortingLayer(layer.sortingLayer) || !isOrder(layer.sortingOrder))
 			errors.push(`图层${layer.name}的排序设置无效。`);
-		cellCount += layer.cells.length;
-		const positions = new Set<string>();
-		for (const cell of layer.cells) {
-			checkPlacement(cell, `格子${cell.x},${cell.y}`);
-			const key = `${cell.x},${cell.y}`;
-			if (
-				!isCoordinate(cell.x) ||
-				!isCoordinate(cell.y) ||
-				!Number.isInteger(cell.x) ||
-				!Number.isInteger(cell.y) ||
-				positions.has(key) ||
-				!keys.has(cell.tile)
-			)
-				errors.push(
-					`图层${layer.name}的格子（${key}）坐标重复、越界或引用了无效瓦片。`
-				);
-			positions.add(key);
-		}
-	}
-	if (cellCount > 100000) errors.push('显示图层总格子数超过100000。');
-	for (const object of map.objects) {
-		checkPlacement(object, `装饰${object.name}`);
+		if (layer.color && !isVector(layer.color, 4))
+			errors.push(`图层${layer.name}的颜色无效。`);
 		if (
-			!keys.has(object.tile) ||
+			!Number.isInteger(layer.x) ||
+			!Number.isInteger(layer.y) ||
+			!isCoordinate(layer.x / map.pixelsPerUnit) ||
+			!isCoordinate(layer.y / map.pixelsPerUnit)
+		)
+			errors.push(`图层${layer.name}的位置应为范围内的整数像素。`);
+		const imageError = checkImage(layer.image);
+		if (imageError) errors.push(`图层${layer.name}：${imageError}。`);
+	}
+	const prefabs = new Map<string, IDayMap['prefabs'][number]>();
+	for (const prefab of map.prefabs) {
+		if (!prefab.key.trim() || prefabs.has(prefab.key))
+			errors.push(`物件模板键为空或重复：${prefab.key}`);
+		prefabs.set(prefab.key, prefab);
+		const imageError = checkImage(prefab.image);
+		if (imageError) errors.push(`物件模板${prefab.key}：${imageError}。`);
+		if (
+			!isVector(prefab.pivot, 2) ||
+			!(prefab.pixelsPerUnit > 0) ||
+			!Number.isFinite(prefab.pixelsPerUnit) ||
+			!isSortingLayer(prefab.sortingLayer) ||
+			!isOrder(prefab.sortingOrder)
+		)
+			errors.push(`物件模板${prefab.key}的锚点、像素密度或排序无效。`);
+		prefab.colliders.forEach((collider, index) => {
+			const error = checkCollider(collider);
+			if (error)
+				errors.push(
+					`物件模板${prefab.key}的碰撞${collider.name ?? index + 1}：${error}。`
+				);
+		});
+	}
+	for (const object of map.objects) {
+		const prefab = prefabs.get(object.prefab);
+		const name = object.name ?? object.prefab;
+		if (!prefab) {
+			errors.push(`物件${name}引用了不存在的模板${object.prefab}。`);
+			continue;
+		}
+		if (
 			!isCoordinate(object.x) ||
 			!isCoordinate(object.y) ||
 			!isVector(object.scale, 2) ||
-			!object.scale.every(isPositive) ||
-			!object.sortingLayer.trim() ||
-			!isOrder(object.sortingOrder) ||
-			(object.sortByY && Math.abs(object.y) > 1023)
+			object.scale.includes(0)
 		)
-			errors.push(`装饰${object.name}的瓦片、坐标、缩放或排序设置无效。`);
+			errors.push(`物件${name}的位置或缩放无效。`);
+		if (prefab.sortByY && Math.abs(object.y) > DAY_MAP_LIMITS.sortedObjectY)
+			errors.push(
+				`按 Y 排序的物件${name}的 Y 坐标超出 ±${DAY_MAP_LIMITS.sortedObjectY}。`
+			);
 	}
-	const heights = map.height?.cells ?? [];
-	if (heights.length > 100000) errors.push('坡度格子数超过100000。');
-	const positions = new Set<string>();
-	for (const cell of heights) {
+	map.colliders.forEach((collider, index) => {
+		const error = checkCollider(collider);
+		if (error) errors.push(`碰撞${collider.name ?? index + 1}：${error}。`);
+	});
+	const heightCells = map.height?.cells ?? [];
+	const heightPositions = new Set<string>();
+	if (heightCells.length > DAY_MAP_LIMITS.heightCellCount)
+		errors.push(`坡度格超过 ${DAY_MAP_LIMITS.heightCellCount}。`);
+	for (const cell of heightCells) {
 		const key = `${cell.x},${cell.y}`;
 		if (
-			!isCoordinate(cell.x) ||
-			!isCoordinate(cell.y) ||
 			!Number.isInteger(cell.x) ||
 			!Number.isInteger(cell.y) ||
-			positions.has(key) ||
+			!isCoordinate(cell.x) ||
+			!isCoordinate(cell.y) ||
 			!Number.isFinite(cell.slope) ||
-			Math.abs(cell.slope) > 1
-		)
-			errors.push(`坡度格子（${key}）坐标或坡度无效；坡度范围为[-1,1]。`);
-		positions.add(key);
-	}
-	for (const box of map.collisions)
-		if (
-			!isCoordinate(box.x) ||
-			!isCoordinate(box.y) ||
-			!isPositive(box.width) ||
-			!isPositive(box.height)
-		)
-			errors.push(`碰撞箱${box.name}的中心坐标或尺寸无效。`);
-	for (const collider of map.nativeColliders ?? []) {
-		if (map.formatVersion !== 2) errors.push('原生碰撞需要地图格式版本2。');
-		if (
-			!isVector(collider.matrix, 16) ||
-			!isVector(collider.offset, 2) ||
-			collider.paths.some((path) =>
-				path.some((point) => !isVector(point, 2))
-			) ||
-			(collider.size !== null &&
-				(!isVector(collider.size, 2) ||
-					!collider.size.every(isPositive))) ||
-			(collider.radius !== null && !isPositive(collider.radius))
-		)
-			errors.push(`原生碰撞${collider.name}的形状或变换无效。`);
+			Math.abs(cell.slope) > 1 ||
+			heightPositions.has(key)
+		) {
+			errors.push(`坡度格${key}无效或重复。`);
+			break;
+		}
+		heightPositions.add(key);
 	}
 	const names = new Set<string>();
 	for (const marker of map.spawnMarkers) {
-		if (
-			!marker.name.trim() ||
-			names.has(marker.name) ||
-			!isCoordinate(marker.x) ||
-			!isCoordinate(marker.y) ||
-			!['Down', 'Up', 'Left', 'Right'].includes(marker.rotation)
-		)
-			errors.push(`出生点${marker.name}的名称、坐标或朝向无效。`);
+		if (!marker.name.trim() || names.has(marker.name))
+			errors.push(`出生点名称为空或重复：${marker.name}`);
 		names.add(marker.name);
-		if (
-			map.collisions.some(
-				(box) =>
-					Math.abs(marker.x - box.x) <= box.width / 2 &&
-					Math.abs(marker.y - box.y) <= box.height / 2
-			)
-		)
-			errors.push(`出生点${marker.name}的中心位于碰撞箱内或边界上。`);
+		if (!isCoordinate(marker.x) || !isCoordinate(marker.y))
+			errors.push(`出生点${marker.name}坐标无效。`);
+		const isBlocked =
+			map.colliders.some((collider) =>
+				isPointInCollider(collider, marker.x, marker.y)
+			) ||
+			map.objects.some((object) =>
+				(prefabs.get(object.prefab)?.colliders ?? []).some((collider) =>
+					isPointInCollider(
+						placeCollider(collider, {
+							scaleX: object.scale[0] ?? 1,
+							scaleY: object.scale[1] ?? 1,
+							x: object.x,
+							y: object.y,
+						}),
+						marker.x,
+						marker.y
+					)
+				)
+			);
+		if (isBlocked) errors.push(`出生点${marker.name}位于碰撞内。`);
 	}
 	if (!names.has(map.defaultSpawnMarker)) errors.push('默认出生点不存在。');
-	const [minX = 0, minY = 0, maxX = 0, maxY = 0] = map.camera.bounds;
-	if (!isVector(map.camera.position, 3))
-		errors.push('固定相机位置需要三个有限数值。');
-	if (
-		map.camera.shouldFollow &&
-		!map.artOnly &&
-		!map.nativeColliders?.some((collider) => collider.camera) &&
-		(!isVector(map.camera.bounds, 4) || minX >= maxX || minY >= maxY)
-	)
-		errors.push(
-			'跟随相机中心边界需要[最小X,最小Y,最大X,最大Y]，下界须小于上界。'
-		);
-	for (const path of [map.mapBGM.intro, map.mapBGM.loop])
-		if (
-			(!map.artOnly || path.trim()) &&
-			(!path.trim() || !path.toLowerCase().endsWith('.wav'))
-		)
-			errors.push('背景音乐的前奏与循环都必须指定WAV文件。');
-	return [...new Set(errors)];
+	if (!isVector(map.camera.position, 3)) errors.push('固定相机位置无效。');
+	if (map.camera.shouldFollow && !isPoints(map.camera.bounds, 3))
+		errors.push('相机中心范围至少需要 3 个有效顶点。');
+	const { intro, loop, native } = map.mapBGM;
+	if (native !== undefined) {
+		if (!native.trim()) errors.push('原版音乐地址不能为空。');
+		if (intro !== undefined || loop !== undefined)
+			errors.push('原版音乐与包内音乐只能选一种。');
+	} else if (!intro || !loop) errors.push('缺少背景音乐前奏或循环音频。');
+	return errors;
 }

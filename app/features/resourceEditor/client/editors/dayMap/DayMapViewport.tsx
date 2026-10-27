@@ -4,6 +4,7 @@ import { cn } from '@heroui/theme';
 import {
 	type DragEvent,
 	type KeyboardEvent,
+	type MouseEvent,
 	type PointerEvent,
 	type Ref,
 	useEffect,
@@ -14,89 +15,88 @@ import {
 
 import type {
 	IDayMap,
-	IDayMapCell,
-	IDayMapLayer,
+	TDayMapCollider,
 } from '@/domain/resourcePack/contracts/dayMap';
+import {
+	getDayMapAssetReferences,
+	resolveDayMapAssetPath,
+} from '@/domain/resourcePack/dayMapAssets';
 
 import type { IResourceEditorOperationResult } from '@/features/resourceEditor/client/state/contracts';
 
 import {
 	formatMapNumber,
 	formatSlopeAngle,
-	hasSpecialShader,
-	type IMapCellSelection,
 	type IMapPoint,
 	type IMapRect,
+	type IMapVertexSelection,
 	type IMapView,
 	type IMapViewOptions,
-	type ITileBrush,
 	MAP_ENTITY_KIND_BY_MODE,
 	MAP_ZOOM_MAX_PX_PER_UNIT,
 	MAP_ZOOM_MIN_PX_PER_UNIT,
+	type TColliderTarget,
 	type TMapEntityKind,
 	type TMapMode,
 	type TMapTool,
 } from './dayMapEditorModel';
 import {
-	addCollision,
+	addCollider,
 	addObject,
 	addSpawn,
-	createCellIndex,
+	applyHeightChanges,
 	createHeightIndex,
-	deleteEntities,
 	getCellKey,
+	getTargetWorldColliders,
+	getVertexPaths,
+	insertVertex,
+	isVertexPathClosed,
 	moveEntities,
-	replaceCollisionRect,
+	patchLayer,
+	replaceCollider,
+	setVertex,
 } from './dayMapEdits';
 import {
 	clampMapCoordinate,
-	clampPointToRect,
+	clampPointToPolygon,
+	doRectsIntersect,
 	getBrushOffsets,
-	getCameraRect,
 	getCellAt,
-	getCollisionRect,
+	getColliderRect,
+	getDistanceToSegment,
+	getLayerRect,
 	getLineCells,
 	getMapContentRect,
+	getObjectRect,
+	getPrefabIndex,
+	getRectCells,
+	hitTestPoint,
 	hitTestRectHandle,
+	isColliderHit,
+	isPointInPolygon,
 	isPointInRect,
 	normalizeRect,
+	projectToSegment,
 	RECT_HANDLE_CURSORS,
+	rectToPolygon,
 	resizeRectWithHandle,
 	roundMapValue,
 	screenToWorld,
-	snapToStep,
+	snapPoint,
 	type TRectHandle,
 } from './dayMapSpatial';
 import { isEditableTarget, isOverlayActive } from './mapShortcuts';
-import {
-	applyStroke,
-	collectEntitiesInRect,
-	createBrushFromCell,
-	createStrokeState,
-	fillArea,
-	fillRect,
-	getPatternTile,
-	getStampCells,
-	hitTestEntity,
-	type IStrokeState,
-	pickCell,
-	placeStamp,
-	writeHeightCell,
-	writeTileCell,
-} from './mapToolActions';
 import { type MapViewportStore } from './mapViewportStore';
 import {
+	COLLIDER_LABELS,
 	drawMapOverlay,
 	type IMapOverlayState,
 	type IOverlayBrushPreview,
-	type IOverlayRectPreview,
+	type TOverlayDraft,
 } from './render/drawMapOverlay';
 import {
 	createSceneBuilder,
-	getTileIndex,
-	type ISceneGeometry,
-	type ISceneItem,
-	resolveMapImageUrl,
+	getSceneDrawOrder,
 	type TSceneBuilder,
 } from './render/sceneGeometry';
 import {
@@ -110,6 +110,8 @@ export interface IDayMapViewportHandle {
 	fit(): void;
 	/** 缩放到刚好容纳该范围。 */
 	fitRect(rect: IMapRect): void;
+	/** 当前视图中心（世界坐标），用于导入图层的默认位置。 */
+	getViewCenter(): IMapPoint;
 	/** 范围已可见时不动，否则平移到中心；放不下时再缩放。 */
 	revealRect(rect: IMapRect): void;
 	zoomBy(factor: number): void;
@@ -119,36 +121,41 @@ export interface IDayMapViewportHandle {
 interface IProps {
 	activeLayerIndex: number;
 	assetUrls: Readonly<Record<string, string>>;
-	brush: ITileBrush | null;
 	brushSize: number;
-	cellSelection: IMapCellSelection | null;
+	colliderTarget: TColliderTarget;
 	hiddenLayers: ReadonlySet<number>;
-	isCameraSelected: boolean;
 	isReadOnly: boolean;
 	isReducedMotion: boolean;
 	map: IDayMap;
 	mode: TMapMode;
 	options: IMapViewOptions;
 	packLabel: string;
+	placePrefab: string | null;
 	ref?: Ref<IDayMapViewportHandle>;
+	selectedVertex: IMapVertexSelection | null;
 	selection: ReadonlySet<number>;
 	slope: number;
 	snapStep: number;
 	store: MapViewportStore;
 	tool: TMapTool;
-	onBrushPick(brush: ITileBrush): void;
-	onCameraSelect(isSelected: boolean): void;
-	onCellSelect(selection: IMapCellSelection | null): void;
+	onActiveLayerChange(index: number): void;
 	onCommit(next: IDayMap): IResourceEditorOperationResult;
-	onDropFiles(files: File[]): void;
+	onDropFiles(files: File[], world: IMapPoint): void;
 	onNotice(message: string, tone?: 'error' | 'info'): void;
 	onSelectionChange(kind: TMapEntityKind, indices: ReadonlySet<number>): void;
 	onSlopePick(slope: number): void;
 	onToolChange(tool: TMapTool): void;
+	onVertexSelect(vertex: IMapVertexSelection | null): void;
 }
 
-type TStrokeTarget = 'height' | 'tile';
-type TRectPurpose = 'camera' | 'collision' | 'height' | 'tile';
+type TPenPurpose = 'camera' | 'edge' | 'polygon';
+
+interface IPenState {
+	/** 选中多边形时按住 Shift 开始绘制，结果作为洞加入该多边形。 */
+	holeOf: number | null;
+	points: IMapPoint[];
+	purpose: TPenPurpose;
+}
 
 type TGesture =
 	| {
@@ -165,14 +172,11 @@ type TGesture =
 	  }
 	| {
 			base: IDayMap;
-			isDraftDirty: boolean;
+			changes: Map<string, number | null>;
 			isErase: boolean;
 			kind: 'stroke';
 			lastCell: IMapPoint;
-			layerIndex: number;
 			pointerId: number;
-			state: IStrokeState;
-			target: TStrokeTarget;
 	  }
 	| {
 			base: IDayMap;
@@ -180,15 +184,20 @@ type TGesture =
 			isErase: boolean;
 			kind: 'rect';
 			pointerId: number;
-			purpose: TRectPurpose;
+			purpose: 'camera' | 'collider' | 'height';
 			start: IMapPoint;
-			startClient: IMapPoint;
 	  }
 	| {
-			anchor: IMapPoint;
+			base: IDayMap;
+			center: IMapPoint;
+			current: IMapPoint;
+			kind: 'circle';
+			pointerId: number;
+	  }
+	| {
 			base: IDayMap;
 			clickedIndex: number;
-			entity: TMapEntityKind | 'camera';
+			entity: TMapEntityKind | 'camera' | 'layer';
 			hasMoved: boolean;
 			indices: ReadonlySet<number>;
 			kind: 'move';
@@ -199,62 +208,53 @@ type TGesture =
 	  }
 	| {
 			base: IDayMap;
-			entity: 'camera' | 'collision';
+			index: number;
+			kind: 'vertex';
+			owner: 'camera' | 'collider';
+			pointerId: number;
+			vertex: IMapVertexSelection;
+	  }
+	| {
+			base: IDayMap;
 			handle: TRectHandle;
 			index: number;
 			kind: 'resize';
 			pointerId: number;
 			startRect: IMapRect;
 	  }
+	| { base: IDayMap; index: number; kind: 'radius'; pointerId: number }
 	| {
 			base: IDayMap;
 			current: IMapPoint;
 			entity: TMapEntityKind;
 			initial: ReadonlySet<number>;
-			isAdditive: boolean;
 			kind: 'marquee';
 			pointerId: number;
 			preview: ReadonlySet<number>;
 			start: IMapPoint;
-			startClient: IMapPoint;
 	  };
 
 interface IHoverState {
-	cell: IMapPoint | null;
 	entity: number;
 	handle: TRectHandle | null;
 	isCameraBody: boolean;
+	layer: number;
+	vertex: IMapVertexSelection | null;
 	world: IMapPoint | null;
 }
 
 const DRAG_THRESHOLD_PX = 3;
-const GHOST_ALPHA = 0.6;
+const HIT_TOLERANCE_PX = 6;
+const PEN_CLOSE_RADIUS_PX = 9;
 const EMPTY_SET: ReadonlySet<number> = new Set();
-const layerCellIndexCache = new WeakMap<
-	IDayMapLayer,
-	Map<string, IDayMapCell>
->();
-
-function getLayerCellIndex(layer: IDayMapLayer) {
-	let index = layerCellIndexCache.get(layer);
-	if (!index) {
-		index = createCellIndex(layer.cells);
-		layerCellIndexCache.set(layer, index);
-	}
-	return index;
-}
-
-const heightIndexCache = new WeakMap<object, Map<string, number>>();
-
-function getHeightIndex(map: IDayMap) {
-	const key = map.height ?? map;
-	let index = heightIndexCache.get(key);
-	if (!index) {
-		index = createHeightIndex(map);
-		heightIndexCache.set(key, index);
-	}
-	return index;
-}
+const EMPTY_HOVER: IHoverState = {
+	entity: -1,
+	handle: null,
+	isCameraBody: false,
+	layer: -1,
+	vertex: null,
+	world: null,
+};
 
 function clampScale(scale: number) {
 	return Math.min(
@@ -279,6 +279,22 @@ function classifyWheel(
 	return 'pan';
 }
 
+const heightIndexCache = new WeakMap<object, Map<string, number>>();
+
+function getHeightIndex(map: IDayMap) {
+	const key = map.height ?? map;
+	let index = heightIndexCache.get(key);
+	if (!index) {
+		index = createHeightIndex(map);
+		heightIndexCache.set(key, index);
+	}
+	return index;
+}
+
+function toPoint([x = 0, y = 0]: readonly number[]): IMapPoint {
+	return { x, y };
+}
+
 export default function DayMapViewport(props: IProps) {
 	const { ref, store } = props;
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -289,20 +305,14 @@ export default function DayMapViewport(props: IProps) {
 	builderRef.current ??= createSceneBuilder();
 	const propsRef = useRef(props);
 	propsRef.current = props;
-	const viewRef = useRef<IMapView>({ scale: 48, x: 0, y: 0 });
+	const viewRef = useRef<IMapView>({ scale: 12, x: 0, y: 0 });
 	const sizeRef = useRef({ height: 0, width: 0 });
 	const hasFittedRef = useRef(false);
 	const gestureRef = useRef<TGesture | null>(null);
+	const penRef = useRef<IPenState | null>(null);
 	const draftRef = useRef<IDayMap | null>(null);
 	const pendingRef = useRef<IDayMap | null>(null);
-	const hoverRef = useRef<IHoverState>({
-		cell: null,
-		entity: -1,
-		handle: null,
-		isCameraBody: false,
-		world: null,
-	});
-	const keyboardCellRef = useRef<IMapPoint | null>(null);
+	const hoverRef = useRef<IHoverState>({ ...EMPTY_HOVER });
 	const isSpaceHeldRef = useRef(false);
 	const isAltHeldRef = useRef(false);
 	const touchesRef = useRef(new Map<number, IMapPoint>());
@@ -313,24 +323,10 @@ export default function DayMapViewport(props: IProps) {
 		start: number;
 		to: IMapView;
 	} | null>(null);
-	const lastStrokeRef = useRef<{
-		cell: IMapPoint;
-		layerIndex: number;
-		target: TStrokeTarget;
-	} | null>(null);
 	const wheelRef = useRef<{ kind: 'pan' | 'zoom'; time: number } | null>(
 		null
 	);
 	const fontFamilyRef = useRef('sans-serif');
-	const ghostRef = useRef<{
-		assetUrls: Readonly<Record<string, string>>;
-		geometry: ISceneGeometry;
-		key: string;
-		textureVersion: number;
-		tiles: IDayMap['tiles'];
-	} | null>(null);
-	const brushIdsRef = useRef(new WeakMap<ITileBrush, number>());
-	const nextBrushIdRef = useRef(1);
 	const lastSceneRef = useRef<{
 		height: number;
 		items: readonly ISceneDrawItem[];
@@ -370,240 +366,114 @@ export default function DayMapViewport(props: IProps) {
 		if (progress >= 1) animationRef.current = null;
 	}
 
-	function getBrushId(brush: ITileBrush | null) {
-		if (!brush) return 0;
-		let id = brushIdsRef.current.get(brush);
-		if (id === undefined) {
-			id = nextBrushIdRef.current;
-			nextBrushIdRef.current += 1;
-			brushIdsRef.current.set(brush, id);
-		}
-		return id;
+	function readSnap(isFree: boolean) {
+		return isFree || isAltHeldRef.current ? 0 : propsRef.current.snapStep;
 	}
 
-	/** 画笔、矩形和放置装饰的半透明预览；按输入生成键，未变化时复用顶点。 */
-	function getGhostSpec(
-		map: IDayMap
-	): { build: () => ISceneItem[]; key: string } | null {
-		const p = propsRef.current;
+	function getDraft(): TOverlayDraft | null {
+		const pen = penRef.current;
+		if (pen)
+			return {
+				cursor: hoverRef.current.world
+					? snapPoint(hoverRef.current.world, readSnap(false))
+					: null,
+				isClosed: pen.purpose !== 'edge',
+				kind: 'pen',
+				points: pen.points,
+			};
 		const gesture = gestureRef.current;
-		const hover = hoverRef.current;
-		if (p.isReadOnly || isSpaceHeldRef.current) return null;
-		const placement = p.brush?.placement;
-		const withPlacement = (item: ISceneItem): ISceneItem =>
-			placement ? { ...item, placement } : item;
-		if (p.mode === 'tile') {
-			const stamp = getStampCells(p.brush, p.brushSize);
-			if (stamp.length === 0) return null;
-			const brushKey = `${getBrushId(p.brush)}:${p.brushSize}`;
-			if (gesture?.kind === 'rect') {
-				if (gesture.isErase) return null;
-				const pattern = getStampCells(p.brush, 1);
-				const rect = normalizeRect(gesture.start, gesture.current);
-				const area =
-					(rect.maxX - rect.minX + 1) * (rect.maxY - rect.minY + 1);
-				if (area > 2500) return null;
-				return {
-					build: () => {
-						const items: ISceneItem[] = [];
-						const origin = { x: rect.minX, y: rect.minY };
-						for (let y = rect.minY; y <= rect.maxY; y++)
-							for (let x = rect.minX; x <= rect.maxX; x++) {
-								const tile = getPatternTile(
-									pattern,
-									origin,
-									x,
-									y
-								);
-								if (tile)
-									items.push(withPlacement({ tile, x, y }));
-							}
-						return items;
-					},
-					key: `rect:${rect.minX},${rect.minY},${rect.maxX},${rect.maxY}|${brushKey}`,
-				};
-			}
-			const cell = hover.cell;
-			if (gesture || p.tool !== 'brush' || !cell || isAltHeldRef.current)
-				return null;
+		if (gesture?.kind === 'rect') {
+			const rect =
+				gesture.purpose === 'height'
+					? getCellRect(gesture.start, gesture.current)
+					: normalizeRect(gesture.start, gesture.current);
 			return {
-				build: () =>
-					placeStamp(
-						stamp,
-						cell,
-						(p.brush?.cells.length ?? 0) > 1
-					).map((item) =>
-						withPlacement({ tile: item.tile, x: item.x, y: item.y })
-					),
-				key: `stamp:${cell.x},${cell.y}|${brushKey}`,
+				kind: 'rect',
+				rect,
+				tone:
+					gesture.purpose === 'camera'
+						? 'camera'
+						: gesture.purpose === 'collider'
+							? 'collider'
+							: gesture.isErase
+								? 'erase'
+								: 'slope',
 			};
 		}
-		if (
-			p.mode === 'object' &&
-			p.tool === 'place' &&
-			!gesture &&
-			hover.world &&
-			hover.entity < 0
-		) {
-			const tile = p.brush?.cells[0]?.tile;
-			if (!tile || !getTileIndex(map.tiles).has(tile)) return null;
-			const x = snapToStep(hover.world.x, p.snapStep);
-			const y = snapToStep(hover.world.y, p.snapStep);
+		if (gesture?.kind === 'circle')
 			return {
-				build: () => [{ tile, x, y }],
-				key: `object:${x},${y}|${tile}`,
+				center: gesture.center,
+				kind: 'circle',
+				radius: Math.hypot(
+					gesture.current.x - gesture.center.x,
+					gesture.current.y - gesture.center.y
+				),
 			};
-		}
 		return null;
 	}
 
-	function getGhostGeometry(
-		map: IDayMap,
-		renderer: ISceneRendererHandle
-	): ISceneGeometry | null {
-		const spec = getGhostSpec(map);
-		if (!spec) {
-			ghostRef.current = null;
-			return null;
-		}
-		const p = propsRef.current;
-		const textureStore = renderer.renderer.textureStore;
-		const textureVersion = textureStore.getVersion();
-		const cached = ghostRef.current;
-		if (
-			cached?.key === spec.key &&
-			cached.tiles === map.tiles &&
-			cached.assetUrls === p.assetUrls &&
-			cached.textureVersion === textureVersion
-		)
-			return cached.geometry;
-		const builder = builderRef.current;
-		if (!builder) return null;
-		const geometry = builder.buildItems(
-			{
-				assetUrls: p.assetUrls,
-				hiddenLayers: p.hiddenLayers,
-				map,
-				packLabel: p.packLabel,
-				shouldShowMaterialSources: true,
-				textureStore,
-			},
-			spec.build(),
-			GHOST_ALPHA
-		);
-		ghostRef.current = {
-			assetUrls: p.assetUrls,
-			geometry,
-			key: spec.key,
-			textureVersion,
-			tiles: map.tiles,
-		};
-		return geometry;
+	function getCellRect(a: IMapPoint, b: IMapPoint): IMapRect {
+		const rect = normalizeRect(getCellAt(a), getCellAt(b));
+		return { ...rect, maxX: rect.maxX + 1, maxY: rect.maxY + 1 };
 	}
 
-	function getBrushPreview(map: IDayMap): IOverlayBrushPreview | null {
+	function getBrushPreview(): IOverlayBrushPreview | null {
 		const p = propsRef.current;
+		const world = hoverRef.current.world;
 		const gesture = gestureRef.current;
-		const cell =
-			hoverRef.current.cell ??
-			(document.activeElement === containerRef.current
-				? keyboardCellRef.current
-				: null);
-		if (!cell || p.isReadOnly || isSpaceHeldRef.current) return null;
-		if (p.mode !== 'tile' && p.mode !== 'height') return null;
-		if (gesture && gesture.kind !== 'stroke') return null;
-		const isErase =
-			gesture?.kind === 'stroke' ? gesture.isErase : p.tool === 'eraser';
-		if (isAltHeldRef.current || p.tool === 'picker')
-			return { cells: [cell], kind: 'picker', slope: 0 };
-		if (p.tool === 'select' || p.tool === 'fill' || p.tool === 'rectangle')
+		if (
+			p.mode !== 'height' ||
+			!world ||
+			gesture?.kind === 'rect' ||
+			gesture?.kind === 'pan'
+		)
+			return null;
+		const cell = getCellAt(world);
+		if (p.tool === 'picker' || isAltHeldRef.current)
 			return { cells: [cell], kind: 'picker', slope: 0 };
 		if (p.tool !== 'brush' && p.tool !== 'eraser') return null;
-		if (p.mode === 'height')
-			return {
-				cells: getBrushOffsets(p.brushSize).map((offset) => ({
-					x: cell.x + offset.x,
-					y: cell.y + offset.y,
-				})),
-				kind: isErase ? 'erase' : 'slope',
-				slope: p.slope,
-			};
-		if (isErase)
-			return {
-				cells: getBrushOffsets(p.brushSize).map((offset) => ({
-					x: cell.x + offset.x,
-					y: cell.y + offset.y,
-				})),
-				kind: 'erase',
-				slope: 0,
-			};
-		const stamp = getStampCells(p.brush, p.brushSize);
-		if (stamp.length === 0 || !map.layers[p.activeLayerIndex])
-			return { cells: [cell], kind: 'picker', slope: 0 };
 		return {
-			cells: placeStamp(stamp, cell, (p.brush?.cells.length ?? 0) > 1),
-			kind: 'paint',
-			slope: 0,
-		};
-	}
-
-	function getRectPreview(): IOverlayRectPreview | null {
-		const gesture = gestureRef.current;
-		if (gesture?.kind !== 'rect') return null;
-		const rect = normalizeRect(gesture.start, gesture.current);
-		if (gesture.purpose === 'tile' || gesture.purpose === 'height')
-			return {
-				kind: gesture.isErase
+			cells: getBrushOffsets(p.brushSize).map((offset) => ({
+				x: cell.x + offset.x,
+				y: cell.y + offset.y,
+			})),
+			kind:
+				p.tool === 'eraser' ||
+				(gesture?.kind === 'stroke' && gesture.isErase)
 					? 'erase'
-					: gesture.purpose === 'height'
-						? 'slope'
-						: 'paint',
-				rect: {
-					maxX: rect.maxX + 1,
-					maxY: rect.maxY + 1,
-					minX: rect.minX,
-					minY: rect.minY,
-				},
-			};
-		return { kind: gesture.purpose, rect };
+					: 'paint',
+			slope: p.slope,
+		};
 	}
 
 	function describeHover(map: IDayMap) {
 		const p = propsRef.current;
 		const hover = hoverRef.current;
-		if (!hover.world || gestureRef.current) return '';
-		if (p.mode === 'tile' && hover.cell) {
-			const layer = map.layers[p.activeLayerIndex];
-			const cell = layer
-				? getLayerCellIndex(layer).get(
-						getCellKey(hover.cell.x, hover.cell.y)
-					)
-				: undefined;
-			return cell ? `瓦片 ${cell.tile}` : '空格';
-		}
-		if (p.mode === 'height' && hover.cell) {
+		if (!hover.world) return '';
+		if (p.mode === 'height') {
 			const slope = getHeightIndex(map).get(
-				getCellKey(hover.cell.x, hover.cell.y)
+				getCellKey(Math.floor(hover.world.x), Math.floor(hover.world.y))
 			);
-			if (slope === undefined) return '平地';
-			return `坡度 ${formatMapNumber(slope)}（${formatSlopeAngle(slope)}，${slope > 0 ? '向右上坡' : '向右下坡'}）`;
+			return slope === undefined
+				? '平地'
+				: `坡度 ${formatMapNumber(slope)} · ${formatSlopeAngle(slope)}`;
 		}
-		const kind = MAP_ENTITY_KIND_BY_MODE[p.mode];
-		if (kind && hover.entity >= 0) {
-			if (kind === 'spawn') {
-				const marker = map.spawnMarkers[hover.entity];
-				return marker
-					? `出生点 ${marker.name}${marker.name === map.defaultSpawnMarker ? '（默认）' : ''}`
-					: '';
-			}
-			if (kind === 'collision') {
-				const box = map.collisions[hover.entity];
-				return box
-					? `${box.name || '碰撞'} · ${formatMapNumber(box.width)}×${formatMapNumber(box.height)}`
-					: '';
-			}
+		if (p.mode === 'layer' && hover.layer >= 0)
+			return `图层 ${map.layers[hover.layer]?.name ?? ''}`;
+		if (hover.entity < 0) return '';
+		if (p.mode === 'spawn')
+			return `出生点 ${map.spawnMarkers[hover.entity]?.name ?? ''}`;
+		if (p.mode === 'object') {
 			const object = map.objects[hover.entity];
-			return object ? `${object.name || '装饰'} · ${object.tile}` : '';
+			return object ? `${object.name ?? '物件'} · ${object.prefab}` : '';
+		}
+		if (p.mode === 'collision') {
+			const collider = getTargetWorldColliders(map, p.colliderTarget)[
+				hover.entity
+			];
+			return collider
+				? `${collider.name ?? COLLIDER_LABELS[collider.shape]} · ${COLLIDER_LABELS[collider.shape]}`
+				: '';
 		}
 		return '';
 	}
@@ -618,30 +488,26 @@ export default function DayMapViewport(props: IProps) {
 		if (gesture?.kind === 'pan' || gesture?.kind === 'pinch')
 			cursor = 'grabbing';
 		else if (isSpaceHeldRef.current || p.tool === 'hand') cursor = 'grab';
-		else if (gesture?.kind === 'move') cursor = 'move';
+		else if (gesture?.kind === 'move' || gesture?.kind === 'vertex')
+			cursor = 'move';
 		else if (gesture?.kind === 'resize')
 			cursor = RECT_HANDLE_CURSORS[gesture.handle];
 		else if (hover.handle) cursor = RECT_HANDLE_CURSORS[hover.handle];
 		else if (p.isReadOnly) cursor = 'default';
-		else if (
-			(p.tool === 'select' &&
-				MAP_ENTITY_KIND_BY_MODE[p.mode] &&
-				hover.entity >= 0) ||
-			(p.mode === 'map' && p.tool === 'select' && hover.isCameraBody)
-		)
-			cursor = 'move';
+		else if (hover.vertex) cursor = 'move';
 		else if (
 			p.tool === 'select' &&
-			p.mode !== 'tile' &&
-			p.mode !== 'height'
+			(hover.entity >= 0 ||
+				hover.isCameraBody ||
+				(p.mode === 'layer' && hover.layer >= 0))
 		)
-			cursor = 'default';
+			cursor = 'move';
+		else if (p.tool === 'select') cursor = 'default';
 		else if (
-			(p.tool === 'place' && hover.entity >= 0) ||
-			isAltHeldRef.current ||
-			p.tool === 'picker'
+			p.tool === 'picker' ||
+			(p.mode === 'height' && isAltHeldRef.current)
 		)
-			cursor = p.tool === 'place' ? 'pointer' : 'copy';
+			cursor = 'copy';
 		if (container.style.cursor !== cursor) container.style.cursor = cursor;
 	}
 
@@ -653,31 +519,25 @@ export default function DayMapViewport(props: IProps) {
 		if (!handle || !overlay || width <= 0 || height <= 0) return;
 		stepAnimation(now);
 		const gesture = gestureRef.current;
-		if (gesture?.kind === 'stroke' && gesture.isDraftDirty) {
-			gesture.isDraftDirty = false;
-			draftRef.current = applyStroke(
+		if (gesture?.kind === 'stroke')
+			draftRef.current = applyHeightChanges(
 				gesture.base,
-				gesture.state,
-				gesture.target,
-				gesture.layerIndex
+				gesture.changes
 			);
-		}
 		const p = propsRef.current;
 		const map = readShownMap();
 		const view = viewRef.current;
 		const pixelRatio = window.devicePixelRatio || 1;
 		const builder = builderRef.current;
 		if (builder) {
-			const segments = builder.build({
+			const segments = builder({
 				assetUrls: p.assetUrls,
 				hiddenLayers: p.hiddenLayers,
 				map,
 				packLabel: p.packLabel,
-				shouldShowMaterialSources: p.options.shouldShowMaterialSources,
-				textureStore: handle.renderer.textureStore,
 			});
 			const shouldDim =
-				p.mode === 'tile' && p.options.shouldDimInactiveLayers;
+				p.mode === 'layer' && p.options.shouldDimInactiveLayers;
 			const items: ISceneDrawItem[] = segments.map((segment) => ({
 				alpha:
 					shouldDim && segment.layerIndex !== p.activeLayerIndex
@@ -685,8 +545,6 @@ export default function DayMapViewport(props: IProps) {
 						: 1,
 				geometry: segment.geometry,
 			}));
-			const ghost = getGhostGeometry(map, handle);
-			if (ghost) items.push({ alpha: 1, geometry: ghost });
 			// 只有覆盖层变化（悬停、选择）时不重绘场景，画布保留上一帧。
 			const last = lastSceneRef.current;
 			const textureVersion = handle.renderer.textureStore.getVersion();
@@ -727,23 +585,21 @@ export default function DayMapViewport(props: IProps) {
 		}
 		const kind = MAP_ENTITY_KIND_BY_MODE[p.mode];
 		const hover = hoverRef.current;
-		const cameraRect = getCameraRect(map.camera.bounds);
 		const overlayState: IMapOverlayState = {
 			activeLayerIndex: p.activeLayerIndex,
-			brushPreview: getBrushPreview(map),
+			brushPreview: getBrushPreview(),
 			cameraPreviewCenter:
 				p.mode === 'map' && hover.world && !gesture
-					? cameraRect
-						? clampPointToRect(hover.world, cameraRect)
-						: hover.world
+					? clampPointToPolygon(hover.world, map.camera.bounds)
 					: null,
-			cellSelection: p.cellSelection,
+			colliderTarget: p.colliderTarget,
+			draft: getDraft(),
 			fontFamily: fontFamilyRef.current,
+			hiddenLayers: p.hiddenLayers,
 			hoveredHandle:
 				gesture?.kind === 'resize' ? gesture.handle : hover.handle,
 			hoveredIndex:
 				kind && !gesture && hover.entity >= 0 ? hover.entity : null,
-			isCameraSelected: p.isCameraSelected,
 			map,
 			marquee:
 				gesture?.kind === 'marquee'
@@ -751,7 +607,8 @@ export default function DayMapViewport(props: IProps) {
 					: null,
 			mode: p.mode,
 			options: p.options,
-			rectPreview: getRectPreview(),
+			selectedVertex:
+				gesture?.kind === 'vertex' ? gesture.vertex : p.selectedVertex,
 			selection:
 				gesture?.kind === 'marquee'
 					? gesture.preview
@@ -831,7 +688,7 @@ export default function DayMapViewport(props: IProps) {
 		);
 	}
 
-	/** 定位整张地图；内容很少时至少显示 16×10 格，避免放大到单个点上。 */
+	/** 定位整张地图；内容很少时至少显示 16×10 格。 */
 	function fit(isAnimated = true) {
 		const rect = getMapContentRect(readShownMap());
 		const centerX = (rect.minX + rect.maxX) / 2;
@@ -853,14 +710,12 @@ export default function DayMapViewport(props: IProps) {
 		cancelGesture,
 		fit: () => fit(),
 		fitRect: (rect) => focusRect(rect),
+		getViewCenter: () => ({ x: viewRef.current.x, y: viewRef.current.y }),
 		revealRect: (rect) => {
 			const view = viewRef.current;
 			const { height, width } = sizeRef.current;
 			const visibleWidth = width / view.scale;
 			const visibleHeight = height / view.scale;
-			const rectWidth = rect.maxX - rect.minX;
-			const rectHeight = rect.maxY - rect.minY;
-			// 已经完整可见时不移动，否则居中；放不下时再缩小。
 			const isVisible =
 				rect.minX >= view.x - visibleWidth / 2 &&
 				rect.maxX <= view.x + visibleWidth / 2 &&
@@ -868,8 +723,8 @@ export default function DayMapViewport(props: IProps) {
 				rect.maxY <= view.y + visibleHeight / 2;
 			if (isVisible) return;
 			if (
-				rectWidth * 1.2 < visibleWidth &&
-				rectHeight * 1.2 < visibleHeight
+				(rect.maxX - rect.minX) * 1.2 < visibleWidth &&
+				(rect.maxY - rect.minY) * 1.2 < visibleHeight
 			)
 				setView(
 					{
@@ -904,23 +759,33 @@ export default function DayMapViewport(props: IProps) {
 		return result.isSuccess;
 	}
 
+	function commitInsert(
+		result: { indices: number[]; map: IDayMap } | string,
+		base: IDayMap,
+		kind: TMapEntityKind
+	) {
+		if (typeof result === 'string') {
+			propsRef.current.onNotice(result, 'error');
+			return;
+		}
+		if (commit(result.map, base))
+			propsRef.current.onSelectionChange(kind, new Set(result.indices));
+	}
+
 	function cancelGesture() {
 		const gesture = gestureRef.current;
 		gestureRef.current = null;
+		penRef.current = null;
 		draftRef.current = null;
-		if (gesture && 'pointerId' in gesture) {
-			const container = containerRef.current;
-			if (container?.hasPointerCapture(gesture.pointerId))
-				container.releasePointerCapture(gesture.pointerId);
-		}
+		if (gesture && 'pointerId' in gesture)
+			releaseCapture(gesture.pointerId);
 		scheduleRender();
 	}
 
-	/* ── 指针 ─────────────────────────────────────────── */
+	/* ── 命中测试 ─────────────────────────────────────── */
 
 	function readPointer(event: { clientX: number; clientY: number }) {
-		const container = containerRef.current;
-		const rect = container?.getBoundingClientRect();
+		const rect = containerRef.current?.getBoundingClientRect();
 		const screen = {
 			x: event.clientX - (rect?.left ?? 0),
 			y: event.clientY - (rect?.top ?? 0),
@@ -930,112 +795,221 @@ export default function DayMapViewport(props: IProps) {
 		return {
 			screen,
 			world: {
-				x: clampMapCoordinate(world.x, 4096),
-				y: clampMapCoordinate(world.y, 4096),
+				x: clampMapCoordinate(world.x),
+				y: clampMapCoordinate(world.y),
 			},
 		};
+	}
+
+	function hitTestLayer(map: IDayMap, world: IMapPoint) {
+		const p = propsRef.current;
+		const order = getSceneDrawOrder(map).filter(
+			(item) => item.kind === 'layer'
+		);
+		for (let i = order.length - 1; i >= 0; i--) {
+			const index = order[i]?.index ?? -1;
+			const layer = map.layers[index];
+			if (
+				layer &&
+				!p.hiddenLayers.has(index) &&
+				isPointInRect(world, getLayerRect(map, layer))
+			)
+				return index;
+		}
+		return -1;
+	}
+
+	function hitTestEntity(
+		map: IDayMap,
+		kind: TMapEntityKind,
+		world: IMapPoint
+	) {
+		const p = propsRef.current;
+		const scale = viewRef.current.scale;
+		if (kind === 'spawn') {
+			const radius = 10 / scale;
+			for (let i = map.spawnMarkers.length - 1; i >= 0; i--) {
+				const marker = map.spawnMarkers[i];
+				if (
+					marker &&
+					Math.hypot(marker.x - world.x, marker.y - world.y) <= radius
+				)
+					return i;
+			}
+			return -1;
+		}
+		if (kind === 'object') {
+			const prefabs = getPrefabIndex(map);
+			const order = getSceneDrawOrder(map).filter(
+				(item) => item.kind === 'object'
+			);
+			for (let i = order.length - 1; i >= 0; i--) {
+				const index = order[i]?.index ?? -1;
+				const object = map.objects[index];
+				if (
+					object &&
+					isPointInRect(
+						world,
+						getObjectRect(object, prefabs.get(object.prefab))
+					)
+				)
+					return index;
+			}
+			return -1;
+		}
+		const colliders = getTargetWorldColliders(map, p.colliderTarget);
+		for (let i = colliders.length - 1; i >= 0; i--) {
+			const collider = colliders[i];
+			if (
+				collider &&
+				isColliderHit(collider, world, HIT_TOLERANCE_PX / scale)
+			)
+				return i;
+		}
+		return -1;
+	}
+
+	function collectEntitiesInRect(
+		map: IDayMap,
+		kind: TMapEntityKind,
+		rect: IMapRect
+	) {
+		const hits: number[] = [];
+		if (kind === 'spawn')
+			map.spawnMarkers.forEach((marker, index) => {
+				if (isPointInRect(marker, rect)) hits.push(index);
+			});
+		else if (kind === 'object') {
+			const prefabs = getPrefabIndex(map);
+			map.objects.forEach((object, index) => {
+				if (
+					doRectsIntersect(
+						rect,
+						getObjectRect(object, prefabs.get(object.prefab))
+					)
+				)
+					hits.push(index);
+			});
+		} else
+			getTargetWorldColliders(
+				map,
+				propsRef.current.colliderTarget
+			).forEach((collider, index) => {
+				if (doRectsIntersect(rect, getColliderRect(collider)))
+					hits.push(index);
+			});
+		return hits;
+	}
+
+	/** 当前可逐点编辑的路径：选中的单个碰撞，或地图模式下的相机多边形。 */
+	function getEditablePaths(
+		map: IDayMap
+	): {
+		index: number;
+		isClosed: boolean;
+		owner: 'camera' | 'collider';
+		paths: number[][][];
+	} | null {
+		const p = propsRef.current;
+		if (p.tool !== 'select') return null;
+		if (p.mode === 'map')
+			return map.camera.shouldFollow
+				? {
+						index: 0,
+						isClosed: true,
+						owner: 'camera',
+						paths: [map.camera.bounds],
+					}
+				: null;
+		if (p.mode !== 'collision' || p.selection.size !== 1) return null;
+		const [index = -1] = p.selection;
+		const collider = getTargetWorldColliders(map, p.colliderTarget)[index];
+		const paths = collider && getVertexPaths(collider);
+		return paths && collider
+			? {
+					index,
+					isClosed: isVertexPathClosed(collider),
+					owner: 'collider',
+					paths,
+				}
+			: null;
+	}
+
+	function hitTestVertex(
+		map: IDayMap,
+		world: IMapPoint
+	): IMapVertexSelection | null {
+		const editable = getEditablePaths(map);
+		if (!editable) return null;
+		const scale = viewRef.current.scale;
+		for (
+			let pathIndex = editable.paths.length - 1;
+			pathIndex >= 0;
+			pathIndex--
+		) {
+			const pointIndex = hitTestPoint(
+				editable.paths[pathIndex] ?? [],
+				world,
+				scale
+			);
+			if (pointIndex >= 0) return { pathIndex, pointIndex };
+		}
+		return null;
+	}
+
+	function getSelectedCollider(
+		map: IDayMap
+	): { collider: TDayMapCollider; index: number } | null {
+		const p = propsRef.current;
+		if (
+			p.mode !== 'collision' ||
+			p.tool !== 'select' ||
+			p.selection.size !== 1
+		)
+			return null;
+		const [index = -1] = p.selection;
+		const collider = getTargetWorldColliders(map, p.colliderTarget)[index];
+		return collider ? { collider, index } : null;
 	}
 
 	function updateHover(world: IMapPoint | null) {
 		const p = propsRef.current;
 		const map = readShownMap();
-		const hover = hoverRef.current;
-		hover.world = world;
-		hover.cell = world ? getCellAt(world) : null;
-		hover.entity = -1;
-		hover.handle = null;
-		hover.isCameraBody = false;
-		if (!world || p.isReadOnly) return;
+		const hover: IHoverState = { ...EMPTY_HOVER, world };
+		hoverRef.current = hover;
+		if (!world || p.isReadOnly || p.tool === 'hand') return;
 		const scale = viewRef.current.scale;
-		const kind = MAP_ENTITY_KIND_BY_MODE[p.mode];
-		if (
-			kind &&
-			(p.tool === 'select' ||
-				p.tool === 'place' ||
-				p.tool === 'rectangle')
-		) {
-			if (
-				kind === 'collision' &&
-				p.tool === 'select' &&
-				p.selection.size === 1
-			) {
-				const [index = -1] = p.selection;
-				const box = map.collisions[index];
-				if (box)
-					hover.handle = hitTestRectHandle(
-						getCollisionRect(box),
-						world,
-						scale
-					);
-			}
-			if (!hover.handle && p.tool !== 'rectangle')
-				hover.entity = hitTestEntity(
-					map,
-					kind,
-					world,
-					scale,
-					p.tool === 'place' ? 'anchor' : 'area'
-				);
-		}
-		if (p.mode === 'map' && p.tool === 'select') {
-			const rect = getCameraRect(map.camera.bounds);
-			if (rect) {
-				hover.handle = hitTestRectHandle(rect, world, scale);
-				hover.isCameraBody =
-					!hover.handle && isPointInRect(world, rect);
-			}
-		}
-	}
-
-	function startPan(event: PointerEvent<HTMLDivElement>) {
-		gestureRef.current = {
-			kind: 'pan',
-			pointerId: event.pointerId,
-			startClient: { x: event.clientX, y: event.clientY },
-			startView: viewRef.current,
-		};
-		animationRef.current = null;
-	}
-
-	function checkPaintable(
-		target: TStrokeTarget,
-		isErase: boolean
-	): string | null {
-		const p = propsRef.current;
-		const map = readShownMap();
-		if (target === 'height') {
-			if (map.layers.some((layer) => layer.isHeight))
-				return '这张地图使用原始高度层，坡度画笔已停用。';
-			if (!Number.isFinite(p.slope) || Math.abs(p.slope) > 1)
-				return '坡度必须在 -1 到 1 之间。';
-			return null;
-		}
-		if (!map.layers[p.activeLayerIndex]) return '请先添加一个图层。';
-		if (p.hiddenLayers.has(p.activeLayerIndex))
-			return '当前图层已隐藏，显示后才能绘制。';
-		if (!isErase && getStampCells(p.brush, 1).length === 0)
-			return '请先在瓦片库中选择画笔瓦片。';
-		if (
-			!isErase &&
-			p.brush?.cells.some(
-				(cell) => !map.tiles.some((tile) => tile.key === cell.tile)
-			)
-		)
-			return '画笔中的瓦片已不存在，请重新选择。';
-		return null;
-	}
-
-	/** 特殊材质图层在预览中默认隐藏，绘制时提示，避免看不到结果。 */
-	function noticeHiddenMaterial(target: TStrokeTarget, isErase: boolean) {
-		const p = propsRef.current;
-		if (target !== 'tile' || isErase || p.options.shouldShowMaterialSources)
-			return;
-		const layer = readShownMap().layers[p.activeLayerIndex];
-		if (layer && hasSpecialShader(layer))
-			p.onNotice(
-				'当前图层使用特殊材质，预览中默认隐藏；可在显示选项中打开“特殊材质源图”查看。',
-				'info'
+		hover.vertex = hitTestVertex(map, world);
+		if (hover.vertex) return;
+		const selected = getSelectedCollider(map);
+		if (selected?.collider.shape === 'box' && !selected.collider.rotation)
+			hover.handle = hitTestRectHandle(
+				getColliderRect(selected.collider),
+				world,
+				scale
 			);
+		if (selected?.collider.shape === 'circle') {
+			const { radius, x, y } = selected.collider;
+			if (hitTestPoint([[x + radius, y]], world, scale) >= 0)
+				hover.handle = 'e';
+		}
+		if (hover.handle) return;
+		const kind = MAP_ENTITY_KIND_BY_MODE[p.mode];
+		if (kind && (p.tool === 'select' || p.tool === 'place'))
+			hover.entity = hitTestEntity(map, kind, world);
+		if (p.mode === 'layer') hover.layer = hitTestLayer(map, world);
+		if (p.mode === 'map' && p.tool === 'select')
+			hover.isCameraBody =
+				map.camera.shouldFollow &&
+				isPointInPolygon(world, map.camera.bounds);
+	}
+
+	/* ── 指针 ─────────────────────────────────────────── */
+
+	function releaseCapture(pointerId: number) {
+		const container = containerRef.current;
+		if (container?.hasPointerCapture(pointerId))
+			container.releasePointerCapture(pointerId);
 	}
 
 	function stampStroke(
@@ -1043,124 +1017,42 @@ export default function DayMapViewport(props: IProps) {
 		cell: IMapPoint
 	) {
 		const p = propsRef.current;
-		if (gesture.target === 'height') {
-			for (const offset of getBrushOffsets(p.brushSize))
-				writeHeightCell(
-					gesture.state,
-					cell.x + offset.x,
-					cell.y + offset.y,
-					gesture.isErase ? null : p.slope
-				);
-		} else if (gesture.isErase) {
-			for (const offset of getBrushOffsets(p.brushSize))
-				writeTileCell(
-					gesture.state,
-					p.brush,
-					cell.x + offset.x,
-					cell.y + offset.y,
-					null
-				);
-		} else {
-			const stamp = getStampCells(p.brush, p.brushSize);
-			for (const item of placeStamp(
-				stamp,
-				cell,
-				(p.brush?.cells.length ?? 0) > 1
-			))
-				writeTileCell(
-					gesture.state,
-					p.brush,
-					item.x,
-					item.y,
-					item.tile
-				);
-		}
-		gesture.isDraftDirty = true;
+		for (const offset of getBrushOffsets(p.brushSize))
+			gesture.changes.set(
+				getCellKey(cell.x + offset.x, cell.y + offset.y),
+				gesture.isErase ? null : p.slope
+			);
 	}
 
-	function startStroke(
-		event: PointerEvent<HTMLDivElement>,
-		cell: IMapPoint,
-		target: TStrokeTarget,
-		isErase: boolean
-	) {
+	function pickSlope(world: IMapPoint, shouldReturnToBrush: boolean) {
 		const p = propsRef.current;
-		const error = checkPaintable(target, isErase);
-		if (error) {
-			p.onNotice(error, 'error');
-			return;
-		}
-		noticeHiddenMaterial(target, isErase);
-		const base = readShownMap();
-		const gesture: Extract<TGesture, { kind: 'stroke' }> = {
-			base,
-			isDraftDirty: false,
-			isErase,
-			kind: 'stroke',
-			lastCell: cell,
-			layerIndex: p.activeLayerIndex,
-			pointerId: event.pointerId,
-			state: createStrokeState(base, target, p.activeLayerIndex),
-			target,
-		};
-		const last = lastStrokeRef.current;
-		if (
-			event.shiftKey &&
-			last &&
-			last.target === target &&
-			(target === 'height' || last.layerIndex === p.activeLayerIndex)
-		)
-			for (const point of getLineCells(last.cell, cell))
-				stampStroke(gesture, point);
-		else stampStroke(gesture, cell);
-		gestureRef.current = gesture;
-	}
-
-	function finishStroke(gesture: Extract<TGesture, { kind: 'stroke' }>) {
-		const next = applyStroke(
-			gesture.base,
-			gesture.state,
-			gesture.target,
-			gesture.layerIndex
+		const cell = getCellAt(world);
+		p.onSlopePick(
+			getHeightIndex(readShownMap()).get(getCellKey(cell.x, cell.y)) ?? 0
 		);
-		lastStrokeRef.current = {
-			cell: gesture.lastCell,
-			layerIndex: gesture.layerIndex,
-			target: gesture.target,
-		};
-		if (gesture.state.isLimitReached)
-			propsRef.current.onNotice(
-				gesture.target === 'height'
-					? '坡度格已达到 100000 格上限，部分格子没有绘制。'
-					: '显示图层总格子数已达到 100000 上限，部分格子没有绘制。',
-				'error'
-			);
-		commit(next, gesture.base);
+		if (shouldReturnToBrush) p.onToolChange('brush');
 	}
 
-	function applyPicker(cell: IMapPoint, shouldReturnToBrush: boolean) {
-		const p = propsRef.current;
-		const map = readShownMap();
-		if (p.mode === 'height') {
-			const slope =
-				getHeightIndex(map).get(getCellKey(cell.x, cell.y)) ?? 0;
-			p.onSlopePick(slope);
-			p.onNotice(`已吸取坡度 ${formatMapNumber(slope)}`, 'info');
-		} else {
-			const picked = pickCell(
-				map,
-				cell,
-				p.activeLayerIndex,
-				p.hiddenLayers
-			);
-			if (!picked) {
-				p.onNotice('这里没有可吸取的瓦片。', 'info');
-				return;
-			}
-			p.onBrushPick(createBrushFromCell(map, picked.cell));
-			p.onNotice(`已吸取瓦片 ${picked.cell.tile}`, 'info');
-		}
-		if (shouldReturnToBrush) p.onToolChange('brush');
+	function startMove(
+		event: PointerEvent<HTMLDivElement>,
+		world: IMapPoint,
+		entity: TMapEntityKind | 'camera' | 'layer',
+		clickedIndex: number,
+		indices: ReadonlySet<number>,
+		shouldCollapseSelection: boolean
+	) {
+		gestureRef.current = {
+			base: readShownMap(),
+			clickedIndex,
+			entity,
+			hasMoved: false,
+			indices,
+			kind: 'move',
+			pointerId: event.pointerId,
+			shouldCollapseSelection,
+			startClient: { x: event.clientX, y: event.clientY },
+			startWorld: world,
+		};
 	}
 
 	function startEntityPointer(
@@ -1170,233 +1062,180 @@ export default function DayMapViewport(props: IProps) {
 	) {
 		const p = propsRef.current;
 		const map = readShownMap();
-		const scale = viewRef.current.scale;
-		const isToggle = event.shiftKey || event.ctrlKey || event.metaKey;
-		if (
-			p.tool === 'select' &&
-			kind === 'collision' &&
-			p.selection.size === 1
-		) {
-			const [index = -1] = p.selection;
-			const box = map.collisions[index];
-			const handle = box
-				? hitTestRectHandle(getCollisionRect(box), world, scale)
-				: null;
-			if (box && handle) {
-				gestureRef.current = {
-					base: map,
-					entity: 'collision',
-					handle,
-					index,
-					kind: 'resize',
-					pointerId: event.pointerId,
-					startRect: getCollisionRect(box),
-				};
-				return;
-			}
-		}
-		if (p.tool === 'rectangle' && kind === 'collision') {
-			const start = event.altKey
-				? world
-				: {
-						x: snapToStep(world.x, p.snapStep),
-						y: snapToStep(world.y, p.snapStep),
-					};
-			gestureRef.current = {
-				base: map,
-				current: start,
-				isErase: false,
-				kind: 'rect',
-				pointerId: event.pointerId,
-				purpose: 'collision',
-				start,
-				startClient: { x: event.clientX, y: event.clientY },
-			};
-			return;
-		}
-		const hit = hitTestEntity(
-			map,
-			kind,
-			world,
-			scale,
-			p.tool === 'place' ? 'anchor' : 'area'
-		);
-		if (hit >= 0) {
-			let indices: ReadonlySet<number>;
-			if (isToggle && p.tool === 'select') {
-				const next = new Set(p.selection);
-				if (next.has(hit)) next.delete(hit);
-				else next.add(hit);
-				indices = next;
-				p.onSelectionChange(kind, next);
-				if (!next.has(hit)) return;
-			} else if (p.selection.has(hit) && p.tool === 'select') {
-				indices = p.selection;
-			} else {
-				indices = new Set([hit]);
-				p.onSelectionChange(kind, indices);
-			}
-			const anchor =
-				kind === 'collision'
-					? (() => {
-							const box = map.collisions[hit];
-							return box
-								? {
-										x: box.x - box.width / 2,
-										y: box.y - box.height / 2,
-									}
-								: world;
-						})()
-					: kind === 'object'
-						? {
-								x: map.objects[hit]?.x ?? world.x,
-								y: map.objects[hit]?.y ?? world.y,
-							}
-						: {
-								x: map.spawnMarkers[hit]?.x ?? world.x,
-								y: map.spawnMarkers[hit]?.y ?? world.y,
-							};
-			gestureRef.current = {
-				anchor,
-				base: map,
-				clickedIndex: hit,
-				entity: kind,
-				hasMoved: false,
-				indices,
-				kind: 'move',
-				pointerId: event.pointerId,
-				shouldCollapseSelection:
-					!isToggle && p.selection.has(hit) && p.selection.size > 1,
-				startClient: { x: event.clientX, y: event.clientY },
-				startWorld: world,
-			};
-			return;
-		}
+		const hit = hitTestEntity(map, kind, world);
 		if (p.tool === 'place') {
-			const x = event.altKey ? world.x : snapToStep(world.x, p.snapStep);
-			const y = event.altKey ? world.y : snapToStep(world.y, p.snapStep);
-			const result =
-				kind === 'object'
-					? addObject(map, p.brush?.cells[0]?.tile ?? '', x, y)
-					: addSpawn(map, x, y);
-			if (typeof result === 'string') {
-				p.onNotice(result, 'error');
+			if (hit >= 0) {
+				p.onSelectionChange(kind, new Set([hit]));
+				startMove(event, world, kind, hit, new Set([hit]), false);
 				return;
 			}
-			if (commit(result.map, map))
-				p.onSelectionChange(kind, new Set(result.indices));
+			const point = snapPoint(world, readSnap(event.altKey));
+			if (kind === 'spawn')
+				commitInsert(addSpawn(map, point.x, point.y), map, kind);
+			else if (p.placePrefab)
+				commitInsert(
+					addObject(map, p.placePrefab, point.x, point.y),
+					map,
+					kind
+				);
+			else p.onNotice('请先在物件模板库中选择要放置的模板。', 'error');
 			return;
 		}
+		if (p.tool !== 'select') return;
+		const isToggle = event.ctrlKey || event.metaKey;
+		if (hit >= 0) {
+			if (event.shiftKey || isToggle) {
+				const next = new Set(p.selection);
+				if (isToggle && next.has(hit)) next.delete(hit);
+				else next.add(hit);
+				p.onSelectionChange(kind, next);
+				if (next.has(hit))
+					startMove(event, world, kind, hit, next, false);
+				return;
+			}
+			const isSelected = p.selection.has(hit);
+			const indices = isSelected ? p.selection : new Set([hit]);
+			if (!isSelected) p.onSelectionChange(kind, indices);
+			p.onVertexSelect(null);
+			startMove(
+				event,
+				world,
+				kind,
+				hit,
+				indices,
+				isSelected && p.selection.size > 1
+			);
+			return;
+		}
+		const initial = event.shiftKey || isToggle ? p.selection : EMPTY_SET;
+		if (initial.size === 0) p.onSelectionChange(kind, EMPTY_SET);
+		p.onVertexSelect(null);
 		gestureRef.current = {
 			base: map,
 			current: world,
 			entity: kind,
-			initial: isToggle ? p.selection : EMPTY_SET,
-			isAdditive: isToggle,
+			initial,
 			kind: 'marquee',
 			pointerId: event.pointerId,
-			preview: isToggle ? p.selection : EMPTY_SET,
+			preview: initial,
 			start: world,
-			startClient: { x: event.clientX, y: event.clientY },
 		};
 	}
 
-	function startCameraPointer(
-		event: PointerEvent<HTMLDivElement>,
-		world: IMapPoint
+	/** 逐点绘制：单击加点；单击起点闭合并结束。返回是否已结束。 */
+	function addPenPoint(
+		world: IMapPoint,
+		purpose: TPenPurpose,
+		shiftKey: boolean,
+		altKey: boolean
 	) {
 		const p = propsRef.current;
+		const point = snapPoint(world, readSnap(altKey));
+		const pen = penRef.current;
+		if (!pen || pen.purpose !== purpose) {
+			const selected = getSelectedCollider(readShownMap());
+			penRef.current = {
+				holeOf:
+					purpose === 'polygon' &&
+					shiftKey &&
+					selected?.collider.shape === 'polygon'
+						? selected.index
+						: null,
+				points: [point],
+				purpose,
+			};
+			if (penRef.current.holeOf !== null)
+				p.onNotice('正在绘制洞：结束后加入选中的多边形。', 'info');
+			return;
+		}
+		const [first] = pen.points;
+		const closeRadius = PEN_CLOSE_RADIUS_PX / viewRef.current.scale;
+		if (
+			first &&
+			pen.points.length >= 2 &&
+			Math.hypot(first.x - world.x, first.y - world.y) <= closeRadius
+		) {
+			finishPen(true);
+			return;
+		}
+		const last = pen.points.at(-1);
+		if (last && last.x === point.x && last.y === point.y) return;
+		pen.points.push(point);
+	}
+
+	function finishPen(isClosedByClick: boolean) {
+		const pen = penRef.current;
+		penRef.current = null;
+		if (!pen) return;
+		const p = propsRef.current;
 		const map = readShownMap();
-		const rect = getCameraRect(map.camera.bounds);
-		if (p.tool === 'rectangle' || !rect) {
-			if (p.tool !== 'rectangle') {
-				p.onNotice(
-					'还没有相机范围，使用矩形工具在画布上拖出。',
-					'info'
-				);
+		const points = pen.points.map(({ x, y }) => [
+			roundMapValue(x),
+			roundMapValue(y),
+		]);
+		if (pen.purpose === 'edge') {
+			if (points.length < 2) {
+				p.onNotice('折线至少需要 2 个点。', 'error');
+				scheduleRender();
 				return;
 			}
-			const start = event.altKey
-				? world
-				: {
-						x: snapToStep(world.x, p.snapStep),
-						y: snapToStep(world.y, p.snapStep),
-					};
-			gestureRef.current = {
-				base: map,
-				current: start,
-				isErase: false,
-				kind: 'rect',
-				pointerId: event.pointerId,
-				purpose: 'camera',
-				start,
-				startClient: { x: event.clientX, y: event.clientY },
-			};
+			commitInsert(
+				addCollider(map, p.colliderTarget, {
+					points,
+					shape: 'edge',
+					...(isClosedByClick ? { closed: true } : {}),
+				}),
+				map,
+				'collider'
+			);
 			return;
 		}
-		const handle = hitTestRectHandle(rect, world, viewRef.current.scale);
-		if (handle) {
-			p.onCameraSelect(true);
-			gestureRef.current = {
-				base: map,
-				entity: 'camera',
-				handle,
-				index: 0,
-				kind: 'resize',
-				pointerId: event.pointerId,
-				startRect: rect,
-			};
+		if (points.length < 3) {
+			p.onNotice('多边形至少需要 3 个点。', 'error');
+			scheduleRender();
 			return;
 		}
-		if (isPointInRect(world, rect)) {
-			p.onCameraSelect(true);
-			gestureRef.current = {
-				anchor: { x: rect.minX, y: rect.minY },
-				base: map,
-				clickedIndex: 0,
-				entity: 'camera',
-				hasMoved: false,
-				indices: EMPTY_SET,
-				kind: 'move',
-				pointerId: event.pointerId,
-				shouldCollapseSelection: false,
-				startClient: { x: event.clientX, y: event.clientY },
-				startWorld: world,
-			};
+		if (pen.purpose === 'camera') {
+			commit({ ...map, camera: { ...map.camera, bounds: points } }, map);
 			return;
 		}
-		p.onCameraSelect(false);
-	}
-
-	function withCameraRect(map: IDayMap, rect: IMapRect): IDayMap {
-		return {
-			...map,
-			camera: {
-				...map.camera,
-				bounds: [rect.minX, rect.minY, rect.maxX, rect.maxY].map(
-					roundMapValue
-				),
-			},
-		};
-	}
-
-	/** 画布上的浮动控件自己处理指针，不触发绘制。 */
-	function isCanvasEvent(event: PointerEvent<HTMLDivElement>) {
-		return event.target === event.currentTarget;
+		const host =
+			pen.holeOf === null
+				? null
+				: getTargetWorldColliders(map, p.colliderTarget)[pen.holeOf];
+		if (host?.shape === 'polygon' && pen.holeOf !== null) {
+			commit(
+				replaceCollider(map, p.colliderTarget, pen.holeOf, {
+					...host,
+					paths: [...host.paths, points],
+				}),
+				map
+			);
+			return;
+		}
+		commitInsert(
+			addCollider(map, p.colliderTarget, {
+				paths: [points],
+				shape: 'polygon',
+			}),
+			map,
+			'collider'
+		);
 	}
 
 	function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
 		const container = containerRef.current;
-		if (!container || !isCanvasEvent(event)) return;
+		if (!container || event.target !== event.currentTarget) return;
 		if (event.pointerType === 'touch') {
 			touchesRef.current.set(event.pointerId, {
 				x: event.clientX,
 				y: event.clientY,
 			});
 			if (touchesRef.current.size === 2) {
+				const pen = penRef.current;
 				cancelGesture();
-				const points = [...touchesRef.current.values()];
-				const [a, b] = points;
+				penRef.current = pen;
+				const [a, b] = [...touchesRef.current.values()];
 				if (a && b) {
 					const rect = container.getBoundingClientRect();
 					gestureRef.current = {
@@ -1424,12 +1263,15 @@ export default function DayMapViewport(props: IProps) {
 		const p = propsRef.current;
 		const { world } = readPointer(event);
 		updateHover(world);
-		const cell = getCellAt(world);
-		const isPan =
-			event.button === 1 || isSpaceHeldRef.current || p.tool === 'hand';
 		container.setPointerCapture(event.pointerId);
-		if (isPan) {
-			startPan(event);
+		if (event.button === 1 || isSpaceHeldRef.current || p.tool === 'hand') {
+			gestureRef.current = {
+				kind: 'pan',
+				pointerId: event.pointerId,
+				startClient: { x: event.clientX, y: event.clientY },
+				startView: viewRef.current,
+			};
+			animationRef.current = null;
 			scheduleRender();
 			return;
 		}
@@ -1437,113 +1279,149 @@ export default function DayMapViewport(props: IProps) {
 			releaseCapture(event.pointerId);
 			return;
 		}
-		const isRight = event.button === 2;
-		if (p.mode === 'tile' || p.mode === 'height') {
-			const target: TStrokeTarget = p.mode === 'tile' ? 'tile' : 'height';
-			if (event.altKey && !isRight) {
-				applyPicker(cell, false);
-				releaseCapture(event.pointerId);
-				return;
-			}
-			if (p.tool === 'picker') {
-				if (!isRight) applyPicker(cell, true);
-				releaseCapture(event.pointerId);
-				return;
-			}
-			if (p.tool === 'select') {
-				if (!isRight) {
-					const picked =
-						p.mode === 'tile'
-							? pickCell(
-									readShownMap(),
-									cell,
-									p.activeLayerIndex,
-									p.hiddenLayers
-								)
-							: null;
-					p.onCellSelect(
-						picked
-							? { layerIndex: picked.layerIndex, ...cell }
-							: null
-					);
-				}
-				releaseCapture(event.pointerId);
-				return;
-			}
-			if (p.tool === 'fill') {
-				const error = checkPaintable(target, isRight);
-				if (error) p.onNotice(error, 'error');
-				else {
-					const base = readShownMap();
-					const result = fillArea(
-						base,
-						cell,
-						target,
-						p.activeLayerIndex,
-						p.brush,
-						p.slope,
-						isRight
-					);
-					if (result.error) p.onNotice(result.error, 'error');
-					else {
-						commit(result.map, base);
-						if (result.notice) p.onNotice(result.notice, 'info');
-						else noticeHiddenMaterial(target, isRight);
-					}
-				}
-				releaseCapture(event.pointerId);
-				return;
-			}
-			if (p.tool === 'rectangle') {
-				const error = checkPaintable(target, isRight);
-				if (error) {
-					p.onNotice(error, 'error');
-					releaseCapture(event.pointerId);
-					return;
-				}
-				noticeHiddenMaterial(target, isRight);
-				gestureRef.current = {
-					base: readShownMap(),
-					current: cell,
-					isErase: isRight,
-					kind: 'rect',
-					pointerId: event.pointerId,
-					purpose: target,
-					start: cell,
-					startClient: { x: event.clientX, y: event.clientY },
-				};
-				scheduleRender();
-				return;
-			}
-			if (p.tool === 'brush' || p.tool === 'eraser') {
-				startStroke(
-					event,
-					cell,
-					target,
-					isRight || p.tool === 'eraser'
-				);
-				if (!gestureRef.current) releaseCapture(event.pointerId);
-				scheduleRender();
-				return;
-			}
-			releaseCapture(event.pointerId);
-			return;
-		}
-		if (isRight) {
-			releaseCapture(event.pointerId);
-			return;
-		}
-		const kind = MAP_ENTITY_KIND_BY_MODE[p.mode];
-		if (kind) startEntityPointer(event, world, kind);
-		else if (p.mode === 'map') startCameraPointer(event, world);
+		startToolPointer(event, world, event.button === 2);
 		if (!gestureRef.current) releaseCapture(event.pointerId);
 		scheduleRender();
 	}
 
-	function releaseCapture(pointerId: number) {
-		const container = containerRef.current;
-		if (container?.hasPointerCapture(pointerId))
-			container.releasePointerCapture(pointerId);
+	function startToolPointer(
+		event: PointerEvent<HTMLDivElement>,
+		world: IMapPoint,
+		isRight: boolean
+	) {
+		const p = propsRef.current;
+		const map = readShownMap();
+		const pointerId = event.pointerId;
+		if (p.mode === 'height') {
+			if (p.tool === 'picker' || (event.altKey && !isRight)) {
+				if (!isRight) pickSlope(world, p.tool === 'picker');
+				return;
+			}
+			if (p.tool === 'rectangle') {
+				gestureRef.current = {
+					base: map,
+					current: world,
+					isErase: isRight,
+					kind: 'rect',
+					pointerId,
+					purpose: 'height',
+					start: world,
+				};
+				return;
+			}
+			if (p.tool === 'brush' || p.tool === 'eraser') {
+				if (!(Math.abs(p.slope) <= 1)) {
+					p.onNotice('坡度必须在 -1 到 1 之间。', 'error');
+					return;
+				}
+				const gesture: Extract<TGesture, { kind: 'stroke' }> = {
+					base: map,
+					changes: new Map(),
+					isErase: isRight || p.tool === 'eraser',
+					kind: 'stroke',
+					lastCell: getCellAt(world),
+					pointerId,
+				};
+				stampStroke(gesture, gesture.lastCell);
+				gestureRef.current = gesture;
+			}
+			return;
+		}
+		if (isRight) return;
+		const hover = hoverRef.current;
+		if (hover.vertex) {
+			const editable = getEditablePaths(map);
+			if (editable) {
+				p.onVertexSelect(hover.vertex);
+				gestureRef.current = {
+					base: map,
+					index: editable.index,
+					kind: 'vertex',
+					owner: editable.owner,
+					pointerId,
+					vertex: hover.vertex,
+				};
+			}
+			return;
+		}
+		if (p.mode === 'layer') {
+			if (p.tool !== 'select') return;
+			const hit = hitTestLayer(map, world);
+			if (hit < 0) return;
+			p.onActiveLayerChange(hit);
+			startMove(event, world, 'layer', hit, new Set([hit]), false);
+			return;
+		}
+		if (p.mode === 'map') {
+			if (p.tool === 'polygon')
+				addPenPoint(world, 'camera', false, event.altKey);
+			else if (p.tool === 'rectangle')
+				gestureRef.current = {
+					base: map,
+					current: world,
+					isErase: false,
+					kind: 'rect',
+					pointerId,
+					purpose: 'camera',
+					start: world,
+				};
+			else if (p.tool === 'select' && hover.isCameraBody) {
+				p.onVertexSelect(null);
+				startMove(event, world, 'camera', 0, EMPTY_SET, false);
+			} else p.onVertexSelect(null);
+			return;
+		}
+		if (p.mode === 'collision') {
+			const selected = getSelectedCollider(map);
+			if (selected && hover.handle) {
+				gestureRef.current =
+					selected.collider.shape === 'circle'
+						? {
+								base: map,
+								index: selected.index,
+								kind: 'radius',
+								pointerId,
+							}
+						: {
+								base: map,
+								handle: hover.handle,
+								index: selected.index,
+								kind: 'resize',
+								pointerId,
+								startRect: getColliderRect(selected.collider),
+							};
+				return;
+			}
+			if (p.tool === 'polygon' || p.tool === 'edge') {
+				addPenPoint(world, p.tool, event.shiftKey, event.altKey);
+				return;
+			}
+			const start = snapPoint(world, readSnap(event.altKey));
+			if (p.tool === 'rectangle') {
+				gestureRef.current = {
+					base: map,
+					current: start,
+					isErase: false,
+					kind: 'rect',
+					pointerId,
+					purpose: 'collider',
+					start,
+				};
+				return;
+			}
+			if (p.tool === 'circle') {
+				gestureRef.current = {
+					base: map,
+					center: start,
+					current: start,
+					kind: 'circle',
+					pointerId,
+				};
+				return;
+			}
+		}
+		const kind = MAP_ENTITY_KIND_BY_MODE[p.mode];
+		if (kind) startEntityPointer(event, world, kind);
 	}
 
 	function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
@@ -1600,12 +1478,12 @@ export default function DayMapViewport(props: IProps) {
 			return;
 		const { world } = readPointer(event);
 		if (!gesture) {
-			updateHover(isCanvasEvent(event) ? world : null);
+			updateHover(event.target === event.currentTarget ? world : null);
 			scheduleRender();
 			return;
 		}
-		hoverRef.current.world = world;
-		hoverRef.current.cell = getCellAt(world);
+		hoverRef.current = { ...hoverRef.current, world };
+		const snap = readSnap(event.altKey);
 		switch (gesture.kind) {
 			case 'pan': {
 				const scale = gesture.startView.scale;
@@ -1627,23 +1505,22 @@ export default function DayMapViewport(props: IProps) {
 					cell.y === gesture.lastCell.y
 				)
 					break;
-				const line = getLineCells(gesture.lastCell, cell);
-				for (const point of line.slice(1)) stampStroke(gesture, point);
+				for (const point of getLineCells(gesture.lastCell, cell).slice(
+					1
+				))
+					stampStroke(gesture, point);
 				gesture.lastCell = cell;
 				break;
 			}
-			case 'rect': {
+			case 'rect':
 				gesture.current =
-					gesture.purpose === 'tile' || gesture.purpose === 'height'
-						? getCellAt(world)
-						: event.altKey
-							? world
-							: {
-									x: snapToStep(world.x, p.snapStep),
-									y: snapToStep(world.y, p.snapStep),
-								};
+					gesture.purpose === 'height'
+						? world
+						: snapPoint(world, snap);
 				break;
-			}
+			case 'circle':
+				gesture.current = snapPoint(world, snap);
+				break;
 			case 'move': {
 				if (
 					!gesture.hasMoved &&
@@ -1654,62 +1531,97 @@ export default function DayMapViewport(props: IProps) {
 				)
 					break;
 				gesture.hasMoved = true;
-				const target = {
-					x: gesture.anchor.x + world.x - gesture.startWorld.x,
-					y: gesture.anchor.y + world.y - gesture.startWorld.y,
-				};
-				const snapped = event.altKey
-					? target
-					: {
-							x: snapToStep(target.x, p.snapStep),
-							y: snapToStep(target.y, p.snapStep),
-						};
-				const dx = roundMapValue(snapped.x - gesture.anchor.x);
-				const dy = roundMapValue(snapped.y - gesture.anchor.y);
-				if (gesture.entity === 'camera') {
-					const rect = getCameraRect(gesture.base.camera.bounds);
-					draftRef.current = rect
-						? withCameraRect(gesture.base, {
-								maxX: rect.maxX + dx,
-								maxY: rect.maxY + dy,
-								minX: rect.minX + dx,
-								minY: rect.minY + dy,
-							})
-						: null;
-				} else
-					draftRef.current = moveEntities(
-						gesture.base,
-						gesture.entity,
-						gesture.indices,
-						dx,
-						dy
+				draftRef.current = applyMove(gesture, world, snap);
+				break;
+			}
+			case 'vertex': {
+				const point = snapPoint(world, snap);
+				const base = gesture.base;
+				if (gesture.owner === 'camera') {
+					const bounds = base.camera.bounds.map((item, i) =>
+						i === gesture.vertex.pointIndex
+							? [point.x, point.y]
+							: item
 					);
+					draftRef.current = {
+						...base,
+						camera: { ...base.camera, bounds },
+					};
+				} else {
+					const collider = getTargetWorldColliders(
+						base,
+						p.colliderTarget
+					)[gesture.index];
+					draftRef.current = collider
+						? replaceCollider(
+								base,
+								p.colliderTarget,
+								gesture.index,
+								setVertex(collider, gesture.vertex, point)
+							)
+						: null;
+				}
 				break;
 			}
 			case 'resize': {
+				const collider = getTargetWorldColliders(
+					gesture.base,
+					p.colliderTarget
+				)[gesture.index];
+				if (collider?.shape !== 'box') break;
 				const rect = resizeRectWithHandle(
 					gesture.startRect,
 					gesture.handle,
 					world,
-					event.altKey ? 0 : p.snapStep
+					snap
 				);
-				draftRef.current =
-					gesture.entity === 'camera'
-						? withCameraRect(gesture.base, rect)
-						: replaceCollisionRect(
-								gesture.base,
-								gesture.index,
-								rect
-							);
+				draftRef.current = replaceCollider(
+					gesture.base,
+					p.colliderTarget,
+					gesture.index,
+					{
+						...collider,
+						height: rect.maxY - rect.minY,
+						width: rect.maxX - rect.minX,
+						x: (rect.minX + rect.maxX) / 2,
+						y: (rect.minY + rect.maxY) / 2,
+					}
+				);
+				break;
+			}
+			case 'radius': {
+				const collider = getTargetWorldColliders(
+					gesture.base,
+					p.colliderTarget
+				)[gesture.index];
+				if (collider?.shape !== 'circle') break;
+				const radius = Math.max(
+					snap || 0.01,
+					Math.hypot(world.x - collider.x, world.y - collider.y)
+				);
+				draftRef.current = replaceCollider(
+					gesture.base,
+					p.colliderTarget,
+					gesture.index,
+					{
+						...collider,
+						radius:
+							snap > 0
+								? Math.max(
+										snap,
+										Math.round(radius / snap) * snap
+									)
+								: radius,
+					}
+				);
 				break;
 			}
 			case 'marquee': {
 				gesture.current = world;
-				const rect = normalizeRect(gesture.start, world);
 				const hits = collectEntitiesInRect(
 					gesture.base,
 					gesture.entity,
-					rect
+					normalizeRect(gesture.start, world)
 				);
 				gesture.preview = new Set([...gesture.initial, ...hits]);
 				break;
@@ -1718,6 +1630,65 @@ export default function DayMapViewport(props: IProps) {
 				break;
 		}
 		scheduleRender();
+	}
+
+	/** 以拖动起点为基准移动；图层按整像素，其余按吸附步长。 */
+	function applyMove(
+		gesture: Extract<TGesture, { kind: 'move' }>,
+		world: IMapPoint,
+		snap: number
+	): IDayMap {
+		const p = propsRef.current;
+		const base = gesture.base;
+		const dx = world.x - gesture.startWorld.x;
+		const dy = world.y - gesture.startWorld.y;
+		if (gesture.entity === 'layer') {
+			const layer = base.layers[gesture.clickedIndex];
+			if (!layer) return base;
+			return patchLayer(base, gesture.clickedIndex, {
+				x: layer.x + Math.round(dx * base.pixelsPerUnit),
+				y: layer.y + Math.round(dy * base.pixelsPerUnit),
+			});
+		}
+		const step = snap > 0 ? snap : 0;
+		const sdx = step ? Math.round(dx / step) * step : dx;
+		const sdy = step ? Math.round(dy / step) * step : dy;
+		if (gesture.entity === 'camera')
+			return {
+				...base,
+				camera: {
+					...base.camera,
+					bounds: base.camera.bounds.map(([x = 0, y = 0]) => [
+						roundMapValue(x + sdx),
+						roundMapValue(y + sdy),
+					]),
+				},
+			};
+		// 单个物件或出生点拖动时让锚点本身落在吸附网格上。
+		let fdx = sdx;
+		let fdy = sdy;
+		if (
+			step &&
+			gesture.indices.size === 1 &&
+			gesture.entity !== 'collider'
+		) {
+			const anchor =
+				gesture.entity === 'object'
+					? base.objects[gesture.clickedIndex]
+					: base.spawnMarkers[gesture.clickedIndex];
+			if (anchor) {
+				fdx = Math.round((anchor.x + dx) / step) * step - anchor.x;
+				fdy = Math.round((anchor.y + dy) / step) * step - anchor.y;
+			}
+		}
+		return moveEntities(
+			base,
+			gesture.entity,
+			gesture.indices,
+			roundMapValue(fdx),
+			roundMapValue(fdy),
+			p.colliderTarget
+		);
 	}
 
 	function finishGesture(event: PointerEvent<HTMLDivElement>) {
@@ -1730,304 +1701,284 @@ export default function DayMapViewport(props: IProps) {
 		const p = propsRef.current;
 		switch (gesture.kind) {
 			case 'stroke':
-				finishStroke(gesture);
+				commit(
+					applyHeightChanges(gesture.base, gesture.changes),
+					gesture.base
+				);
 				break;
 			case 'rect': {
-				const rect = normalizeRect(gesture.start, gesture.current);
-				if (
-					gesture.purpose === 'tile' ||
-					gesture.purpose === 'height'
-				) {
-					const result = fillRect(
-						gesture.base,
-						rect,
-						gesture.purpose,
-						p.activeLayerIndex,
-						p.brush,
-						p.slope,
-						gesture.isErase
-					);
-					if (result.error) p.onNotice(result.error, 'error');
-					else {
-						commit(result.map, gesture.base);
-						if (result.notice) p.onNotice(result.notice, 'info');
-					}
-					break;
-				}
-				const isClick =
-					Math.hypot(
-						event.clientX - gesture.startClient.x,
-						event.clientY - gesture.startClient.y
-					) < DRAG_THRESHOLD_PX ||
-					!(rect.maxX - rect.minX > 0) ||
-					!(rect.maxY - rect.minY > 0);
-				if (gesture.purpose === 'camera') {
-					if (isClick) break;
-					if (
-						commit(withCameraRect(gesture.base, rect), gesture.base)
-					)
-						p.onCameraSelect(true);
-					break;
-				}
-				if (isClick) {
-					const hit = hitTestEntity(
-						gesture.base,
-						'collision',
-						gesture.start,
-						viewRef.current.scale
-					);
-					p.onSelectionChange(
-						'collision',
-						hit >= 0 ? new Set([hit]) : EMPTY_SET
-					);
-					break;
-				}
-				const result = addCollision(gesture.base, rect);
-				if (typeof result === 'string') p.onNotice(result, 'error');
-				else if (commit(result.map, gesture.base))
-					p.onSelectionChange('collision', new Set(result.indices));
-				break;
-			}
-			case 'move': {
-				const draft = draftRef.current;
-				if (gesture.hasMoved && draft) commit(draft, gesture.base);
-				else {
-					draftRef.current = null;
-					if (
-						gesture.shouldCollapseSelection &&
-						gesture.entity !== 'camera'
-					)
-						p.onSelectionChange(
-							gesture.entity,
-							new Set([gesture.clickedIndex])
+				const base = gesture.base;
+				if (gesture.purpose === 'height') {
+					const changes = new Map<string, number | null>();
+					for (const cell of getRectCells(
+						normalizeRect(
+							getCellAt(gesture.start),
+							getCellAt(gesture.current)
+						)
+					))
+						changes.set(
+							getCellKey(cell.x, cell.y),
+							gesture.isErase ? null : p.slope
 						);
+					commit(applyHeightChanges(base, changes), base);
+					break;
 				}
+				const rect = normalizeRect(gesture.start, gesture.current);
+				const minimum = Math.max(p.snapStep, 1 / base.pixelsPerUnit);
+				if (
+					rect.maxX - rect.minX < minimum ||
+					rect.maxY - rect.minY < minimum
+				) {
+					draftRef.current = null;
+					break;
+				}
+				if (gesture.purpose === 'camera')
+					commit(
+						{
+							...base,
+							camera: {
+								...base.camera,
+								bounds: rectToPolygon(rect),
+							},
+						},
+						base
+					);
+				else
+					commitInsert(
+						addCollider(base, p.colliderTarget, {
+							height: rect.maxY - rect.minY,
+							shape: 'box',
+							width: rect.maxX - rect.minX,
+							x: (rect.minX + rect.maxX) / 2,
+							y: (rect.minY + rect.maxY) / 2,
+						}),
+						base,
+						'collider'
+					);
 				break;
 			}
-			case 'resize': {
-				const draft = draftRef.current;
-				if (draft) commit(draft, gesture.base);
-				break;
-			}
-			case 'marquee': {
-				const isClick =
-					Math.hypot(
-						event.clientX - gesture.startClient.x,
-						event.clientY - gesture.startClient.y
-					) < DRAG_THRESHOLD_PX;
-				p.onSelectionChange(
-					gesture.entity,
-					isClick ? gesture.initial : gesture.preview
+			case 'circle': {
+				const radius = Math.hypot(
+					gesture.current.x - gesture.center.x,
+					gesture.current.y - gesture.center.y
+				);
+				if (
+					radius <
+					Math.max(p.snapStep, 1 / gesture.base.pixelsPerUnit)
+				)
+					break;
+				commitInsert(
+					addCollider(gesture.base, p.colliderTarget, {
+						radius,
+						shape: 'circle',
+						x: gesture.center.x,
+						y: gesture.center.y,
+					}),
+					gesture.base,
+					'collider'
 				);
 				break;
 			}
+			case 'move': {
+				const kind = MAP_ENTITY_KIND_BY_MODE[p.mode];
+				if (!gesture.hasMoved) {
+					draftRef.current = null;
+					if (gesture.shouldCollapseSelection && kind)
+						p.onSelectionChange(
+							kind,
+							new Set([gesture.clickedIndex])
+						);
+					break;
+				}
+				commit(draftRef.current ?? gesture.base, gesture.base);
+				break;
+			}
+			case 'vertex':
+			case 'resize':
+			case 'radius':
+				commit(draftRef.current ?? gesture.base, gesture.base);
+				break;
+			case 'marquee':
+				p.onSelectionChange(gesture.entity, gesture.preview);
+				break;
 			case 'pan':
 			case 'pinch':
 				break;
 		}
-		const { world } = readPointer(event);
-		updateHover(event.pointerType === 'touch' ? null : world);
 		scheduleRender();
 	}
 
 	function handlePointerUp(event: PointerEvent<HTMLDivElement>) {
-		if (event.pointerType === 'touch') {
-			touchesRef.current.delete(event.pointerId);
-			if (gestureRef.current?.kind === 'pinch') {
-				if (touchesRef.current.size < 2) gestureRef.current = null;
-				scheduleRender();
-				return;
-			}
-		}
+		touchesRef.current.delete(event.pointerId);
+		if (gestureRef.current?.kind === 'pinch' && touchesRef.current.size < 2)
+			gestureRef.current = null;
 		finishGesture(event);
 	}
 
 	function handlePointerCancel(event: PointerEvent<HTMLDivElement>) {
 		touchesRef.current.delete(event.pointerId);
 		const gesture = gestureRef.current;
-		if (!gesture) return;
-		if (gesture.kind === 'pinch') {
-			if (touchesRef.current.size < 2) gestureRef.current = null;
-			return;
+		if (
+			gesture &&
+			(!('pointerId' in gesture) || gesture.pointerId === event.pointerId)
+		) {
+			gestureRef.current = null;
+			draftRef.current = null;
+			releaseCapture(event.pointerId);
 		}
-		if (gesture.pointerId === event.pointerId) cancelGesture();
-	}
-
-	function handlePointerLeave(event: PointerEvent<HTMLDivElement>) {
-		if (gestureRef.current) return;
-		if (event.pointerType === 'touch') return;
-		updateHover(null);
 		scheduleRender();
 	}
 
-	/* ── 键盘 ─────────────────────────────────────────── */
+	function handlePointerLeave() {
+		if (!gestureRef.current) {
+			updateHover(null);
+			scheduleRender();
+		}
+	}
 
-	function nudgeSelection(dx: number, dy: number) {
+	/** 双击：结束逐点绘制，或在选中路径的边上插入顶点。 */
+	function handleDoubleClick(event: MouseEvent<HTMLDivElement>) {
+		const p = propsRef.current;
+		if (p.isReadOnly) return;
+		if (penRef.current) {
+			finishPen(false);
+			return;
+		}
+		const map = readShownMap();
+		const editable = getEditablePaths(map);
+		if (!editable) return;
+		const { world } = readPointer(event);
+		let found: {
+			distance: number;
+			pathIndex: number;
+			segment: number;
+		} | null = null;
+		editable.paths.forEach((path, pathIndex) => {
+			const count = editable.isClosed ? path.length : path.length - 1;
+			for (let segment = 0; segment < count; segment++) {
+				const distance = getDistanceToSegment(
+					world,
+					toPoint(path[segment] ?? []),
+					toPoint(path[(segment + 1) % path.length] ?? [])
+				);
+				if (
+					distance <= HIT_TOLERANCE_PX / viewRef.current.scale &&
+					(!found || distance < found.distance)
+				)
+					found = { distance, pathIndex, segment };
+			}
+		});
+		if (!found) return;
+		const { pathIndex, segment } = found;
+		const path = editable.paths[pathIndex] ?? [];
+		const point = snapPoint(
+			projectToSegment(
+				world,
+				toPoint(path[segment] ?? []),
+				toPoint(path[(segment + 1) % path.length] ?? [])
+			),
+			readSnap(event.altKey)
+		);
+		const vertex = { pathIndex, pointIndex: segment + 1 };
+		if (editable.owner === 'camera') {
+			const bounds = [...map.camera.bounds];
+			bounds.splice(segment + 1, 0, [point.x, point.y]);
+			commit({ ...map, camera: { ...map.camera, bounds } }, map);
+		} else {
+			const collider = getTargetWorldColliders(map, p.colliderTarget)[
+				editable.index
+			];
+			if (!collider) return;
+			commit(
+				replaceCollider(
+					map,
+					p.colliderTarget,
+					editable.index,
+					insertVertex(collider, pathIndex, segment, point)
+				),
+				map
+			);
+		}
+		p.onVertexSelect(vertex);
+	}
+
+	function nudge(dx: number, dy: number) {
 		const p = propsRef.current;
 		const map = readShownMap();
-		const kind = MAP_ENTITY_KIND_BY_MODE[p.mode];
-		if (p.mode === 'map' && p.isCameraSelected) {
-			const rect = getCameraRect(map.camera.bounds);
-			if (rect)
+		if (p.mode === 'layer') {
+			const layer = map.layers[p.activeLayerIndex];
+			if (layer)
 				commit(
-					withCameraRect(map, {
-						maxX: rect.maxX + dx,
-						maxY: rect.maxY + dy,
-						minX: rect.minX + dx,
-						minY: rect.minY + dy,
+					patchLayer(map, p.activeLayerIndex, {
+						x: layer.x + dx,
+						y: layer.y + dy,
 					}),
 					map
 				);
-			return true;
-		}
-		if (!kind || p.selection.size === 0) return false;
-		commit(moveEntities(map, kind, p.selection, dx, dy), map);
-		return true;
-	}
-
-	function applyKeyboardTool(cell: IMapPoint, isDelete: boolean) {
-		const p = propsRef.current;
-		const target: TStrokeTarget = p.mode === 'tile' ? 'tile' : 'height';
-		if (p.tool === 'picker') {
-			applyPicker(cell, true);
 			return;
 		}
-		if (p.tool === 'select' && p.mode === 'tile') {
-			const picked = pickCell(
-				readShownMap(),
-				cell,
-				p.activeLayerIndex,
-				p.hiddenLayers
-			);
-			p.onCellSelect(
-				picked ? { layerIndex: picked.layerIndex, ...cell } : null
-			);
-			return;
-		}
-		const isErase = isDelete || p.tool === 'eraser';
-		const error = checkPaintable(target, isErase);
-		if (error) {
-			p.onNotice(error, 'error');
-			return;
-		}
-		const base = readShownMap();
-		if (p.tool === 'fill' && !isDelete) {
-			const result = fillArea(
-				base,
-				cell,
-				target,
-				p.activeLayerIndex,
-				p.brush,
-				p.slope,
-				false
-			);
-			if (result.error) p.onNotice(result.error, 'error');
-			else commit(result.map, base);
-			return;
-		}
-		const gesture: Extract<TGesture, { kind: 'stroke' }> = {
-			base,
-			isDraftDirty: false,
-			isErase,
-			kind: 'stroke',
-			lastCell: cell,
-			layerIndex: p.activeLayerIndex,
-			pointerId: -1,
-			state: createStrokeState(base, target, p.activeLayerIndex),
-			target,
-		};
-		stampStroke(gesture, cell);
-		finishStroke(gesture);
+		const kind = MAP_ENTITY_KIND_BY_MODE[p.mode];
+		if (!kind || p.selection.size === 0) return;
+		const step = p.snapStep > 0 ? p.snapStep : 1 / map.pixelsPerUnit;
+		commit(
+			moveEntities(
+				map,
+				kind,
+				p.selection,
+				dx * step,
+				dy * step,
+				p.colliderTarget
+			),
+			map
+		);
 	}
 
 	function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-		if (event.target !== event.currentTarget) return;
-		const p = propsRef.current;
-		if (event.key === 'Escape') {
-			if (gestureRef.current) {
+		if (
+			event.nativeEvent.isComposing ||
+			event.ctrlKey ||
+			event.metaKey ||
+			event.altKey
+		)
+			return;
+		const pen = penRef.current;
+		if (pen) {
+			if (event.key === 'Enter') {
+				event.preventDefault();
+				finishPen(false);
+			} else if (event.key === 'Escape') {
+				event.preventDefault();
+				penRef.current = null;
+				scheduleRender();
+			} else if (event.key === 'Backspace' || event.key === 'Delete') {
 				event.preventDefault();
 				event.stopPropagation();
-				cancelGesture();
-				return;
-			}
-			const kind = MAP_ENTITY_KIND_BY_MODE[p.mode];
-			if (kind && p.selection.size > 0) {
-				event.preventDefault();
-				p.onSelectionChange(kind, EMPTY_SET);
-			} else if (p.cellSelection) {
-				event.preventDefault();
-				p.onCellSelect(null);
-			} else if (p.isCameraSelected) {
-				event.preventDefault();
-				p.onCameraSelect(false);
+				pen.points.pop();
+				if (pen.points.length === 0) penRef.current = null;
+				scheduleRender();
 			}
 			return;
 		}
-		if (event.ctrlKey || event.metaKey || event.altKey) return;
-		const steps: Record<string, IMapPoint> = {
-			ArrowDown: { x: 0, y: -1 },
-			ArrowLeft: { x: -1, y: 0 },
-			ArrowRight: { x: 1, y: 0 },
-			ArrowUp: { x: 0, y: 1 },
-		};
-		const step = steps[event.key];
-		if (step) {
+		if (event.key === 'Escape' && gestureRef.current) {
 			event.preventDefault();
-			if (!p.isReadOnly) {
-				const distance = event.shiftKey
-					? 1
-					: p.snapStep > 0
-						? p.snapStep
-						: 0.125;
-				if (nudgeSelection(step.x * distance, step.y * distance))
-					return;
-			}
-			const view = viewRef.current;
-			const current = keyboardCellRef.current ?? getCellAt(view);
-			const next = {
-				x: Math.max(-4096, Math.min(4095, current.x + step.x)),
-				y: Math.max(-4096, Math.min(4095, current.y + step.y)),
-			};
-			keyboardCellRef.current = next;
-			hoverRef.current.cell = next;
-			hoverRef.current.world = { x: next.x + 0.5, y: next.y + 0.5 };
-			const { height, width } = sizeRef.current;
-			const margin = 2;
-			const halfWidth = width / 2 / view.scale - margin;
-			const halfHeight = height / 2 / view.scale - margin;
-			if (
-				Math.abs(next.x + 0.5 - view.x) > halfWidth ||
-				Math.abs(next.y + 0.5 - view.y) > halfHeight
-			)
-				setView({ ...view, x: next.x + 0.5, y: next.y + 0.5 }, true);
-			scheduleRender();
+			cancelGesture();
 			return;
 		}
-		if (p.isReadOnly) return;
-		const kind = MAP_ENTITY_KIND_BY_MODE[p.mode];
-		if (event.key === 'Delete' || event.key === 'Backspace') {
-			if (kind && p.selection.size > 0) {
-				event.preventDefault();
-				const map = readShownMap();
-				if (commit(deleteEntities(map, kind, p.selection), map))
-					p.onSelectionChange(kind, EMPTY_SET);
-				return;
-			}
-			if (
-				(p.mode === 'tile' || p.mode === 'height') &&
-				keyboardCellRef.current
-			) {
-				event.preventDefault();
-				applyKeyboardTool(keyboardCellRef.current, true);
-			}
-			return;
-		}
-		if (event.key === 'Enter') {
-			const cell = keyboardCellRef.current ?? hoverRef.current.cell;
-			if ((p.mode === 'tile' || p.mode === 'height') && cell) {
-				event.preventDefault();
-				applyKeyboardTool(cell, false);
-			}
+		const arrows: Record<string, readonly [number, number]> = {
+			ArrowDown: [0, -1],
+			ArrowLeft: [-1, 0],
+			ArrowRight: [1, 0],
+			ArrowUp: [0, 1],
+		};
+		const arrow = arrows[event.key];
+		if (arrow && !propsRef.current.isReadOnly) {
+			event.preventDefault();
+			const factor = event.shiftKey
+				? propsRef.current.mode === 'layer'
+					? 10
+					: 4
+				: 1;
+			nudge(arrow[0] * factor, arrow[1] * factor);
 		}
 	}
 
@@ -2035,7 +1986,7 @@ export default function DayMapViewport(props: IProps) {
 		const files = [...event.dataTransfer.files];
 		if (files.length === 0) return;
 		event.preventDefault();
-		propsRef.current.onDropFiles(files);
+		propsRef.current.onDropFiles(files, readPointer(event).world);
 	}
 
 	/* ── 生命周期 ─────────────────────────────────────── */
@@ -2137,10 +2088,9 @@ export default function DayMapViewport(props: IProps) {
 						? rect.height
 						: 1;
 			if (kind === 'zoom') {
-				const delta = event.deltaY * unit;
 				const intensity =
 					event.ctrlKey || event.metaKey ? 0.01 : 0.0022;
-				zoomAround(Math.exp(-delta * intensity), screen);
+				zoomAround(Math.exp(-event.deltaY * unit * intensity), screen);
 				return;
 			}
 			const view = viewRef.current;
@@ -2152,9 +2102,7 @@ export default function DayMapViewport(props: IProps) {
 				x: view.x + dx / view.scale,
 				y: view.y - dy / view.scale,
 			});
-			if (!gestureRef.current) {
-				updateHover(readPointer(event).world);
-			}
+			if (!gestureRef.current) updateHover(readPointer(event).world);
 		};
 		container.addEventListener('wheel', handleWheel, { passive: false });
 		// 捕获阶段处理空格和 Alt：指针在画布上时，焦点停在按钮上也能按住空格平移。
@@ -2212,7 +2160,7 @@ export default function DayMapViewport(props: IProps) {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	const { activeLayerIndex, map, mode, tool } = props;
+	const { colliderTarget, map, mode, tool } = props;
 	useEffect(() => {
 		pendingRef.current = null;
 		const gesture = gestureRef.current;
@@ -2226,19 +2174,21 @@ export default function DayMapViewport(props: IProps) {
 		const gesture = gestureRef.current;
 		if (gesture && gesture.kind !== 'pan' && gesture.kind !== 'pinch')
 			cancelGesture();
-		// 工具、模式或图层切换时放弃未完成的操作。
+		penRef.current = null;
+		// 工具、模式或碰撞编辑对象切换时放弃未完成的操作。
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [activeLayerIndex, mode, tool]);
+	}, [colliderTarget, mode, tool]);
 
 	const { assetUrls, packLabel } = props;
 	useEffect(() => {
 		const urls = new Set<string>();
-		for (const tile of map.tiles) {
-			const url = resolveMapImageUrl(tile.image, packLabel, assetUrls);
-			if (url) urls.add(url);
+		for (const reference of getDayMapAssetReferences(map)) {
+			const local = resolveDayMapAssetPath(reference.path, packLabel);
+			const url = local === null ? undefined : assetUrls[local];
+			if (reference.kind === 'image' && url) urls.add(url);
 		}
 		rendererRef.current?.renderer.textureStore.retain(urls);
-	}, [assetUrls, map.tiles, packLabel]);
+	}, [assetUrls, map, packLabel]);
 
 	useEffect(() => {
 		scheduleRender();
@@ -2250,12 +2200,13 @@ export default function DayMapViewport(props: IProps) {
 			tabIndex={0}
 			role="application"
 			aria-roledescription="地图画布"
-			aria-label="地图画布。方向键移动格子光标，回车使用当前工具，Delete 删除；滚轮缩放，按住空格或中键拖动平移。"
+			aria-label="地图画布。滚轮缩放，按住空格或中键拖动平移；方向键微调选中项，Delete 删除，回车结束逐点绘制。"
 			className={cn(
 				'relative h-full w-full touch-none select-none overflow-hidden outline-none',
 				'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus'
 			)}
 			onContextMenu={(event) => event.preventDefault()}
+			onDoubleClick={handleDoubleClick}
 			onDragOver={(event) => {
 				if (event.dataTransfer.types.includes('Files'))
 					event.preventDefault();

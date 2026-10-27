@@ -110,8 +110,8 @@ export const RESOURCE_ENTITY_DESCRIPTORS = [
 export const NESTED_ENTITY_DESCRIPTORS = [
 	{
 		displayField: 'key',
-		label: '瓦片',
-		path: 'dayMaps[].tiles',
+		label: '物件模板',
+		path: 'dayMaps[].prefabs',
 		stableKey: 'key',
 	},
 	{

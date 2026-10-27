@@ -1,302 +1,409 @@
 import type {
 	IDayMap,
-	IDayMapCell,
-	IDayMapCollision,
 	IDayMapHeightCell,
 	IDayMapLayer,
 	IDayMapObject,
-	IDayMapPlacement,
+	IDayMapPrefab,
 	IDayMapSpawn,
-	IDayMapTile,
+	TDayMapCollider,
 } from '@/domain/resourcePack/contracts/dayMap';
-import { DAY_MAP_TILE_LIMIT } from '@/domain/resourcePack/dayMapGeometry';
+import {
+	type IDayMapPlacement,
+	placeCollider,
+} from '@/domain/resourcePack/dayMapGeometry';
+import { DAY_MAP_LIMITS } from '@/domain/resourcePack/dayMapValidation';
 
 import { findNextAvailableSuffixedValue } from '@/features/resourceEditor/client/editorValueAllocation';
 
 import {
 	type IMapPoint,
-	type IMapRect,
-	MAP_LIMITS,
+	type IMapVertexSelection,
+	type TColliderTarget,
 	type TMapEntityKind,
 } from './dayMapEditorModel';
 import {
 	clampMapCoordinate,
-	getCollisionRect,
+	getObjectPlacement,
 	roundMapValue,
 } from './dayMapSpatial';
-
-const PLACEMENT_KEYS = [
-	'transform',
-	'color',
-	'active',
-	'shader',
-	'sortingValue',
-] as const satisfies readonly (keyof IDayMapPlacement)[];
 
 export function getCellKey(x: number, y: number) {
 	return `${x},${y}`;
 }
 
-export function readPlacement(source: IDayMapPlacement): IDayMapPlacement {
-	const placement: IDayMapPlacement = {};
-	if (source.transform !== undefined)
-		placement.transform = [...source.transform];
-	if (source.color !== undefined) placement.color = [...source.color];
-	if (source.active !== undefined) placement.active = source.active;
-	if (source.shader !== undefined) placement.shader = source.shader;
-	if (source.sortingValue !== undefined)
-		placement.sortingValue = source.sortingValue;
-	return placement;
+const roundPoint = ([x = 0, y = 0]: readonly number[]) => [
+	roundMapValue(clampMapCoordinate(x)),
+	roundMapValue(clampMapCoordinate(y)),
+];
+
+/** 去掉浮点误差并限制在地图坐标范围内。 */
+export function roundCollider(collider: TDayMapCollider): TDayMapCollider {
+	switch (collider.shape) {
+		case 'polygon':
+			return {
+				...collider,
+				paths: collider.paths.map((path) => path.map(roundPoint)),
+			};
+		case 'edge':
+			return { ...collider, points: collider.points.map(roundPoint) };
+		case 'box':
+			return {
+				...collider,
+				height: roundMapValue(collider.height),
+				width: roundMapValue(collider.width),
+				x: roundMapValue(clampMapCoordinate(collider.x)),
+				y: roundMapValue(clampMapCoordinate(collider.y)),
+			};
+		case 'circle':
+			return {
+				...collider,
+				radius: roundMapValue(collider.radius),
+				x: roundMapValue(clampMapCoordinate(collider.x)),
+				y: roundMapValue(clampMapCoordinate(collider.y)),
+			};
+	}
 }
 
-export function hasPlacement(source: IDayMapPlacement) {
-	return PLACEMENT_KEYS.some((key) => source[key] !== undefined);
-}
-
-function isSamePlacement(a: IDayMapPlacement, b: IDayMapPlacement) {
-	return PLACEMENT_KEYS.every(
-		(key) => JSON.stringify(a[key]) === JSON.stringify(b[key])
+export function translateCollider(
+	collider: TDayMapCollider,
+	dx: number,
+	dy: number
+): TDayMapCollider {
+	return roundCollider(
+		placeCollider(collider, { scaleX: 1, scaleY: 1, x: dx, y: dy })
 	);
 }
 
-/**
- * 画到已有格子时保留未知扩展字段；换成别的切片或带吸取属性时，
- * 变换、颜色等原始属性改用画笔的值，避免沿用另一切片的偏移。
- */
-export function createPaintedCell(
-	existing: IDayMapCell | undefined,
-	x: number,
-	y: number,
-	tile: string,
-	placement?: IDayMapPlacement
-): IDayMapCell {
-	if (existing && existing.tile === tile) {
-		if (!placement || isSamePlacement(existing, placement)) return existing;
-	}
-	const base: IDayMapCell = existing ? { ...existing } : { x, y, tile };
-	for (const key of PLACEMENT_KEYS) delete base[key];
-	return { ...base, x, y, tile, ...placement };
-}
+/* ── 碰撞编辑对象 ──────────────────────────────────────── */
 
-/**
- * `null` 表示删除该格；保留未改动格子的原有顺序，新格子追加到末尾。
- * 笔划中会反复调用，可传入与 `layer.cells` 一一对应的预算键。
- */
-export function applyLayerCellChanges(
-	layer: IDayMapLayer,
-	changes: ReadonlyMap<string, IDayMapCell | null>,
-	keys?: readonly string[]
-): IDayMapLayer {
-	if (changes.size === 0) return layer;
-	const consumed = new Set<string>();
-	const cells: IDayMapCell[] = [];
-	let hasChanged = false;
-	for (let index = 0; index < layer.cells.length; index++) {
-		const cell = layer.cells[index];
-		if (!cell) continue;
-		const key = keys?.[index] ?? getCellKey(cell.x, cell.y);
-		const replacement = changes.get(key);
-		if (replacement === undefined) {
-			cells.push(cell);
-			continue;
-		}
-		if (consumed.has(key) || replacement === null) {
-			hasChanged = true;
-			continue;
-		}
-		consumed.add(key);
-		if (replacement !== cell) hasChanged = true;
-		cells.push(replacement);
-	}
-	for (const [key, cell] of changes) {
-		if (cell === null || consumed.has(key)) continue;
-		hasChanged = true;
-		cells.push(cell);
-	}
-	return hasChanged ? { ...layer, cells } : layer;
-}
-
-export function applyHeightChanges(
+export function getTargetObject(
 	map: IDayMap,
-	changes: ReadonlyMap<string, number | null>
+	target: TColliderTarget
+): IDayMapObject | null {
+	return target.kind === 'prefab'
+		? (map.objects[target.objectIndex] ?? null)
+		: null;
+}
+
+export function getTargetPrefab(
+	map: IDayMap,
+	target: TColliderTarget
+): IDayMapPrefab | null {
+	const object = getTargetObject(map, target);
+	return object
+		? (map.prefabs.find((prefab) => prefab.key === object.prefab) ?? null)
+		: null;
+}
+
+/** 物件模板碰撞以锚点物件的位置与缩放显示在画布上。 */
+function getTargetPlacement(
+	map: IDayMap,
+	target: TColliderTarget
+): IDayMapPlacement | null {
+	const object = getTargetObject(map, target);
+	return object ? getObjectPlacement(object) : null;
+}
+
+export function isTargetValid(map: IDayMap, target: TColliderTarget) {
+	return target.kind === 'map' || getTargetPrefab(map, target) !== null;
+}
+
+/** 编辑对象中保存的碰撞（地图为世界坐标，模板为局部坐标）。 */
+export function getTargetColliders(
+	map: IDayMap,
+	target: TColliderTarget
+): readonly TDayMapCollider[] {
+	return target.kind === 'map'
+		? map.colliders
+		: (getTargetPrefab(map, target)?.colliders ?? []);
+}
+
+/** 编辑对象的碰撞换算到世界坐标。 */
+export function getTargetWorldColliders(
+	map: IDayMap,
+	target: TColliderTarget
+): TDayMapCollider[] {
+	const placement = getTargetPlacement(map, target);
+	const colliders = getTargetColliders(map, target);
+	return placement
+		? colliders.map((collider) => placeCollider(collider, placement))
+		: [...colliders];
+}
+
+/** 世界坐标的碰撞换算回编辑对象的保存坐标。 */
+function toTargetCollider(
+	map: IDayMap,
+	target: TColliderTarget,
+	collider: TDayMapCollider
+): TDayMapCollider {
+	const placement = getTargetPlacement(map, target);
+	if (!placement) return roundCollider(collider);
+	const { scaleX, scaleY, x, y } = placement;
+	return roundCollider(
+		placeCollider(collider, {
+			scaleX: 1 / scaleX,
+			scaleY: 1 / scaleY,
+			x: -x / scaleX,
+			y: -y / scaleY,
+		})
+	);
+}
+
+function replaceTargetColliders(
+	map: IDayMap,
+	target: TColliderTarget,
+	colliders: TDayMapCollider[]
 ): IDayMap {
-	if (changes.size === 0) return map;
-	const current = map.height?.cells ?? [];
-	const consumed = new Set<string>();
-	const cells: IDayMapHeightCell[] = [];
-	let hasChanged = false;
-	for (const cell of current) {
-		const key = getCellKey(cell.x, cell.y);
-		const slope = changes.get(key);
-		if (slope === undefined) {
-			cells.push(cell);
-			continue;
-		}
-		if (consumed.has(key) || slope === null || slope === 0) {
-			hasChanged = true;
-			continue;
-		}
-		consumed.add(key);
-		if (slope !== cell.slope) hasChanged = true;
-		cells.push(slope === cell.slope ? cell : { ...cell, slope });
-	}
-	for (const [key, slope] of changes) {
-		if (slope === null || slope === 0 || consumed.has(key)) continue;
-		const [x = 0, y = 0] = key.split(',').map(Number);
-		hasChanged = true;
-		cells.push({ x, y, slope });
-	}
-	return hasChanged ? { ...map, height: { ...map.height, cells } } : map;
+	if (target.kind === 'map') return { ...map, colliders };
+	const prefab = getTargetPrefab(map, target);
+	return prefab ? patchPrefab(map, prefab.key, { colliders }) : map;
 }
 
-export function replaceLayer(
+/** 用世界坐标的新形状替换编辑对象中的一个碰撞。 */
+export function replaceCollider(
 	map: IDayMap,
+	target: TColliderTarget,
 	index: number,
-	layer: IDayMapLayer
+	worldCollider: TDayMapCollider
 ): IDayMap {
-	if (map.layers[index] === layer) return map;
+	const colliders = getTargetColliders(map, target);
+	if (!colliders[index]) return map;
+	return replaceTargetColliders(
+		map,
+		target,
+		colliders.map((item, i) =>
+			i === index ? toTargetCollider(map, target, worldCollider) : item
+		)
+	);
+}
+
+/** 替换保存坐标下的一个碰撞（属性面板使用，可删除可选字段）。 */
+export function setCollider(
+	map: IDayMap,
+	target: TColliderTarget,
+	index: number,
+	collider: TDayMapCollider
+): IDayMap {
+	const colliders = getTargetColliders(map, target);
+	if (!colliders[index]) return map;
+	return replaceTargetColliders(
+		map,
+		target,
+		colliders.map((item, i) =>
+			i === index ? roundCollider(collider) : item
+		)
+	);
+}
+
+/** 修改保存坐标下的字段。 */
+export function patchCollider(
+	map: IDayMap,
+	target: TColliderTarget,
+	index: number,
+	patch: Partial<TDayMapCollider>
+): IDayMap {
+	const collider = getTargetColliders(map, target)[index];
+	return collider
+		? setCollider(map, target, index, {
+				...collider,
+				...patch,
+			} as TDayMapCollider)
+		: map;
+}
+
+export function addCollider(
+	map: IDayMap,
+	target: TColliderTarget,
+	worldCollider: TDayMapCollider
+): IEntityInsertResult | string {
+	const colliders = getTargetColliders(map, target);
+	if (!isTargetValid(map, target)) return '碰撞编辑对象已不存在。';
+	if (colliders.length >= DAY_MAP_LIMITS.colliderCount)
+		return `碰撞最多${DAY_MAP_LIMITS.colliderCount}个。`;
 	return {
-		...map,
-		layers: map.layers.map((item, i) => (i === index ? layer : item)),
+		indices: [colliders.length],
+		map: replaceTargetColliders(map, target, [
+			...colliders,
+			toTargetCollider(map, target, worldCollider),
+		]),
 	};
 }
 
-export function countLayerCells(map: IDayMap) {
-	let count = 0;
-	for (const layer of map.layers) count += layer.cells.length;
-	return count;
+/* ── 顶点 ─────────────────────────────────────────────── */
+
+/** 可逐点编辑的路径：多边形的全部路径，或折线的一条路径。 */
+export function getVertexPaths(collider: TDayMapCollider): number[][][] | null {
+	return collider.shape === 'polygon'
+		? collider.paths
+		: collider.shape === 'edge'
+			? [collider.points]
+			: null;
 }
 
-export function createCellIndex(cells: readonly IDayMapCell[]) {
-	const index = new Map<string, IDayMapCell>();
-	for (const cell of cells) {
-		const key = getCellKey(cell.x, cell.y);
-		if (!index.has(key)) index.set(key, cell);
-	}
-	return index;
+/** 逐点路径是否首尾相连（多边形或闭合折线）。 */
+export function isVertexPathClosed(collider: TDayMapCollider) {
+	return (
+		collider.shape === 'polygon' ||
+		(collider.shape === 'edge' && collider.closed === true)
+	);
 }
 
-export function createHeightIndex(map: IDayMap) {
-	const index = new Map<string, number>();
-	for (const cell of map.height?.cells ?? []) {
-		const key = getCellKey(cell.x, cell.y);
-		if (!index.has(key)) index.set(key, cell.slope);
-	}
-	return index;
+function withVertexPaths(
+	collider: TDayMapCollider,
+	paths: number[][][]
+): TDayMapCollider {
+	if (collider.shape === 'polygon') return { ...collider, paths };
+	if (collider.shape === 'edge')
+		return { ...collider, points: paths[0] ?? [] };
+	return collider;
 }
 
-export interface IFloodFillResult {
-	cells: IMapPoint[];
-	isTruncated: boolean;
+export function setVertex(
+	collider: TDayMapCollider,
+	{ pathIndex, pointIndex }: IMapVertexSelection,
+	point: IMapPoint
+): TDayMapCollider {
+	const paths = getVertexPaths(collider);
+	if (!paths) return collider;
+	return withVertexPaths(
+		collider,
+		paths.map((path, i) =>
+			i === pathIndex
+				? path.map((item, j) =>
+						j === pointIndex ? roundPoint([point.x, point.y]) : item
+					)
+				: path
+		)
+	);
 }
 
-/** 在限定范围内查找四向相连且值相同的格子。 */
-export function floodFillCells(
-	start: IMapPoint,
-	bounds: IMapRect,
-	readValue: (x: number, y: number) => string | number | null,
-	limit: number
-): IFloodFillResult {
-	const target = readValue(start.x, start.y);
-	const width = bounds.maxX - bounds.minX + 1;
-	const visited = new Set<number>();
-	const cells: IMapPoint[] = [];
-	const stack: IMapPoint[] = [start];
-	const toId = (x: number, y: number) =>
-		(y - bounds.minY) * width + (x - bounds.minX);
-	visited.add(toId(start.x, start.y));
-	while (stack.length > 0) {
-		const cell = stack.pop();
-		if (!cell) break;
-		cells.push(cell);
-		if (cells.length >= limit) return { cells, isTruncated: true };
-		for (const [dx, dy] of [
-			[1, 0],
-			[-1, 0],
-			[0, 1],
-			[0, -1],
-		] as const) {
-			const x = cell.x + dx;
-			const y = cell.y + dy;
-			if (
-				x < bounds.minX ||
-				x > bounds.maxX ||
-				y < bounds.minY ||
-				y > bounds.maxY
-			)
-				continue;
-			const id = toId(x, y);
-			if (visited.has(id)) continue;
-			visited.add(id);
-			if (readValue(x, y) === target) stack.push({ x, y });
-		}
-	}
-	return { cells, isTruncated: false };
+export function insertVertex(
+	collider: TDayMapCollider,
+	pathIndex: number,
+	afterIndex: number,
+	point: IMapPoint
+): TDayMapCollider {
+	const paths = getVertexPaths(collider);
+	const path = paths?.[pathIndex];
+	if (!paths || !path || path.length >= DAY_MAP_LIMITS.pointCount)
+		return collider;
+	return withVertexPaths(
+		collider,
+		paths.map((item, i) =>
+			i === pathIndex
+				? [
+						...item.slice(0, afterIndex + 1),
+						roundPoint([point.x, point.y]),
+						...item.slice(afterIndex + 1),
+					]
+				: item
+		)
+	);
 }
 
-export function getRectCells(rect: IMapRect): IMapPoint[] {
-	const cells: IMapPoint[] = [];
-	for (let y = rect.minY; y <= rect.maxY; y++)
-		for (let x = rect.minX; x <= rect.maxX; x++) cells.push({ x, y });
-	return cells;
+/** 删除顶点；路径少于最少顶点数时整条删除（多边形仍保留其他路径），全部删光返回 null。 */
+export function removeVertex(
+	collider: TDayMapCollider,
+	{ pathIndex, pointIndex }: IMapVertexSelection
+): TDayMapCollider | null {
+	const paths = getVertexPaths(collider);
+	if (!paths) return collider;
+	const minimum = collider.shape === 'polygon' ? 3 : 2;
+	const next = paths
+		.map((path, i) =>
+			i === pathIndex ? path.filter((_, j) => j !== pointIndex) : path
+		)
+		.filter((path) => path.length >= minimum);
+	return next.length > 0 ? withVertexPaths(collider, next) : null;
 }
 
 /* ── 实体 ─────────────────────────────────────────────── */
 
-export function getEntityCount(map: IDayMap, kind: TMapEntityKind) {
+export interface IEntityInsertResult {
+	indices: number[];
+	map: IDayMap;
+}
+
+export function getEntityCount(
+	map: IDayMap,
+	kind: TMapEntityKind,
+	target: TColliderTarget
+) {
 	return kind === 'object'
 		? map.objects.length
-		: kind === 'collision'
-			? map.collisions.length
+		: kind === 'collider'
+			? getTargetColliders(map, target).length
 			: map.spawnMarkers.length;
 }
 
-function clampObjectY(object: IDayMapObject, y: number) {
-	return object.sortByY
+function isSortedByY(map: IDayMap, object: IDayMapObject) {
+	return (
+		map.prefabs.find((prefab) => prefab.key === object.prefab)?.sortByY ??
+		true
+	);
+}
+
+function clampObjectY(map: IDayMap, object: IDayMapObject, y: number) {
+	return isSortedByY(map, object)
 		? Math.max(
-				-MAP_LIMITS.sortedObjectY,
-				Math.min(MAP_LIMITS.sortedObjectY, y)
+				-DAY_MAP_LIMITS.sortedObjectY,
+				Math.min(DAY_MAP_LIMITS.sortedObjectY, y)
 			)
 		: clampMapCoordinate(y);
 }
 
-/** 以原始位置为基准整体平移，拖动过程中反复调用不会累积误差。 */
+function offsetPoint<T extends { x: number; y: number }>(
+	item: T,
+	dx: number,
+	dy: number
+): T {
+	return {
+		...item,
+		x: roundMapValue(clampMapCoordinate(item.x + dx)),
+		y: roundMapValue(clampMapCoordinate(item.y + dy)),
+	};
+}
+
+/** 以原始位置为基准整体平移（世界坐标），拖动过程中反复调用不会累积误差。 */
 export function moveEntities(
 	map: IDayMap,
 	kind: TMapEntityKind,
 	indices: ReadonlySet<number>,
 	dx: number,
-	dy: number
+	dy: number,
+	target: TColliderTarget
 ): IDayMap {
 	if (indices.size === 0 || (dx === 0 && dy === 0)) return map;
-	const move = <T extends { x: number; y: number }>(item: T): T => ({
-		...item,
-		x: roundMapValue(clampMapCoordinate(item.x + dx)),
-		y: roundMapValue(clampMapCoordinate(item.y + dy)),
-	});
 	if (kind === 'object')
 		return {
 			...map,
 			objects: map.objects.map((item, i) =>
 				indices.has(i)
 					? {
-							...move(item),
-							y: roundMapValue(clampObjectY(item, item.y + dy)),
+							...offsetPoint(item, dx, 0),
+							y: roundMapValue(
+								clampObjectY(map, item, item.y + dy)
+							),
 						}
 					: item
 			),
 		};
-	if (kind === 'collision')
-		return {
-			...map,
-			collisions: map.collisions.map((item, i) =>
-				indices.has(i) ? move(item) : item
-			),
-		};
+	if (kind === 'collider') {
+		const placement = getTargetPlacement(map, target);
+		const ldx = placement ? dx / placement.scaleX : dx;
+		const ldy = placement ? dy / placement.scaleY : dy;
+		return replaceTargetColliders(
+			map,
+			target,
+			getTargetColliders(map, target).map((item, i) =>
+				indices.has(i) ? translateCollider(item, ldx, ldy) : item
+			)
+		);
+	}
 	return {
 		...map,
 		spawnMarkers: map.spawnMarkers.map((item, i) =>
-			indices.has(i) ? move(item) : item
+			indices.has(i) ? offsetPoint(item, dx, dy) : item
 		),
 	};
 }
@@ -304,7 +411,8 @@ export function moveEntities(
 export function deleteEntities(
 	map: IDayMap,
 	kind: TMapEntityKind,
-	indices: ReadonlySet<number>
+	indices: ReadonlySet<number>,
+	target: TColliderTarget
 ): IDayMap {
 	if (indices.size === 0) return map;
 	if (kind === 'object')
@@ -312,11 +420,12 @@ export function deleteEntities(
 			...map,
 			objects: map.objects.filter((_, i) => !indices.has(i)),
 		};
-	if (kind === 'collision')
-		return {
-			...map,
-			collisions: map.collisions.filter((_, i) => !indices.has(i)),
-		};
+	if (kind === 'collider')
+		return replaceTargetColliders(
+			map,
+			target,
+			getTargetColliders(map, target).filter((_, i) => !indices.has(i))
+		);
 	const spawnMarkers = map.spawnMarkers.filter((_, i) => !indices.has(i));
 	const hasDefault = spawnMarkers.some(
 		(marker) => marker.name === map.defaultSpawnMarker
@@ -330,81 +439,72 @@ export function deleteEntities(
 	};
 }
 
-export interface IEntityInsertResult {
-	indices: number[];
-	map: IDayMap;
-}
-
-function getSpawnNames(markers: readonly IDayMapSpawn[]) {
-	return markers.map((marker) => marker.name);
-}
-
 export function duplicateEntities(
 	map: IDayMap,
 	kind: TMapEntityKind,
 	indices: ReadonlySet<number>,
 	dx: number,
-	dy: number
+	dy: number,
+	target: TColliderTarget
 ): IEntityInsertResult | string {
 	const sorted = [...indices].sort((a, b) => a - b);
-	const count = getEntityCount(map, kind);
+	const count = getEntityCount(map, kind, target);
 	const limit =
 		kind === 'object'
-			? MAP_LIMITS.objectCount
-			: kind === 'collision'
-				? MAP_LIMITS.collisionCount
-				: MAP_LIMITS.spawnCount;
+			? DAY_MAP_LIMITS.objectCount
+			: kind === 'collider'
+				? DAY_MAP_LIMITS.colliderCount
+				: DAY_MAP_LIMITS.spawnCount;
 	if (count + sorted.length > limit) return `复制后会超过上限（${limit}）。`;
 	const nextIndices = sorted.map((_, i) => count + i);
-	const offset = <T extends { x: number; y: number }>(item: T): T => ({
-		...item,
-		x: roundMapValue(clampMapCoordinate(item.x + dx)),
-		y: roundMapValue(clampMapCoordinate(item.y + dy)),
-	});
 	if (kind === 'object') {
-		const names = new Set(map.objects.map((item) => item.name));
 		const copies = sorted.flatMap((index) => {
 			const item = map.objects[index];
-			if (!item) return [];
-			const name = findNextAvailableSuffixedValue(
-				names,
-				`${item.name.replace(/\d+$/, '') || '装饰'}`
-			);
-			names.add(name);
-			return [
-				{
-					...offset(item),
-					y: roundMapValue(clampObjectY(item, item.y + dy)),
-					name,
-				},
-			];
+			return item
+				? [
+						{
+							...offsetPoint(item, dx, 0),
+							y: roundMapValue(
+								clampObjectY(map, item, item.y + dy)
+							),
+						},
+					]
+				: [];
 		});
 		return {
 			indices: nextIndices,
 			map: { ...map, objects: [...map.objects, ...copies] },
 		};
 	}
-	if (kind === 'collision') {
-		const names = new Set(map.collisions.map((item) => item.name));
+	if (kind === 'collider') {
+		const world = getTargetWorldColliders(map, target);
 		const copies = sorted.flatMap((index) => {
-			const item = map.collisions[index];
-			if (!item) return [];
-			const name = findNextAvailableSuffixedValue(names, '碰撞');
-			names.add(name);
-			return [{ ...offset(item), name }];
+			const item = world[index];
+			return item
+				? [
+						toTargetCollider(
+							map,
+							target,
+							translateCollider(item, dx, dy)
+						),
+					]
+				: [];
 		});
 		return {
 			indices: nextIndices,
-			map: { ...map, collisions: [...map.collisions, ...copies] },
+			map: replaceTargetColliders(map, target, [
+				...getTargetColliders(map, target),
+				...copies,
+			]),
 		};
 	}
-	const names = new Set(getSpawnNames(map.spawnMarkers));
+	const names = new Set(map.spawnMarkers.map((marker) => marker.name));
 	const copies = sorted.flatMap((index) => {
 		const item = map.spawnMarkers[index];
 		if (!item) return [];
 		const name = findNextAvailableSuffixedValue(names, `${item.name}_`);
 		names.add(name);
-		return [{ ...offset(item), name }];
+		return [{ ...offsetPoint(item, dx, dy), name }];
 	});
 	return {
 		indices: nextIndices,
@@ -414,33 +514,39 @@ export function duplicateEntities(
 
 export function addObject(
 	map: IDayMap,
-	tile: string,
+	prefabKey: string,
 	x: number,
 	y: number
 ): IEntityInsertResult | string {
-	if (!map.tiles.some((item) => item.key === tile))
-		return '请先在瓦片库中选择装饰使用的切片。';
-	if (map.objects.length >= MAP_LIMITS.objectCount)
-		return `一张地图最多${MAP_LIMITS.objectCount}个装饰。`;
-	if (Math.abs(y) > MAP_LIMITS.sortedObjectY)
-		return `按脚部 Y 排序的装饰，Y 坐标需在 ±${MAP_LIMITS.sortedObjectY} 之间。`;
-	const name = findNextAvailableSuffixedValue(
-		map.objects.map((item) => item.name),
-		'装饰'
-	);
+	const prefab = map.prefabs.find((item) => item.key === prefabKey);
+	if (!prefab) return '请先在物件模板库中选择模板。';
+	if (map.objects.length >= DAY_MAP_LIMITS.objectCount)
+		return `一张地图最多${DAY_MAP_LIMITS.objectCount}个物件。`;
+	if (prefab.sortByY && Math.abs(y) > DAY_MAP_LIMITS.sortedObjectY)
+		return `按 Y 排序的物件，Y 坐标需在 ±${DAY_MAP_LIMITS.sortedObjectY} 之间。`;
 	const object: IDayMapObject = {
-		name,
-		tile,
+		prefab: prefabKey,
 		x: roundMapValue(clampMapCoordinate(x)),
-		y: roundMapValue(y),
+		y: roundMapValue(clampMapCoordinate(y)),
 		scale: [1, 1],
-		sortByY: true,
-		sortingLayer: 'Character',
-		sortingOrder: 0,
 	};
 	return {
 		indices: [map.objects.length],
 		map: { ...map, objects: [...map.objects, object] },
+	};
+}
+
+export function patchObject(
+	map: IDayMap,
+	index: number,
+	patch: Partial<IDayMapObject>
+): IDayMap {
+	if (!map.objects[index]) return map;
+	return {
+		...map,
+		objects: map.objects.map((item, i) =>
+			i === index ? { ...item, ...patch } : item
+		),
 	};
 }
 
@@ -449,10 +555,10 @@ export function addSpawn(
 	x: number,
 	y: number
 ): IEntityInsertResult | string {
-	if (map.spawnMarkers.length >= MAP_LIMITS.spawnCount)
-		return `一张地图最多${MAP_LIMITS.spawnCount}个出生点。`;
+	if (map.spawnMarkers.length >= DAY_MAP_LIMITS.spawnCount)
+		return `一张地图最多${DAY_MAP_LIMITS.spawnCount}个出生点。`;
 	const name = findNextAvailableSuffixedValue(
-		getSpawnNames(map.spawnMarkers),
+		map.spawnMarkers.map((marker) => marker.name),
 		'Spawn'
 	);
 	const spawn: IDayMapSpawn = {
@@ -471,104 +577,6 @@ export function addSpawn(
 	};
 }
 
-function createCollisionFromRect(
-	rect: IMapRect,
-	name: string
-): IDayMapCollision {
-	const width = rect.maxX - rect.minX;
-	const height = rect.maxY - rect.minY;
-	return {
-		name,
-		x: roundMapValue(rect.minX + width / 2),
-		y: roundMapValue(rect.minY + height / 2),
-		width: roundMapValue(width),
-		height: roundMapValue(height),
-	};
-}
-
-export function addCollision(
-	map: IDayMap,
-	rect: IMapRect
-): IEntityInsertResult | string {
-	if (map.collisions.length >= MAP_LIMITS.collisionCount)
-		return `一张地图最多${MAP_LIMITS.collisionCount}个碰撞箱。`;
-	if (!(rect.maxX - rect.minX > 0) || !(rect.maxY - rect.minY > 0))
-		return '碰撞箱的宽高必须大于零。';
-	const name = findNextAvailableSuffixedValue(
-		map.collisions.map((item) => item.name),
-		'碰撞'
-	);
-	return {
-		indices: [map.collisions.length],
-		map: {
-			...map,
-			collisions: [
-				...map.collisions,
-				createCollisionFromRect(rect, name),
-			],
-		},
-	};
-}
-
-export function replaceCollisionRect(
-	map: IDayMap,
-	index: number,
-	rect: IMapRect
-): IDayMap {
-	const box = map.collisions[index];
-	if (!box) return map;
-	const next = createCollisionFromRect(rect, box.name);
-	const current = getCollisionRect(box);
-	if (
-		current.minX === rect.minX &&
-		current.minY === rect.minY &&
-		current.maxX === rect.maxX &&
-		current.maxY === rect.maxY
-	)
-		return map;
-	return {
-		...map,
-		collisions: map.collisions.map((item, i) =>
-			i === index
-				? {
-						...item,
-						x: next.x,
-						y: next.y,
-						width: next.width,
-						height: next.height,
-					}
-				: item
-		),
-	};
-}
-
-export function patchObject(
-	map: IDayMap,
-	index: number,
-	patch: Partial<IDayMapObject>
-): IDayMap {
-	return {
-		...map,
-		objects: map.objects.map((item, i) =>
-			i === index ? { ...item, ...patch } : item
-		),
-	};
-}
-
-export function patchCollision(
-	map: IDayMap,
-	index: number,
-	patch: Partial<IDayMapCollision>
-): IDayMap {
-	return {
-		...map,
-		collisions: map.collisions.map((item, i) =>
-			i === index ? { ...item, ...patch } : item
-		),
-	};
-}
-
-/** 重命名默认出生点时同步更新默认引用。 */
 export function patchSpawn(
 	map: IDayMap,
 	index: number,
@@ -602,37 +610,8 @@ export function checkSpawnName(
 
 /* ── 图层 ─────────────────────────────────────────────── */
 
-export function addLayer(
-	map: IDayMap
-): { index: number; map: IDayMap } | string {
-	if (map.layers.length >= MAP_LIMITS.layerCount)
-		return `一张地图最多${MAP_LIMITS.layerCount}个图层。`;
-	const name = findNextAvailableSuffixedValue(
-		map.layers.map((layer) => layer.name),
-		'图层'
-	);
-	const highestOrder = map.layers
-		.filter((layer) => layer.sortingLayer === 'Background')
-		.reduce((value, layer) => Math.max(value, layer.sortingOrder), -2010);
-	return {
-		index: map.layers.length,
-		map: {
-			...map,
-			layers: [
-				...map.layers,
-				{
-					name,
-					sortingLayer: 'Background',
-					sortingOrder: Math.min(32767, highestOrder + 10),
-					cells: [],
-				},
-			],
-		},
-	};
-}
-
-export function removeLayer(map: IDayMap, index: number): IDayMap {
-	return { ...map, layers: map.layers.filter((_, i) => i !== index) };
+export function addLayer(map: IDayMap, layer: IDayMapLayer): IDayMap {
+	return { ...map, layers: [...map.layers, layer] };
 }
 
 export function patchLayer(
@@ -640,202 +619,145 @@ export function patchLayer(
 	index: number,
 	patch: Partial<IDayMapLayer>
 ): IDayMap {
-	const layer = map.layers[index];
-	if (!layer) return map;
-	return replaceLayer(map, index, { ...layer, ...patch });
-}
-
-/** 排序层名称对应的原始排序值，保持同名排序层一致。 */
-export function findSortingValue(map: IDayMap, sortingLayer: string) {
-	return [...map.layers, ...map.objects].find(
-		(item) =>
-			item.sortingLayer === sortingLayer &&
-			item.sortingValue !== undefined
-	)?.sortingValue;
-}
-
-export function getSortingLayerOptions(map: IDayMap) {
-	return [
-		...new Set([
-			'Background',
-			'Character',
-			'Overlay',
-			...map.layers.map((layer) => layer.sortingLayer),
-			...map.objects.map((object) => object.sortingLayer),
-		]),
-	].filter(Boolean);
-}
-
-/* ── 切片 ─────────────────────────────────────────────── */
-
-export interface ITileUsage {
-	cells: number;
-	objects: number;
-}
-
-const tileUsageCache = new WeakMap<IDayMap, ReadonlyMap<string, ITileUsage>>();
-
-export function getTileUsage(map: IDayMap): ReadonlyMap<string, ITileUsage> {
-	let usage = tileUsageCache.get(map);
-	if (usage) return usage;
-	const next = new Map<string, ITileUsage>();
-	const read = (key: string) => {
-		let value = next.get(key);
-		if (!value) {
-			value = { cells: 0, objects: 0 };
-			next.set(key, value);
-		}
-		return value;
+	if (!map.layers[index]) return map;
+	return {
+		...map,
+		layers: map.layers.map((layer, i) =>
+			i === index ? { ...layer, ...patch } : layer
+		),
 	};
-	for (const layer of map.layers)
-		for (const cell of layer.cells) read(cell.tile).cells += 1;
-	for (const object of map.objects) read(object.tile).objects += 1;
-	usage = next;
-	tileUsageCache.set(map, usage);
+}
+
+export function removeLayer(map: IDayMap, index: number): IDayMap {
+	return { ...map, layers: map.layers.filter((_, i) => i !== index) };
+}
+
+/** 调整列表顺序；排序层与排序值相同时，列表靠后的图层在上。 */
+export function moveLayer(map: IDayMap, from: number, to: number): IDayMap {
+	const layer = map.layers[from];
+	if (!layer || to < 0 || to >= map.layers.length || from === to) return map;
+	const layers = map.layers.filter((_, i) => i !== from);
+	layers.splice(to, 0, layer);
+	return { ...map, layers };
+}
+
+/* ── 物件模板 ──────────────────────────────────────────── */
+
+export function getPrefabUsage(map: IDayMap): ReadonlyMap<string, number> {
+	const usage = new Map<string, number>();
+	for (const object of map.objects)
+		usage.set(object.prefab, (usage.get(object.prefab) ?? 0) + 1);
 	return usage;
 }
 
-export function checkTileKey(
+/** 由文件名生成不重复的模板键。 */
+export function createPrefabKey(map: IDayMap, name: string) {
+	const base =
+		name
+			.replace(/\.[^.]+$/, '')
+			.replace(/[^0-9A-Za-z_\-一-鿿]+/g, '_')
+			.replace(/^_+|_+$/g, '') || 'prefab';
+	const keys = new Set(map.prefabs.map((prefab) => prefab.key));
+	return keys.has(base)
+		? findNextAvailableSuffixedValue(keys, `${base}_`)
+		: base;
+}
+
+export function checkPrefabKey(
 	map: IDayMap,
-	currentKey: string,
+	current: string,
 	key: string
 ): string | null {
-	if (!key.trim()) return '切片键不能为空';
-	if (key !== key.trim()) return '切片键首尾不能有空格';
-	if (key !== currentKey && map.tiles.some((tile) => tile.key === key))
-		return '切片键已存在';
+	if (!key.trim()) return '键不能为空';
+	if (key !== key.trim()) return '键首尾不能有空格';
+	if (key !== current && map.prefabs.some((prefab) => prefab.key === key))
+		return '键已被其他模板使用';
 	return null;
 }
 
-export function renameTileKey(map: IDayMap, from: string, to: string): IDayMap {
-	if (from === to) return map;
-	return {
-		...map,
-		tiles: map.tiles.map((tile) =>
-			tile.key === from ? { ...tile, key: to } : tile
-		),
-		layers: map.layers.map((layer) =>
-			layer.cells.some((cell) => cell.tile === from)
-				? {
-						...layer,
-						cells: layer.cells.map((cell) =>
-							cell.tile === from ? { ...cell, tile: to } : cell
-						),
-					}
-				: layer
-		),
-		objects: map.objects.map((object) =>
-			object.tile === from ? { ...object, tile: to } : object
-		),
-	};
+export function addPrefab(map: IDayMap, prefab: IDayMapPrefab): IDayMap {
+	return { ...map, prefabs: [...map.prefabs, prefab] };
 }
 
-export function patchTile(
+export function patchPrefab(
 	map: IDayMap,
 	key: string,
-	patch: Partial<IDayMapTile>
+	patch: Partial<IDayMapPrefab>
 ): IDayMap {
+	if (!map.prefabs.some((prefab) => prefab.key === key)) return map;
 	return {
 		...map,
-		tiles: map.tiles.map((tile) =>
-			tile.key === key ? { ...tile, ...patch } : tile
+		prefabs: map.prefabs.map((prefab) =>
+			prefab.key === key ? { ...prefab, ...patch } : prefab
 		),
 	};
 }
 
-export function removeTiles(map: IDayMap, keys: ReadonlySet<string>): IDayMap {
-	if (keys.size === 0) return map;
-	return { ...map, tiles: map.tiles.filter((tile) => !keys.has(tile.key)) };
+/** 重命名模板键，并同步更新引用它的物件。 */
+export function renamePrefab(map: IDayMap, from: string, to: string): IDayMap {
+	if (from === to) return map;
+	return {
+		...patchPrefab(map, from, { key: to }),
+		objects: map.objects.map((object) =>
+			object.prefab === from ? { ...object, prefab: to } : object
+		),
+	};
 }
 
-export interface ITileImportSettings {
-	height: number;
-	isWholeImage: boolean;
-	pixelsPerUnit: number;
-	width: number;
-}
-
-export interface ITileSlicePlan {
-	columns: number;
-	error: string | null;
-	rows: number;
-	tileHeight: number;
-	tileWidth: number;
-}
-
-export function planTileSlices(
-	imageWidth: number,
-	imageHeight: number,
-	settings: ITileImportSettings,
-	existingTileCount: number
-): ITileSlicePlan {
-	const tileWidth = settings.isWholeImage ? imageWidth : settings.width;
-	const tileHeight = settings.isWholeImage ? imageHeight : settings.height;
-	const base = { columns: 0, rows: 0, tileHeight, tileWidth };
-	if (
-		![tileWidth, tileHeight].every(
-			(value) => Number.isInteger(value) && value > 0
-		) ||
-		!Number.isFinite(settings.pixelsPerUnit) ||
-		settings.pixelsPerUnit <= 0
-	)
-		return {
-			...base,
-			error: '切片尺寸必须为正整数，每单位像素数必须大于 0。',
-		};
-	if (imageWidth % tileWidth || imageHeight % tileHeight)
-		return {
-			...base,
-			error: `图片为 ${imageWidth}×${imageHeight}，无法按 ${tileWidth}×${tileHeight} 整齐切分。请调整尺寸，或改为整图导入。`,
-		};
-	const columns = imageWidth / tileWidth;
-	const rows = imageHeight / tileHeight;
-	if (existingTileCount + columns * rows > DAY_MAP_TILE_LIMIT)
-		return {
-			...base,
-			columns,
-			rows,
-			error: `切片总数不能超过 ${DAY_MAP_TILE_LIMIT}。请拆分地图，保留原切片。`,
-		};
-	return { ...base, columns, rows, error: null };
-}
-
-/** 从图片左上角开始逐行切分；`rect` 换算为游戏使用的左下角原点。 */
-export function sliceMapImage(
+/** 删除模板及使用它的物件。 */
+export function removePrefabs(
 	map: IDayMap,
-	path: string,
-	imageWidth: number,
-	imageHeight: number,
-	settings: ITileImportSettings
-): IDayMapTile[] {
-	const plan = planTileSlices(
-		imageWidth,
-		imageHeight,
-		settings,
-		map.tiles.length
-	);
-	if (plan.error) throw new Error(plan.error);
-	const keys = new Set(map.tiles.map((tile) => tile.key));
-	const tiles: IDayMapTile[] = [];
-	let suffix = 1;
-	for (let top = 0; top < imageHeight; top += plan.tileHeight) {
-		for (let left = 0; left < imageWidth; left += plan.tileWidth) {
-			while (keys.has(`tile_${suffix}`)) suffix += 1;
-			const key = `tile_${suffix}`;
-			keys.add(key);
-			tiles.push({
-				key,
-				image: path,
-				rect: [
-					left,
-					imageHeight - top - plan.tileHeight,
-					plan.tileWidth,
-					plan.tileHeight,
-				],
-				pivot: [0, 0],
-				pixelsPerUnit: settings.pixelsPerUnit,
-			});
-		}
+	keys: ReadonlySet<string>
+): IDayMap {
+	if (keys.size === 0) return map;
+	return {
+		...map,
+		objects: map.objects.filter((object) => !keys.has(object.prefab)),
+		prefabs: map.prefabs.filter((prefab) => !keys.has(prefab.key)),
+	};
+}
+
+/* ── 坡度 ─────────────────────────────────────────────── */
+
+export function createHeightIndex(map: IDayMap) {
+	const index = new Map<string, number>();
+	for (const cell of map.height?.cells ?? []) {
+		const key = getCellKey(cell.x, cell.y);
+		if (!index.has(key)) index.set(key, cell.slope);
 	}
-	return tiles;
+	return index;
+}
+
+/** 按格写入坡度；null 或 0 表示清除。 */
+export function applyHeightChanges(
+	map: IDayMap,
+	changes: ReadonlyMap<string, number | null>
+): IDayMap {
+	if (changes.size === 0) return map;
+	const current = map.height?.cells ?? [];
+	const consumed = new Set<string>();
+	const cells: IDayMapHeightCell[] = [];
+	let hasChanged = false;
+	for (const cell of current) {
+		const key = getCellKey(cell.x, cell.y);
+		const slope = changes.get(key);
+		if (slope === undefined) {
+			cells.push(cell);
+			continue;
+		}
+		if (consumed.has(key) || slope === null || slope === 0) {
+			hasChanged = true;
+			continue;
+		}
+		consumed.add(key);
+		if (slope !== cell.slope) hasChanged = true;
+		cells.push(slope === cell.slope ? cell : { ...cell, slope });
+	}
+	for (const [key, slope] of changes) {
+		if (slope === null || slope === 0 || consumed.has(key)) continue;
+		const [x = 0, y = 0] = key.split(',').map(Number);
+		hasChanged = true;
+		cells.push({ x, y, slope });
+	}
+	return hasChanged ? { ...map, height: { ...map.height, cells } } : map;
 }
