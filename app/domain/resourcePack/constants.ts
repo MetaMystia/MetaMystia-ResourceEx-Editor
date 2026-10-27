@@ -8,6 +8,14 @@ export const KNOWN_DEPENDENCIES = [
 	'DLCMUSIC',
 ] as const;
 
+export const GIFT_PRODUCT_TYPES = [
+	'Item',
+	'Recipe',
+	'Food',
+	'Beverage',
+	'Ingredient',
+] as const;
+
 export const PACK_LABEL_ALLOWED_PATTERN = /^[A-Za-z0-9_+\-. ]+$/;
 
 export const PACK_LABEL_ALLOWED_DESCRIPTION = '仅允许字母、数字、_+-. 和空格';

@@ -2,10 +2,6 @@ import { memo, useCallback, useMemo } from 'react';
 
 import Input from '@/design/ui/components/input';
 
-import { BEVERAGE_NAMES } from '@/domain/data/beverages';
-import { FOOD_NAMES } from '@/domain/data/foods';
-import { INGREDIENT_NAMES } from '@/domain/data/ingredients';
-import { RECIPE_NAMES } from '@/domain/data/recipes';
 import type {
 	Beverage,
 	Food,
@@ -18,6 +14,7 @@ import type {
 } from '@/domain/resourcePack/contracts/merchant';
 
 import { Label } from '@/features/resourceEditor/client/components/fields/Label';
+import { getProductIdOptions } from '@/features/resourceEditor/client/components/select/productIdOptions';
 import { PRODUCT_TYPE_OPTIONS } from '@/features/resourceEditor/client/components/select/productTypeOptions';
 import {
 	Select,
@@ -51,71 +48,22 @@ export const ProductEditor = memo<ProductEditorProps>(function ProductEditor({
 }) {
 	const isSupported = SUPPORTED_TYPES.includes(product.productType);
 
-	const idOptions = useMemo(() => {
-		switch (product.productType) {
-			case 'Food': {
-				const gameItems = FOOD_NAMES.map((f) => ({
-					id: f.id,
-					name: f.name,
-					source: '原版',
-				}));
-				const extItems = extFoods.map((f) => ({
-					id: f.id,
-					name: f.name,
-					source: '扩展',
-				}));
-				return [...gameItems, ...extItems];
-			}
-			case 'Ingredient': {
-				const gameItems = INGREDIENT_NAMES.map((i) => ({
-					id: i.id,
-					name: i.name,
-					source: '原版',
-				}));
-				const extItems = extIngredients.map((i) => ({
-					id: i.id,
-					name: i.name,
-					source: '扩展',
-				}));
-				return [...gameItems, ...extItems];
-			}
-			case 'Beverage': {
-				const gameItems = BEVERAGE_NAMES.map((b) => ({
-					id: b.id,
-					name: b.name,
-					source: '原版',
-				}));
-				const extItems = extBeverages.map((b) => ({
-					id: b.id,
-					name: b.name,
-					source: '扩展',
-				}));
-				return [...gameItems, ...extItems];
-			}
-			case 'Recipe': {
-				const gameItems = RECIPE_NAMES.map((r) => ({
-					id: r.id,
-					name: r.name,
-					source: '原版',
-				}));
-				const extItems = extRecipes.map((r) => {
-					const foodName =
-						extFoods.find((f) => f.id === r.foodId)?.name ||
-						`食谱#${r.id}`;
-					return { id: r.id, name: `${foodName}`, source: '扩展' };
-				});
-				return [...gameItems, ...extItems];
-			}
-			default:
-				return [];
-		}
-	}, [
-		product.productType,
-		extFoods,
-		extIngredients,
-		extBeverages,
-		extRecipes,
-	]);
+	const idOptions = useMemo(
+		() =>
+			getProductIdOptions(product.productType, {
+				beverages: extBeverages,
+				foods: extFoods,
+				ingredients: extIngredients,
+				recipes: extRecipes,
+			}),
+		[
+			product.productType,
+			extFoods,
+			extIngredients,
+			extBeverages,
+			extRecipes,
+		]
+	);
 
 	const typeItems = useMemo<SelectItemSpec<ProductType>[]>(() => {
 		return PRODUCT_TYPE_OPTIONS.map((type) => ({

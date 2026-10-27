@@ -48,7 +48,8 @@ export const ClothesList = memo<ClothesListProps>(function ClothesList({
 				const isDuplicate = isIdDuplicate(item.id, index);
 				const giftTitles = (resourcePack.gifts ?? []).flatMap(
 					(gift, giftIndex) =>
-						gift.itemId === item.id
+						gift.productType === 'Item' &&
+						gift.productId === item.id
 							? [
 									`${giftIndex + 1}. ${gift.title || '未命名礼物'}`,
 								]

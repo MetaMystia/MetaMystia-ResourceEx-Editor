@@ -1,3 +1,4 @@
+import { GIFT_PRODUCT_TYPES } from './constants';
 import type {
 	Character,
 	CharacterPortrait,
@@ -1333,11 +1334,29 @@ function readCollection(
 
 function readGift(value: unknown, path: string): IGiftConfig {
 	const record = value === null ? {} : readRecord(value, path);
+	const { itemId: _legacyItemId, ...rest } = record;
+	const readProductId = (id: unknown, idPath: string) =>
+		id === null ? null : readNumber(id, idPath);
+	// 旧资源包用 itemId 表示 Item，读取时并入 productType/productId
+	const productId =
+		readOptionalValue(record, 'productId', path, readProductId) ??
+		readOptionalValue(record, 'itemId', path, readProductId);
 	return {
-		...record,
-		...readOptionalProperty(record, 'itemId', path, (itemId, itemPath) =>
-			itemId === null ? null : readNumber(itemId, itemPath)
-		),
+		...rest,
+		productType:
+			readOptionalValue(record, 'productType', path, (type, typePath) =>
+				type === null
+					? 'Item'
+					: readLiteral(
+							type,
+							typePath,
+							GIFT_PRODUCT_TYPES,
+							'a supported gift product type'
+						)
+			) ?? 'Item',
+		...(productId === undefined ? {} : { productId }),
+		productAmount:
+			readOptionalValue(record, 'productAmount', path, readNumber) ?? 1,
 		allowRepeat:
 			readOptionalValue(record, 'allowRepeat', path, readBoolean) ??
 			false,
