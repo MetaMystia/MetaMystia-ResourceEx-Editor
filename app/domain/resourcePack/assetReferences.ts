@@ -1,5 +1,5 @@
 import type { ResourceEx } from './contracts/resourceEx';
-import { resolveDayMapAssetPath } from './dayMapAssets';
+import { remapDayMapAssetPaths, resolveDayMapAssetPath } from './dayMapAssets';
 import { collectResourcePackReferenceLocations } from './referenceLocations';
 
 export function collectResourcePackAssetReferences(
@@ -142,18 +142,9 @@ export function remapResourcePackAssetReferences(
 				? `rex://${resourcePack.packInfo.label}/${next}`
 				: next;
 	};
-	const dayMaps = (resourcePack.dayMaps ?? []).map((map) => ({
-		...map,
-		tiles: map.tiles.map((tile) => ({
-			...tile,
-			image: remapMapPath(tile.image),
-		})),
-		mapBGM: {
-			...map.mapBGM,
-			intro: remapMapPath(map.mapBGM.intro),
-			loop: remapMapPath(map.mapBGM.loop),
-		},
-	}));
+	const dayMaps = (resourcePack.dayMaps ?? []).map((map) =>
+		remapDayMapAssetPaths(map, remapMapPath)
+	);
 	const spells = resourcePack.spells.map((spell) => ({
 		...spell,
 		positive: {

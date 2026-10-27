@@ -15,8 +15,14 @@ import Tooltip from '@/design/ui/components/tooltip';
 import { useReducedMotion } from '@/design/ui/hooks/useReducedMotion';
 
 import type { IDayMap } from '@/domain/resourcePack/contracts/dayMap';
-import { resolveDayMapAssetPath } from '@/domain/resourcePack/dayMapAssets';
-import { validateDayMap } from '@/domain/resourcePack/dayMapValidation';
+import {
+	getDayMapAssetReferences,
+	resolveDayMapAssetPath,
+} from '@/domain/resourcePack/dayMapAssets';
+import {
+	DAY_MAP_FORMAT_VERSION,
+	validateDayMap,
+} from '@/domain/resourcePack/dayMapValidation';
 
 import { WarningNotice } from '@/features/resourceEditor/client/components/status/WarningNotice';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
@@ -27,18 +33,18 @@ import {
 	DEFAULT_MAP_SNAP_STEP,
 	DEFAULT_MAP_TOOL_BY_MODE,
 	DEFAULT_MAP_VIEW_OPTIONS,
-	hasSpecialShader,
-	type IMapCellSelection,
+	type IMapPoint,
 	type IMapRect,
+	type IMapVertexSelection,
 	type IMapViewOptions,
 	isToolAvailable,
-	type ITileBrush,
 	MAP_BRUSH_SIZE_MAX,
 	MAP_ENTITY_KIND_BY_MODE,
 	MAP_MODES,
 	MAP_SNAP_STEPS,
 	MAP_TOOL_SHORTCUTS,
 	MAP_ZOOM_REFERENCE_PX_PER_UNIT,
+	type TColliderTarget,
 	type TMapEntityKind,
 	type TMapMode,
 	type TMapTool,
@@ -47,9 +53,18 @@ import {
 	deleteEntities,
 	duplicateEntities,
 	getEntityCount,
-	type ITileImportSettings,
+	getTargetWorldColliders,
+	isTargetValid,
+	removeVertex,
+	replaceCollider,
 } from './dayMapEdits';
-import { getCameraRect } from './dayMapSpatial';
+import {
+	getColliderRect,
+	getLayerRect,
+	getObjectRect,
+	getPointsRect,
+	getPrefabIndex,
+} from './dayMapSpatial';
 import DayMapViewport, { type IDayMapViewportHandle } from './DayMapViewport';
 import {
 	type IMapNotice,
@@ -60,14 +75,12 @@ import {
 	MapViewMenu,
 	MapZoomControls,
 } from './MapCanvasChrome';
-import { MapHint, MapPanel } from './MapFields';
-import { CollisionModeIcon } from './MapIcons';
 import { canHandleMapShortcut } from './mapShortcuts';
-import { getEntityRect } from './mapToolActions';
 import { MapTopBar } from './MapTopBar';
 import { MapViewportStore } from './mapViewportStore';
 import {
-	CollisionInspector,
+	ColliderInspector,
+	ColliderTargetPanel,
 	EntityListPanel,
 	MultiSelectionPanel,
 	ObjectInspector,
@@ -75,26 +88,23 @@ import {
 } from './panels/EntityPanels';
 import { LayerPanel } from './panels/LayerPanel';
 import { MapSettingsPanel } from './panels/MapSettingsPanel';
+import { PrefabPanel } from './panels/PrefabPanel';
 import { SlopePanel } from './panels/SlopePanel';
-import { TileImportCard } from './panels/TileImportCard';
-import { CellInspector, TileInspector } from './panels/TileInspectors';
-import { TilePalette } from './panels/TilePalette';
-import { getTileIndex } from './render/sceneGeometry';
 import { useDayMapHistory } from './useDayMapHistory';
 import { type TMapAudioTarget, useMapAssetImport } from './useMapAssetImport';
 
 const EMPTY_SET: ReadonlySet<number> = new Set();
 const EMPTY_SELECTIONS: Record<TMapEntityKind, ReadonlySet<number>> = {
-	collision: EMPTY_SET,
+	collider: EMPTY_SET,
 	object: EMPTY_SET,
 	spawn: EMPTY_SET,
 };
+const MAP_TARGET: TColliderTarget = { kind: 'map' };
 const VIEW_OPTIONS_STORAGE_KEY = 'dayMapEditor:viewOptions';
 const VIEW_OPTION_KEYS = [
 	'shouldDimInactiveLayers',
 	'shouldShowCollisions',
 	'shouldShowGrid',
-	'shouldShowMaterialSources',
 	'shouldShowSlopes',
 	'shouldShowViewportPreview',
 ] as const satisfies readonly (keyof IMapViewOptions)[];
@@ -127,28 +137,6 @@ function readStoredSnapStep() {
 	return stored !== null && MAP_SNAP_STEPS.some((step) => step === value)
 		? value
 		: DEFAULT_MAP_SNAP_STEP;
-}
-
-/** 默认选中预览中可见、格子最多的图层；原始素材地图常把特殊材质层排在最前。 */
-function getInitialLayerIndex(map: IDayMap) {
-	let best = -1;
-	map.layers.forEach((layer, index) => {
-		if (layer.isHeight || layer.active === false || hasSpecialShader(layer))
-			return;
-		if (
-			best < 0 ||
-			layer.cells.length > (map.layers[best]?.cells.length ?? 0)
-		)
-			best = index;
-	});
-	if (best >= 0) return best;
-	const fallback = map.layers.findIndex((layer) => !layer.isHeight);
-	return fallback >= 0 ? fallback : 0;
-}
-
-function getInitialBrush(map: IDayMap): ITileBrush | null {
-	const tile = map.tiles[0];
-	return tile ? { cells: [{ dx: 0, dy: 0, tile: tile.key }] } : null;
 }
 
 function unionRects(rects: readonly (IMapRect | null)[]): IMapRect | null {
@@ -187,43 +175,38 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 	const { assets, resourcePack } = useResourceEditor();
 	const assetUrls = assets.urls;
 	const packLabel = resourcePack.packInfo.label ?? '';
-	const isReadOnly = ![1, 2].includes(map.formatVersion);
+	const isReadOnly = map.formatVersion !== DAY_MAP_FORMAT_VERSION;
 	const { canRedo, canUndo, commit, readLatestMap, redo, undo } =
 		useDayMapHistory({ index, isReadOnly, map });
-	const { importAudio, importTiles, isImporting } = useMapAssetImport({
-		commit,
-		readLatestMap,
-	});
+	const { importAudio, importLayer, importPrefab, isImporting } =
+		useMapAssetImport({ commit, readLatestMap });
 	const isReducedMotion = useReducedMotion();
 	const rootRef = useRef<HTMLDivElement>(null);
 	const viewportRef = useRef<IDayMapViewportHandle>(null);
 	const [store] = useState(() => new MapViewportStore());
-	const [mode, setMode] = useState<TMapMode>('tile');
+	const [mode, setMode] = useState<TMapMode>('layer');
 	const [toolByMode, setToolByMode] = useState<Record<TMapMode, TMapTool>>(
 		() => ({ ...DEFAULT_MAP_TOOL_BY_MODE })
 	);
-	const [layerIndex, setLayerIndex] = useState(() =>
-		getInitialLayerIndex(map)
-	);
-	const [brush, setBrush] = useState(() => getInitialBrush(map));
-	const [brushSize, setBrushSize] = useState(1);
-	const [slope, setSlope] = useState(0.5);
+	const [layerIndex, setLayerIndex] = useState(0);
 	const [hiddenLayers, setHiddenLayers] = useState<ReadonlySet<number>>(
 		() => new Set()
 	);
 	const [selections, setSelections] = useState(EMPTY_SELECTIONS);
-	const [cellSelection, setCellSelection] =
-		useState<IMapCellSelection | null>(null);
-	const [isCameraSelected, setIsCameraSelected] = useState(false);
+	const [selectedVertex, setSelectedVertex] =
+		useState<IMapVertexSelection | null>(null);
+	const [colliderTarget, setColliderTarget] =
+		useState<TColliderTarget>(MAP_TARGET);
+	const [placePrefab, setPlacePrefab] = useState<string | null>(
+		() => map.prefabs[0]?.key ?? null
+	);
+	const [brushSize, setBrushSize] = useState(1);
+	const [slope, setSlope] = useState(0.5);
 	const [viewOptions, setViewOptions] = useState<IMapViewOptions>(
 		DEFAULT_MAP_VIEW_OPTIONS
 	);
 	const [snapStep, setSnapStep] = useState<number>(DEFAULT_MAP_SNAP_STEP);
 	const [notice, setNotice] = useState<IMapNotice | null>(null);
-	const [importRequest, setImportRequest] = useState<{
-		file: File | null;
-		id: number;
-	} | null>(null);
 	const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
 	const noticeIdRef = useRef(0);
 
@@ -232,26 +215,28 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 		setSnapStep(readStoredSnapStep());
 	}, []);
 
+	// 锚点物件被删除或换了模板库时回到编辑地图碰撞。
+	const target = isTargetValid(map, colliderTarget)
+		? colliderTarget
+		: MAP_TARGET;
 	const tool = toolByMode[mode];
 	const entityKind = MAP_ENTITY_KIND_BY_MODE[mode];
 	const activeLayerIndex = Math.min(
 		layerIndex,
 		Math.max(0, map.layers.length - 1)
 	);
-	const hasNativeHeight = map.layers.some((layer) => layer.isHeight);
-	const tileIndex = getTileIndex(map.tiles);
-	const activeBrush =
-		brush && brush.cells.every((cell) => tileIndex.has(cell.tile))
-			? brush
+	const activePrefab =
+		placePrefab && map.prefabs.some((prefab) => prefab.key === placePrefab)
+			? placePrefab
 			: null;
 	const selection = useMemo(() => {
 		if (!entityKind) return EMPTY_SET;
 		const indices = selections[entityKind];
-		const count = getEntityCount(map, entityKind);
+		const count = getEntityCount(map, entityKind, target);
 		return [...indices].every((value) => value < count)
 			? indices
 			: new Set([...indices].filter((value) => value < count));
-	}, [entityKind, map, selections]);
+	}, [entityKind, map, selections, target]);
 
 	const showNotice = useCallback(
 		(message: string, tone: 'error' | 'info' = 'info') => {
@@ -274,41 +259,30 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 
 	const clearSelections = useCallback(() => {
 		setSelections(EMPTY_SELECTIONS);
-		setCellSelection(null);
-		setIsCameraSelected(false);
+		setSelectedVertex(null);
 	}, []);
 
 	const handleUndo = useCallback(() => {
 		viewportRef.current?.cancelGesture();
 		const result = undo();
-		if (result.isSuccess) {
-			clearSelections();
-			setHiddenLayers(new Set());
-		} else if (result.error)
+		if (result.isSuccess) clearSelections();
+		else if (result.error)
 			showNotice(result.error, canUndo ? 'error' : 'info');
 	}, [canUndo, clearSelections, showNotice, undo]);
 
 	const handleRedo = useCallback(() => {
 		viewportRef.current?.cancelGesture();
 		const result = redo();
-		if (result.isSuccess) {
-			clearSelections();
-			setHiddenLayers(new Set());
-		} else if (result.error)
+		if (result.isSuccess) clearSelections();
+		else if (result.error)
 			showNotice(result.error, canRedo ? 'error' : 'info');
 	}, [canRedo, clearSelections, redo, showNotice]);
 
-	const handleModeChange = useCallback(
-		(next: TMapMode) => {
-			if (next === 'height' && hasNativeHeight) {
-				showNotice('这张地图使用原始高度层，坡度画笔已停用。', 'error');
-				return;
-			}
-			viewportRef.current?.cancelGesture();
-			setMode(next);
-		},
-		[hasNativeHeight, showNotice]
-	);
+	const handleModeChange = useCallback((next: TMapMode) => {
+		viewportRef.current?.cancelGesture();
+		setSelectedVertex(null);
+		setMode(next);
+	}, []);
 
 	const handleToolChange = useCallback(
 		(next: TMapTool) => {
@@ -316,38 +290,19 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 			setToolByMode((current) =>
 				current[mode] === next ? current : { ...current, [mode]: next }
 			);
-			if (next !== 'select') setCellSelection(null);
-		},
-		[mode]
-	);
-
-	const handleBrushChange = useCallback(
-		(next: ITileBrush | null) => {
-			setBrush(next);
-			if (!next) return;
-			setToolByMode((current) => {
-				if (
-					mode === 'tile' &&
-					['eraser', 'picker', 'select', 'hand'].includes(
-						current.tile
-					)
-				)
-					return { ...current, tile: 'brush' };
-				if (mode === 'object' && current.object !== 'place')
-					return { ...current, object: 'place' };
-				return current;
-			});
 		},
 		[mode]
 	);
 
 	const handleSelectionChange = useCallback(
-		(kind: TMapEntityKind, indices: ReadonlySet<number>) =>
+		(kind: TMapEntityKind, indices: ReadonlySet<number>) => {
 			setSelections((current) =>
 				current[kind] === indices
 					? current
 					: { ...current, [kind]: indices }
-			),
+			);
+			setSelectedVertex(null);
+		},
 		[]
 	);
 
@@ -361,12 +316,61 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 		safeStorage.setItem(SNAP_STEP_STORAGE_KEY, String(next));
 	}, []);
 
-	const focusEntity = useCallback(
-		(kind: TMapEntityKind, entityIndex: number) => {
-			const rect = getEntityRect(map, kind, entityIndex);
-			if (rect) viewportRef.current?.revealRect(rect);
+	const handleColliderTargetChange = useCallback(
+		(next: TColliderTarget) => {
+			viewportRef.current?.cancelGesture();
+			setColliderTarget(next);
+			setSelections((current) => ({ ...current, collider: EMPTY_SET }));
+			setSelectedVertex(null);
+			if (next.kind === 'prefab') {
+				setMode('collision');
+				const object = map.objects[next.objectIndex];
+				const prefab =
+					object &&
+					map.prefabs.find((item) => item.key === object.prefab);
+				if (object && prefab)
+					viewportRef.current?.revealRect(
+						getObjectRect(object, prefab)
+					);
+			}
 		},
 		[map]
+	);
+
+	const getEntityRect = useCallback(
+		(kind: TMapEntityKind, entityIndex: number): IMapRect | null => {
+			if (kind === 'spawn') {
+				const marker = map.spawnMarkers[entityIndex];
+				return marker
+					? {
+							maxX: marker.x + 1,
+							maxY: marker.y + 1,
+							minX: marker.x - 1,
+							minY: marker.y - 1,
+						}
+					: null;
+			}
+			if (kind === 'object') {
+				const object = map.objects[entityIndex];
+				return object
+					? getObjectRect(
+							object,
+							getPrefabIndex(map).get(object.prefab)
+						)
+					: null;
+			}
+			const collider = getTargetWorldColliders(map, target)[entityIndex];
+			return collider ? getColliderRect(collider) : null;
+		},
+		[map, target]
+	);
+
+	const focusEntity = useCallback(
+		(kind: TMapEntityKind, entityIndex: number) => {
+			const rect = getEntityRect(kind, entityIndex);
+			if (rect) viewportRef.current?.revealRect(rect);
+		},
+		[getEntityRect]
 	);
 
 	const focusSelectionOrFit = useCallback(() => {
@@ -374,33 +378,24 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 		if (!viewport) return;
 		if (entityKind && selection.size > 0) {
 			const rect = unionRects(
-				[...selection].map((value) =>
-					getEntityRect(map, entityKind, value)
-				)
+				[...selection].map((value) => getEntityRect(entityKind, value))
 			);
 			if (rect) {
 				viewport.fitRect(rect);
 				return;
 			}
 		}
-		if (mode === 'map' && isCameraSelected) {
-			const rect = getCameraRect(map.camera.bounds);
-			if (rect) {
-				viewport.fitRect(rect);
-				return;
-			}
+		const layer = map.layers[activeLayerIndex];
+		if (mode === 'layer' && layer) {
+			viewport.fitRect(getLayerRect(map, layer));
+			return;
 		}
-		if (cellSelection) {
-			viewport.revealRect({
-				maxX: cellSelection.x + 1,
-				maxY: cellSelection.y + 1,
-				minX: cellSelection.x,
-				minY: cellSelection.y,
-			});
+		if (mode === 'map' && map.camera.bounds.length > 0) {
+			viewport.fitRect(getPointsRect(map.camera.bounds));
 			return;
 		}
 		viewport.fit();
-	}, [cellSelection, entityKind, isCameraSelected, map, mode, selection]);
+	}, [activeLayerIndex, entityKind, getEntityRect, map, mode, selection]);
 
 	const duplicateSelection = useCallback(() => {
 		if (!entityKind || selection.size === 0 || isReadOnly) return;
@@ -410,7 +405,8 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 			entityKind,
 			selection,
 			offset,
-			-offset
+			-offset,
+			target
 		);
 		if (typeof result === 'string') {
 			showNotice(result, 'error');
@@ -427,49 +423,144 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 		selection,
 		showNotice,
 		snapStep,
+		target,
 	]);
 
-	const handleImportTiles = useCallback(
-		async (source: File | string, settings: ITileImportSettings) => {
-			const result = await importTiles(source, settings);
+	/** Delete：选中顶点时删除顶点，否则删除选中的实体。 */
+	const deleteSelection = useCallback(() => {
+		if (isReadOnly) return;
+		if (selectedVertex && mode === 'map') {
+			if (map.camera.bounds.length <= 3) {
+				showNotice('相机多边形至少需要 3 个顶点。', 'error');
+				return;
+			}
+			const bounds = map.camera.bounds.filter(
+				(_, i) => i !== selectedVertex.pointIndex
+			);
+			if (
+				handleCommit({ ...map, camera: { ...map.camera, bounds } })
+					.isSuccess
+			)
+				setSelectedVertex(null);
+			return;
+		}
+		if (
+			selectedVertex &&
+			entityKind === 'collider' &&
+			selection.size === 1
+		) {
+			const [colliderIndex = -1] = selection;
+			const collider = getTargetWorldColliders(map, target)[
+				colliderIndex
+			];
+			if (!collider) return;
+			const next = removeVertex(collider, selectedVertex);
+			const result = next
+				? handleCommit(
+						replaceCollider(map, target, colliderIndex, next)
+					)
+				: handleCommit(
+						deleteEntities(map, 'collider', selection, target)
+					);
+			if (result.isSuccess) {
+				setSelectedVertex(null);
+				if (!next) handleSelectionChange('collider', EMPTY_SET);
+			}
+			return;
+		}
+		if (
+			entityKind &&
+			selection.size > 0 &&
+			handleCommit(deleteEntities(map, entityKind, selection, target))
+				.isSuccess
+		)
+			handleSelectionChange(entityKind, EMPTY_SET);
+	}, [
+		entityKind,
+		handleCommit,
+		handleSelectionChange,
+		isReadOnly,
+		map,
+		mode,
+		selectedVertex,
+		selection,
+		showNotice,
+		target,
+	]);
+
+	const handleImportLayer = useCallback(
+		async (file: File, replaceIndex: number | null, center?: IMapPoint) => {
+			const ppu = readLatestMap().pixelsPerUnit;
+			const anchor = center ?? viewportRef.current?.getViewCenter();
+			const result = await importLayer(
+				file,
+				replaceIndex,
+				anchor && {
+					x: Math.round(anchor.x * ppu),
+					y: Math.round(anchor.y * ppu),
+				}
+			);
 			if (result.error) {
 				showNotice(result.error, 'error');
 				return;
 			}
-			const first = result.tiles?.[0];
-			if (!first) return;
-			setImportRequest(null);
-			setBrush({ cells: [{ dx: 0, dy: 0, tile: first.key }] });
-			showNotice(`已导入 ${result.tiles?.length ?? 0} 块切片。`, 'info');
+			if (result.result === undefined) return;
+			setLayerIndex(result.result);
+			setMode('layer');
+			showNotice(
+				replaceIndex === null
+					? `已导入图层 ${file.name}。`
+					: `已替换图层图片 ${file.name}。`,
+				'info'
+			);
 		},
-		[importTiles, showNotice]
+		[importLayer, readLatestMap, showNotice]
+	);
+
+	const handleImportPrefab = useCallback(
+		async (file: File) => {
+			const result = await importPrefab(file);
+			if (result.error) {
+				showNotice(result.error, 'error');
+				return;
+			}
+			if (result.result === undefined) return;
+			setPlacePrefab(result.result);
+			setMode('object');
+			setToolByMode((current) => ({ ...current, object: 'place' }));
+			showNotice(
+				`已导入物件模板 ${result.result}，在画布上点击放置。`,
+				'info'
+			);
+		},
+		[importPrefab, showNotice]
 	);
 
 	const handleUploadAudio = useCallback(
-		async (file: File, target: TMapAudioTarget) => {
-			const result = await importAudio(file, target);
+		async (file: File, audioTarget: TMapAudioTarget) => {
+			const result = await importAudio(file, audioTarget);
 			if (result.error) showNotice(result.error, 'error');
-			else if (result.path)
+			else if (result.result)
 				showNotice(`已导入音乐 ${file.name}。`, 'info');
 		},
 		[importAudio, showNotice]
 	);
 
 	const handleDropFiles = useCallback(
-		(files: File[]) => {
+		(files: File[], world: IMapPoint) => {
 			const image = files.find((file) => /\.png$/i.test(file.name));
 			if (!image) {
 				showNotice(
-					'只能把 PNG 拖到画布上导入瓦片；音乐请在“地图”中上传。',
+					'只能把 PNG 拖到画布上；音乐请在“地图”中上传。',
 					'error'
 				);
 				return;
 			}
 			if (isReadOnly) return;
-			if (mode !== 'tile' && mode !== 'object') setMode('tile');
-			setImportRequest({ file: image, id: Date.now() });
+			if (mode === 'object') void handleImportPrefab(image);
+			else void handleImportLayer(image, null, world);
 		},
-		[isReadOnly, mode, showNotice]
+		[handleImportLayer, handleImportPrefab, isReadOnly, mode, showNotice]
 	);
 
 	/* ── 快捷键 ─────────────────────────────────────── */
@@ -498,7 +589,7 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 					entityKind,
 					new Set(
 						Array.from(
-							{ length: getEntityCount(map, entityKind) },
+							{ length: getEntityCount(map, entityKind, target) },
 							(_, i) => i
 						)
 					)
@@ -513,10 +604,10 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 			return;
 		}
 		if (/^[1-6]$/.test(key)) {
-			const target = MAP_MODES[Number(key) - 1];
-			if (target) {
+			const next = MAP_MODES[Number(key) - 1];
+			if (next) {
 				event.preventDefault();
-				handleModeChange(target.value);
+				handleModeChange(next.value);
 			}
 			return;
 		}
@@ -562,17 +653,14 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 				return;
 			case 'Delete':
 			case 'Backspace':
-				if (entityKind && selection.size > 0 && !isReadOnly) {
-					event.preventDefault();
-					if (
-						handleCommit(deleteEntities(map, entityKind, selection))
-							.isSuccess
-					)
-						handleSelectionChange(entityKind, EMPTY_SET);
-				}
+				event.preventDefault();
+				deleteSelection();
 				return;
 			case 'Escape':
-				if (entityKind && selection.size > 0) {
+				if (selectedVertex) {
+					event.preventDefault();
+					setSelectedVertex(null);
+				} else if (entityKind && selection.size > 0) {
 					event.preventDefault();
 					handleSelectionChange(entityKind, EMPTY_SET);
 				}
@@ -595,14 +683,13 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 
 	const deferredMap = useDeferredValue(map);
 	const issues = useMemo(() => {
-		const missing = Array.from(
-			new Set([
-				...deferredMap.tiles.map((tile) => tile.image),
-				deferredMap.mapBGM.intro,
-				deferredMap.mapBGM.loop,
-			])
-		)
-			.filter(Boolean)
+		const missing = [
+			...new Set(
+				getDayMapAssetReferences(deferredMap).map(
+					(reference) => reference.path
+				)
+			),
+		]
 			.filter((path) => {
 				const local = resolveDayMapAssetPath(path, packLabel);
 				return local !== null && !assetUrls[local];
@@ -614,57 +701,22 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 	const counts = useMemo(
 		() => ({
 			collision:
-				map.collisions.length + (map.nativeColliders?.length ?? 0),
+				map.colliders.length +
+				map.prefabs.reduce(
+					(count, prefab) => count + prefab.colliders.length,
+					0
+				),
 			height: map.height?.cells.length ?? 0,
+			layer: map.layers.length,
 			object: map.objects.length,
 			spawn: map.spawnMarkers.length,
-			tile: map.layers.reduce(
-				(count, layer) => count + layer.cells.length,
-				0
-			),
 		}),
 		[map]
 	);
-	const disabledModes = useMemo(
-		() => new Set<TMapMode>(hasNativeHeight ? ['height'] : []),
-		[hasNativeHeight]
-	);
+	const disabledModes = useMemo(() => new Set<TMapMode>(), []);
 
 	/* ── 侧栏 ─────────────────────────────────────────── */
 
-	const singleTileKey =
-		activeBrush && activeBrush.cells.length === 1
-			? activeBrush.cells[0]?.tile
-			: undefined;
-	const palette = (paletteMode: 'object' | 'tile') => (
-		<TilePalette
-			assetUrls={assetUrls}
-			brush={activeBrush}
-			isReadOnly={isReadOnly}
-			map={map}
-			mode={paletteMode}
-			packLabel={packLabel}
-			onBrushChange={handleBrushChange}
-			onImportOpen={() =>
-				setImportRequest({ file: null, id: Date.now() })
-			}
-			importCard={
-				importRequest ? (
-					<TileImportCard
-						key={importRequest.id}
-						assetUrls={assetUrls}
-						existingTileCount={map.tiles.length}
-						initialFile={importRequest.file}
-						isImporting={isImporting}
-						onCancel={() => setImportRequest(null)}
-						onImport={(source, settings) =>
-							void handleImportTiles(source, settings)
-						}
-					/>
-				) : undefined
-			}
-		/>
-	);
 	const [selectedIndex] = selection;
 	const inspectorProps = {
 		isReadOnly,
@@ -676,6 +728,7 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 	};
 	const entityList = entityKind ? (
 		<EntityListPanel
+			colliderTarget={target}
 			isReadOnly={isReadOnly}
 			kind={entityKind}
 			map={map}
@@ -687,49 +740,30 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 			onSelectionChange={handleSelectionChange}
 		/>
 	) : null;
+	const multiSelection =
+		entityKind && selection.size > 1 ? (
+			<MultiSelectionPanel count={selection.size} kind={entityKind} />
+		) : null;
 	let sidePanels: ReactNode;
 	switch (mode) {
-		case 'tile':
+		case 'layer':
 			sidePanels = (
-				<>
-					{tool === 'select' && cellSelection && (
-						<CellInspector
-							assetUrls={assetUrls}
-							isReadOnly={isReadOnly}
-							map={map}
-							packLabel={packLabel}
-							selection={cellSelection}
-							onBrushChange={(next) => {
-								handleBrushChange(next);
-								handleToolChange('brush');
-							}}
-							onClose={() => setCellSelection(null)}
-							onCommit={handleCommit}
-						/>
-					)}
-					<LayerPanel
-						activeLayerIndex={activeLayerIndex}
-						hiddenLayers={hiddenLayers}
-						isReadOnly={isReadOnly}
-						map={map}
-						onActiveLayerChange={setLayerIndex}
-						onCommit={handleCommit}
-						onHiddenLayersChange={setHiddenLayers}
-						onNotice={showNotice}
-					/>
-					{palette('tile')}
-					{singleTileKey && (
-						<TileInspector
-							assetUrls={assetUrls}
-							isReadOnly={isReadOnly}
-							map={map}
-							packLabel={packLabel}
-							tileKey={singleTileKey}
-							onBrushChange={setBrush}
-							onCommit={handleCommit}
-						/>
-					)}
-				</>
+				<LayerPanel
+					activeLayerIndex={activeLayerIndex}
+					assetUrls={assetUrls}
+					hiddenLayers={hiddenLayers}
+					isImporting={isImporting}
+					isReadOnly={isReadOnly}
+					map={map}
+					packLabel={packLabel}
+					onActiveLayerChange={setLayerIndex}
+					onCommit={handleCommit}
+					onHiddenLayersChange={setHiddenLayers}
+					onImport={(file, replaceIndex) =>
+						void handleImportLayer(file, replaceIndex)
+					}
+					onNotice={showNotice}
+				/>
 			);
 			break;
 		case 'object':
@@ -739,72 +773,73 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 					{selection.size === 1 && selectedIndex !== undefined ? (
 						<ObjectInspector
 							{...inspectorProps}
-							assetUrls={assetUrls}
-							brushTile={singleTileKey ?? null}
 							index={selectedIndex}
-							packLabel={packLabel}
+							onEditColliders={() =>
+								handleColliderTargetChange({
+									kind: 'prefab',
+									objectIndex: selectedIndex,
+								})
+							}
 							onFocus={() => focusEntity('object', selectedIndex)}
+							onPrefabSelect={setPlacePrefab}
 						/>
-					) : selection.size > 1 ? (
-						<MultiSelectionPanel
-							count={selection.size}
-							kind="object"
+					) : (
+						multiSelection
+					)}
+					<PrefabPanel
+						assetUrls={assetUrls}
+						isImporting={isImporting}
+						isReadOnly={isReadOnly}
+						map={map}
+						packLabel={packLabel}
+						selectedKey={activePrefab}
+						onCommit={handleCommit}
+						onEditColliders={(objectIndex) =>
+							handleColliderTargetChange({
+								kind: 'prefab',
+								objectIndex,
+							})
+						}
+						onImport={(file) => void handleImportPrefab(file)}
+						onSelectedKeyChange={(key) => {
+							setPlacePrefab(key);
+							if (key)
+								setToolByMode((current) => ({
+									...current,
+									object: 'place',
+								}));
+						}}
+					/>
+				</>
+			);
+			break;
+		case 'collision':
+			sidePanels = (
+				<>
+					<ColliderTargetPanel
+						colliderTarget={target}
+						map={map}
+						onExit={() => handleColliderTargetChange(MAP_TARGET)}
+					/>
+					{entityList}
+					{selection.size === 1 && selectedIndex !== undefined ? (
+						<ColliderInspector
+							{...inspectorProps}
+							colliderTarget={target}
+							index={selectedIndex}
+							onFocus={() =>
+								focusEntity('collider', selectedIndex)
+							}
 						/>
-					) : null}
-					{palette('object')}
+					) : (
+						multiSelection
+					)}
 				</>
 			);
 			break;
 		case 'height':
 			sidePanels = (
 				<SlopePanel map={map} slope={slope} onSlopeChange={setSlope} />
-			);
-			break;
-		case 'collision':
-			sidePanels = (
-				<>
-					{entityList}
-					{selection.size === 1 && selectedIndex !== undefined ? (
-						<CollisionInspector
-							{...inspectorProps}
-							index={selectedIndex}
-							snapStep={snapStep}
-							onFocus={() =>
-								focusEntity('collision', selectedIndex)
-							}
-						/>
-					) : selection.size > 1 ? (
-						<MultiSelectionPanel
-							count={selection.size}
-							kind="collision"
-						/>
-					) : null}
-					{(map.nativeColliders?.length ?? 0) > 0 && (
-						<MapPanel
-							title="原生碰撞"
-							meta={map.nativeColliders?.length}
-							icon={<CollisionModeIcon />}
-						>
-							<div className="flex flex-wrap gap-3 text-xs text-foreground-600">
-								<span className="inline-flex items-center gap-1.5">
-									<span className="h-0.5 w-4 rounded-full bg-[#f87171]" />
-									实体
-								</span>
-								<span className="inline-flex items-center gap-1.5">
-									<span className="h-0.5 w-4 rounded-full border-t-2 border-dashed border-[#facc15]" />
-									触发器
-								</span>
-								<span className="inline-flex items-center gap-1.5">
-									<span className="h-0.5 w-4 rounded-full border-t-2 border-dashed border-[#22d3ee]" />
-									相机
-								</span>
-							</div>
-							<MapHint>
-								原生碰撞保留游戏原始形状，画布显示精确轮廓，暂不支持顶点编辑。新的碰撞请用矩形碰撞框补充。
-							</MapHint>
-						</MapPanel>
-					)}
-				</>
 			);
 			break;
 		case 'spawn':
@@ -817,12 +852,9 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 							index={selectedIndex}
 							onFocus={() => focusEntity('spawn', selectedIndex)}
 						/>
-					) : selection.size > 1 ? (
-						<MultiSelectionPanel
-							count={selection.size}
-							kind="spawn"
-						/>
-					) : null}
+					) : (
+						multiSelection
+					)}
 				</>
 			);
 			break;
@@ -837,8 +869,8 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 					viewOptions={viewOptions}
 					onCommit={handleCommit}
 					onNotice={showNotice}
-					onUploadAudio={(file, target) =>
-						void handleUploadAudio(file, target)
+					onUploadAudio={(file, audioTarget) =>
+						void handleUploadAudio(file, audioTarget)
 					}
 					onViewOptionsChange={handleViewOptionsChange}
 				/>
@@ -846,25 +878,13 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 			break;
 	}
 
-	const badges = (
-		<>
-			{isReadOnly && (
-				<CanvasBadge tip="当前编辑器只编辑格式版本 1 和 2，原数据会原样保留。">
-					只读
-				</CanvasBadge>
-			)}
-			{map.formatVersion === 2 && (
-				<CanvasBadge tip="原始素材模式：图片、UV、PPU 和逐格变换独立保存，不合并或烘焙图片。特殊材质默认隐藏，互动脚本与动态材质仍需模组支持。">
-					原始素材
-				</CanvasBadge>
-			)}
-			{map.artOnly && (
-				<CanvasBadge tip="静态美术参考包：不含音乐、互动与动态效果，供查看和编辑素材结构，不能直接作为完整游戏地图安装。">
-					美术参考
-				</CanvasBadge>
-			)}
-		</>
-	);
+	const badges = isReadOnly ? (
+		<CanvasBadge
+			tip={`当前编辑器只编辑画布地图（版本 ${DAY_MAP_FORMAT_VERSION}），原数据会原样保留。`}
+		>
+			只读
+		</CanvasBadge>
+	) : null;
 
 	return (
 		<div ref={rootRef} className="flex min-h-0 flex-1 flex-col gap-3">
@@ -886,8 +906,9 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 			/>
 			{isReadOnly && (
 				<WarningNotice>
-					地图格式版本为 {map.formatVersion}，当前编辑器只编辑版本 1
-					和 2，原数据会保留。可以平移和查看，不能修改。
+					地图格式版本为 {map.formatVersion}
+					，当前编辑器只编辑画布地图（版本 {DAY_MAP_FORMAT_VERSION}
+					），原数据会保留。可以平移和查看，不能修改。
 				</WarningNotice>
 			)}
 			<div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
@@ -899,31 +920,30 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 						ref={viewportRef}
 						activeLayerIndex={activeLayerIndex}
 						assetUrls={assetUrls}
-						brush={activeBrush}
 						brushSize={brushSize}
-						cellSelection={cellSelection}
+						colliderTarget={target}
 						hiddenLayers={hiddenLayers}
-						isCameraSelected={isCameraSelected}
 						isReadOnly={isReadOnly}
 						isReducedMotion={isReducedMotion}
 						map={map}
 						mode={mode}
 						options={viewOptions}
 						packLabel={packLabel}
+						placePrefab={activePrefab}
+						selectedVertex={selectedVertex}
 						selection={selection}
 						slope={slope}
 						snapStep={snapStep}
 						store={store}
 						tool={tool}
-						onBrushPick={setBrush}
-						onCameraSelect={setIsCameraSelected}
-						onCellSelect={setCellSelection}
+						onActiveLayerChange={setLayerIndex}
 						onCommit={commit}
 						onDropFiles={handleDropFiles}
 						onNotice={showNotice}
 						onSelectionChange={handleSelectionChange}
 						onSlopePick={setSlope}
 						onToolChange={handleToolChange}
+						onVertexSelect={setSelectedVertex}
 					/>
 					<div className="pointer-events-none absolute inset-0 flex flex-col justify-between gap-2 p-2 sm:p-3">
 						<div className="flex min-w-0 items-start gap-2">
@@ -937,18 +957,12 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 							</div>
 							<div className="pointer-events-auto min-w-0 shrink">
 								<MapToolOptions
-									brush={activeBrush}
 									brushSize={brushSize}
 									mode={mode}
+									placePrefab={activePrefab}
 									slope={slope}
 									snapStep={snapStep}
 									tool={tool}
-									onBrushPlacementClear={() => {
-										if (activeBrush)
-											setBrush({
-												cells: activeBrush.cells,
-											});
-									}}
 									onBrushSizeChange={setBrushSize}
 									onSnapStepChange={handleSnapStepChange}
 								/>
@@ -956,9 +970,6 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 							<div className="flex-1" />
 							<div className="pointer-events-auto shrink-0">
 								<MapViewMenu
-									canShowMaterialSources={
-										map.formatVersion === 2
-									}
 									mode={mode}
 									options={viewOptions}
 									onChange={handleViewOptionsChange}

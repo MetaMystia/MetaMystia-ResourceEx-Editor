@@ -7,12 +7,11 @@ import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
 
 import type { IDayMap } from '@/domain/resourcePack/contracts/dayMap';
+import { DAY_MAP_LIMITS } from '@/domain/resourcePack/dayMapValidation';
 
-import { WarningNotice } from '@/features/resourceEditor/client/components/status/WarningNotice';
 import {
 	formatMapNumber,
 	formatSlopeAngle,
-	MAP_LIMITS,
 	SLOPE_PRESETS,
 } from '@/features/resourceEditor/client/editors/dayMap/dayMapEditorModel';
 import {
@@ -104,7 +103,6 @@ export const SlopePanel = memo(function SlopePanel({
 		}
 		return { down, up };
 	}, [map.height]);
-	const hasNativeHeight = map.layers.some((layer) => layer.isHeight);
 	return (
 		<MapPanel
 			title="坡面画笔"
@@ -112,11 +110,6 @@ export const SlopePanel = memo(function SlopePanel({
 			icon={<SlopeModeIcon />}
 			tip="坡度只修正左右移动：向右走 1 格，纵向变化 slope 格；上下移动不受影响。它不会移动图片、生成碰撞或改变遮挡。"
 		>
-			{hasNativeHeight && (
-				<WarningNotice>
-					这张地图带有原始高度层，标量坡度画笔已停用；原始贴图会原样保留。
-				</WarningNotice>
-			)}
 			<div className="flex items-center gap-3 rounded-medium bg-default/25 p-2 text-foreground">
 				<SlopeDiagram slope={slope} />
 				<div className="flex min-w-0 flex-col gap-0.5">
@@ -212,7 +205,8 @@ export const SlopePanel = memo(function SlopePanel({
 			</div>
 			<MapHint>
 				阶梯从右下通往左上时，向右走是下降，坡度为负。拱桥常用左半
-				+0.5、右半 −0.5。坡度格最多 {MAP_LIMITS.heightCellCount} 格。
+				+0.5、右半 −0.5。坡度格最多 {DAY_MAP_LIMITS.heightCellCount}{' '}
+				格。
 			</MapHint>
 		</MapPanel>
 	);

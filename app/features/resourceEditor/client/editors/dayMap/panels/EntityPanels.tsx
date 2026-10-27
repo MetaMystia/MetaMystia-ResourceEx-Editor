@@ -18,32 +18,39 @@ import Tooltip from '@/design/ui/components/tooltip';
 
 import type {
 	IDayMap,
+	IDayMapBoxCollider,
+	IDayMapEdgeCollider,
+	IDayMapObject,
+	TDayMapCollider,
 	TDayMapRotation,
 } from '@/domain/resourcePack/contracts/dayMap';
+import {
+	isPointInCollider,
+	placeCollider,
+} from '@/domain/resourcePack/dayMapGeometry';
+import { DAY_MAP_LIMITS } from '@/domain/resourcePack/dayMapValidation';
 
 import { SectionDeleteButton } from '@/features/resourceEditor/client/components/actions/SectionDeleteButton';
 import { Select } from '@/features/resourceEditor/client/components/select/Select';
 import { WarningNotice } from '@/features/resourceEditor/client/components/status/WarningNotice';
 import {
 	formatMapNumber,
-	MAP_LIMITS,
+	type TColliderTarget,
 	type TMapEntityKind,
 } from '@/features/resourceEditor/client/editors/dayMap/dayMapEditorModel';
 import {
 	checkSpawnName,
 	deleteEntities,
 	duplicateEntities,
-	findSortingValue,
-	getSortingLayerOptions,
-	patchCollision,
+	getTargetColliders,
+	getTargetObject,
+	getTargetPrefab,
+	patchCollider,
 	patchObject,
 	patchSpawn,
+	setCollider,
 } from '@/features/resourceEditor/client/editors/dayMap/dayMapEdits';
-import {
-	getCollisionRect,
-	isPointInRect,
-	snapToStep,
-} from '@/features/resourceEditor/client/editors/dayMap/dayMapSpatial';
+import { getObjectPlacement } from '@/features/resourceEditor/client/editors/dayMap/dayMapSpatial';
 import {
 	MapHint,
 	MapNumber,
@@ -62,32 +69,27 @@ import {
 	SpawnModeIcon,
 	StarIcon,
 } from '@/features/resourceEditor/client/editors/dayMap/MapIcons';
-import {
-	getTileIndex,
-	resolveMapImageUrl,
-} from '@/features/resourceEditor/client/editors/dayMap/render/sceneGeometry';
+import { COLLIDER_LABELS } from '@/features/resourceEditor/client/editors/dayMap/render/drawMapOverlay';
 import type { IResourceEditorOperationResult } from '@/features/resourceEditor/client/state/contracts';
-
-import { TileThumb } from './TileThumb';
 
 const ROW_HEIGHT_PX = 40;
 const EMPTY_SET: ReadonlySet<number> = new Set();
 
 const ENTITY_LABELS = {
-	collision: {
+	collider: {
 		icon: <CollisionModeIcon />,
-		name: '碰撞框',
-		limit: MAP_LIMITS.collisionCount,
+		limit: DAY_MAP_LIMITS.colliderCount,
+		name: '碰撞',
 	},
 	object: {
 		icon: <ObjectModeIcon />,
-		name: '装饰',
-		limit: MAP_LIMITS.objectCount,
+		limit: DAY_MAP_LIMITS.objectCount,
+		name: '物件',
 	},
 	spawn: {
 		icon: <SpawnModeIcon />,
+		limit: DAY_MAP_LIMITS.spawnCount,
 		name: '出生点',
-		limit: MAP_LIMITS.spawnCount,
 	},
 } as const satisfies Record<
 	TMapEntityKind,
@@ -112,7 +114,24 @@ interface IEntityItem {
 	name: string;
 }
 
-function describeEntities(map: IDayMap, kind: TMapEntityKind): IEntityItem[] {
+function describeCollider(collider: TDayMapCollider) {
+	switch (collider.shape) {
+		case 'polygon':
+			return `${collider.paths.reduce((count, path) => count + path.length, 0)} 顶点${collider.paths.length > 1 ? ` · ${collider.paths.length - 1} 个洞` : ''}`;
+		case 'edge':
+			return `${collider.points.length} 顶点${collider.closed ? ' · 闭合' : ''}`;
+		case 'box':
+			return `${formatMapNumber(collider.width)}×${formatMapNumber(collider.height)} @ ${formatMapNumber(collider.x)}, ${formatMapNumber(collider.y)}`;
+		case 'circle':
+			return `r ${formatMapNumber(collider.radius)} @ ${formatMapNumber(collider.x)}, ${formatMapNumber(collider.y)}`;
+	}
+}
+
+function describeEntities(
+	map: IDayMap,
+	kind: TMapEntityKind,
+	target: TColliderTarget
+): IEntityItem[] {
 	if (kind === 'spawn')
 		return map.spawnMarkers.map((marker, index) => ({
 			index,
@@ -120,34 +139,38 @@ function describeEntities(map: IDayMap, kind: TMapEntityKind): IEntityItem[] {
 			meta: `${formatMapNumber(marker.x)}, ${formatMapNumber(marker.y)} · ${ROTATION_OPTIONS.find((item) => item.value === marker.rotation)?.label ?? marker.rotation}`,
 			name: marker.name,
 		}));
-	if (kind === 'collision')
-		return map.collisions.map((box, index) => ({
+	if (kind === 'collider')
+		return getTargetColliders(map, target).map((collider, index) => ({
 			index,
 			isDefault: false,
-			meta: `${formatMapNumber(box.width)}×${formatMapNumber(box.height)} @ ${formatMapNumber(box.x)}, ${formatMapNumber(box.y)}`,
-			name: box.name || `碰撞${index + 1}`,
+			meta: `${COLLIDER_LABELS[collider.shape]} · ${describeCollider(collider)}`,
+			name:
+				collider.name ??
+				`${COLLIDER_LABELS[collider.shape]}${index + 1}`,
 		}));
 	return map.objects.map((object, index) => ({
 		index,
 		isDefault: false,
-		meta: `${object.tile} @ ${formatMapNumber(object.x)}, ${formatMapNumber(object.y)}`,
-		name: object.name || `装饰${index + 1}`,
+		meta: `${object.prefab} @ ${formatMapNumber(object.x)}, ${formatMapNumber(object.y)}`,
+		name: object.name ?? `${object.prefab}`,
 	}));
 }
 
 interface IEntityListProps {
+	colliderTarget: TColliderTarget;
 	isReadOnly: boolean;
 	kind: TMapEntityKind;
 	map: IDayMap;
+	selection: ReadonlySet<number>;
+	snapStep: number;
 	onCommit(next: IDayMap): IResourceEditorOperationResult;
 	onFocusEntity(index: number): void;
 	onNotice(message: string, tone?: 'error' | 'info'): void;
 	onSelectionChange(kind: TMapEntityKind, indices: ReadonlySet<number>): void;
-	selection: ReadonlySet<number>;
-	snapStep: number;
 }
 
 export const EntityListPanel = memo(function EntityListPanel({
+	colliderTarget,
 	isReadOnly,
 	kind,
 	map,
@@ -163,9 +186,12 @@ export const EntityListPanel = memo(function EntityListPanel({
 	const [height, setHeight] = useState(240);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const anchorRef = useRef<number | null>(null);
+	const all = useMemo(
+		() => describeEntities(map, kind, colliderTarget),
+		[colliderTarget, kind, map]
+	);
 	const items = useMemo(() => {
 		const normalized = query.trim().toLowerCase();
-		const all = describeEntities(map, kind);
 		return normalized
 			? all.filter(
 					(item) =>
@@ -173,7 +199,7 @@ export const EntityListPanel = memo(function EntityListPanel({
 						item.meta.toLowerCase().includes(normalized)
 				)
 			: all;
-	}, [kind, map, query]);
+	}, [all, query]);
 	useEffect(() => {
 		const element = scrollRef.current;
 		if (!element) return;
@@ -199,17 +225,14 @@ export const EntityListPanel = memo(function EntityListPanel({
 			element.scrollTop = top + ROW_HEIGHT_PX - element.clientHeight;
 	}, [firstSelected, items]);
 	const label = ENTITY_LABELS[kind];
-	const count =
-		kind === 'object'
-			? map.objects.length
-			: kind === 'collision'
-				? map.collisions.length
-				: map.spawnMarkers.length;
+	const count = all.length;
 	const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT_PX) - 6);
 	const end = Math.min(
 		items.length,
 		Math.ceil((scrollTop + height) / ROW_HEIGHT_PX) + 6
 	);
+	const targetPrefab =
+		kind === 'collider' ? getTargetPrefab(map, colliderTarget) : null;
 
 	function handlePress(
 		index: number,
@@ -249,7 +272,11 @@ export const EntityListPanel = memo(function EntityListPanel({
 
 	return (
 		<MapPanel
-			title={`${label.name}列表`}
+			title={
+				targetPrefab
+					? `模板“${targetPrefab.key}”的碰撞`
+					: `${label.name}列表`
+			}
 			meta={`${count}/${label.limit}`}
 			icon={label.icon}
 			actions={
@@ -272,7 +299,8 @@ export const EntityListPanel = memo(function EntityListPanel({
 										kind,
 										selection,
 										offset,
-										-offset
+										-offset,
+										colliderTarget
 									);
 									if (typeof result === 'string') {
 										onNotice(result, 'error');
@@ -299,7 +327,12 @@ export const EntityListPanel = memo(function EntityListPanel({
 							onPress={() => {
 								if (
 									onCommit(
-										deleteEntities(map, kind, selection)
+										deleteEntities(
+											map,
+											kind,
+											selection,
+											colliderTarget
+										)
 									).isSuccess
 								)
 									onSelectionChange(kind, EMPTY_SET);
@@ -326,11 +359,11 @@ export const EntityListPanel = memo(function EntityListPanel({
 			)}
 			{count === 0 ? (
 				<MapHint className="rounded-medium border border-dashed border-divider px-3 py-4 text-center">
-					{kind === 'collision'
-						? '用“绘制碰撞框”工具在画布上拖出矩形。图片透明度不会自动生成碰撞。'
+					{kind === 'collider'
+						? '用多边形、折线、矩形或圆形工具在画布上绘制。实心形状挡住内部；折线只有线段阻挡，适合围出可走区域。'
 						: kind === 'spawn'
 							? '用“放置出生点”工具在画布上点击添加。'
-							: '在瓦片库选择切片，再用“放置装饰”工具在画布上点击。'}
+							: '在物件模板库中选择模板，再用“放置物件”工具在画布上点击。'}
 				</MapHint>
 			) : (
 				<div
@@ -441,186 +474,295 @@ function LocateButton({ onFocus }: { onFocus(): void }) {
 }
 
 export function ObjectInspector({
-	assetUrls,
-	brushTile,
+	index,
+	isReadOnly,
+	map,
+	onCommit,
+	onDeleted,
+	onEditColliders,
+	onFocus,
+	onPrefabSelect,
+}: IInspectorProps & {
+	onEditColliders(): void;
+	onPrefabSelect(key: string): void;
+}) {
+	const object = map.objects[index];
+	if (!object) return null;
+	const prefab = map.prefabs.find((item) => item.key === object.prefab);
+	const [scaleX = 1, scaleY = 1] = object.scale;
+	return (
+		<MapPanel
+			title="物件属性"
+			meta={`#${index + 1}`}
+			actions={<LocateButton onFocus={onFocus} />}
+		>
+			<MapTextField
+				label="名称"
+				value={object.name ?? ''}
+				placeholder={object.prefab}
+				isDisabled={isReadOnly}
+				onChange={(name) => {
+					const next: IDayMapObject = { ...object, name };
+					if (!name.trim()) delete next.name;
+					onCommit({
+						...map,
+						objects: map.objects.map((item, i) =>
+							i === index ? next : item
+						),
+					});
+				}}
+			/>
+			<div className="flex min-w-0 flex-col gap-1.5">
+				<span className={TYPOGRAPHY_STYLES.compactLabel}>物件模板</span>
+				<Select<string>
+					ariaLabel="物件模板"
+					size="sm"
+					value={object.prefab}
+					items={map.prefabs.map((item) => ({
+						label: item.key,
+						value: item.key,
+					}))}
+					isDisabled={isReadOnly}
+					onChange={(key) =>
+						onCommit(patchObject(map, index, { prefab: key }))
+					}
+				/>
+			</div>
+			<MapVector
+				labels={['X', 'Y']}
+				values={[object.x, object.y]}
+				min={-DAY_MAP_LIMITS.coordinate}
+				max={DAY_MAP_LIMITS.coordinate}
+				isDisabled={isReadOnly}
+				onChange={([x = 0, y = 0]) =>
+					onCommit(patchObject(map, index, { x, y }))
+				}
+			/>
+			<div className="flex flex-wrap gap-3">
+				<Switch
+					size="sm"
+					isSelected={scaleX < 0}
+					isDisabled={isReadOnly}
+					onValueChange={(isFlipped) =>
+						onCommit(
+							patchObject(map, index, {
+								scale: [
+									Math.abs(scaleX) * (isFlipped ? -1 : 1),
+									scaleY,
+								],
+							})
+						)
+					}
+				>
+					<span className={TYPOGRAPHY_STYLES.controlLabel}>
+						水平翻转
+					</span>
+				</Switch>
+				<Switch
+					size="sm"
+					isSelected={scaleY < 0}
+					isDisabled={isReadOnly}
+					onValueChange={(isFlipped) =>
+						onCommit(
+							patchObject(map, index, {
+								scale: [
+									scaleX,
+									Math.abs(scaleY) * (isFlipped ? -1 : 1),
+								],
+							})
+						)
+					}
+				>
+					<span className={TYPOGRAPHY_STYLES.controlLabel}>
+						垂直翻转
+					</span>
+				</Switch>
+			</div>
+			{prefab && (
+				<div className="grid grid-cols-2 gap-x-2 gap-y-1 rounded-medium bg-default/25 p-2">
+					<MapProperty
+						label="排序"
+						value={
+							prefab.sortByY
+								? `按 Y（${Math.trunc(object.y * -32)}）`
+								: `${prefab.sortingLayer} ${prefab.sortingOrder}`
+						}
+					/>
+					<MapProperty label="碰撞" value={prefab.colliders.length} />
+				</div>
+			)}
+			<div className="flex flex-wrap gap-2">
+				<Button
+					size="sm"
+					variant="flat"
+					onPress={() => onPrefabSelect(object.prefab)}
+				>
+					查看模板
+				</Button>
+				<Button
+					size="sm"
+					variant="flat"
+					isDisabled={isReadOnly || !prefab}
+					startContent={<CollisionModeIcon className="size-4" />}
+					onPress={onEditColliders}
+				>
+					编辑模板碰撞
+				</Button>
+			</div>
+			<SectionDeleteButton
+				className="self-start"
+				isDisabled={isReadOnly}
+				onPress={() => {
+					if (
+						onCommit(
+							deleteEntities(map, 'object', new Set([index]), {
+								kind: 'map',
+							})
+						).isSuccess
+					)
+						onDeleted();
+				}}
+			>
+				删除物件
+			</SectionDeleteButton>
+			<MapHint>
+				选择工具下拖动移动，按住 Alt
+				不吸附。模板的图片、锚点、排序和碰撞由所有实例共用。
+			</MapHint>
+		</MapPanel>
+	);
+}
+
+export function ColliderInspector({
+	colliderTarget,
 	index,
 	isReadOnly,
 	map,
 	onCommit,
 	onDeleted,
 	onFocus,
-	packLabel,
-}: IInspectorProps & {
-	assetUrls: Readonly<Record<string, string>>;
-	brushTile: string | null;
-	packLabel: string;
-}) {
-	const object = map.objects[index];
-	if (!object) return null;
-	const tile = getTileIndex(map.tiles).get(object.tile);
-	const url = tile
-		? (resolveMapImageUrl(tile.image, packLabel, assetUrls) ?? undefined)
-		: undefined;
-	const sortingOptions = getSortingLayerOptions(map).map((value) => ({
-		label: value,
-		value,
-	}));
-	const limit = object.sortByY
-		? MAP_LIMITS.sortedObjectY
-		: MAP_LIMITS.coordinate;
+}: IInspectorProps & { colliderTarget: TColliderTarget }) {
+	const collider = getTargetColliders(map, colliderTarget)[index];
+	if (!collider) return null;
+	const patch = (value: Partial<TDayMapCollider>) =>
+		onCommit(patchCollider(map, colliderTarget, index, value));
+	const replace = (value: TDayMapCollider) =>
+		onCommit(setCollider(map, colliderTarget, index, value));
+	const isPrefab = colliderTarget.kind === 'prefab';
 	return (
 		<MapPanel
-			title="装饰属性"
+			title={`${COLLIDER_LABELS[collider.shape]}碰撞`}
 			meta={`#${index + 1}`}
 			actions={<LocateButton onFocus={onFocus} />}
 		>
 			<MapTextField
 				label="名称"
-				value={object.name}
+				value={collider.name ?? ''}
 				isDisabled={isReadOnly}
-				onChange={(name) => onCommit(patchObject(map, index, { name }))}
+				onChange={(name) => {
+					const next: TDayMapCollider = { ...collider, name };
+					if (!name.trim()) delete next.name;
+					replace(next);
+				}}
 			/>
-			<div className="flex items-center gap-3 rounded-medium bg-default/25 p-2">
-				<span className="bg-checkerboard flex size-[52px] shrink-0 items-center justify-center rounded-medium border border-divider">
-					{tile ? (
-						<TileThumb tile={tile} url={url} size={44} />
-					) : (
-						<span className="text-[10px] text-danger">无效</span>
-					)}
-				</span>
-				<div className="flex min-w-0 flex-1 flex-col gap-1">
-					<MapProperty label="切片" value={object.tile} />
-					{brushTile && brushTile !== object.tile && (
-						<Button
-							size="sm"
-							variant="flat"
-							isDisabled={isReadOnly}
-							className="h-7 self-start px-2 text-xs"
-							onPress={() =>
-								onCommit(
-									patchObject(map, index, { tile: brushTile })
-								)
-							}
-						>
-							换成瓦片库所选
-						</Button>
-					)}
-				</div>
-			</div>
-			<div className="grid grid-cols-2 gap-2">
-				<MapNumber
-					label="X"
-					value={object.x}
-					min={-MAP_LIMITS.coordinate}
-					max={MAP_LIMITS.coordinate}
-					step={0.125}
+			{isPrefab && (
+				<MapHint>
+					坐标相对于模板锚点（未翻转），所有使用该模板的物件共用。
+				</MapHint>
+			)}
+			{(collider.shape === 'box' || collider.shape === 'circle') && (
+				<MapVector
+					labels={['中心 X', '中心 Y']}
+					values={[collider.x, collider.y]}
+					min={-DAY_MAP_LIMITS.coordinate}
+					max={DAY_MAP_LIMITS.coordinate}
 					isDisabled={isReadOnly}
-					onChange={(x) => onCommit(patchObject(map, index, { x }))}
+					onChange={([x = 0, y = 0]) => patch({ x, y })}
 				/>
-				<MapNumber
-					label="Y（脚点）"
-					value={object.y}
-					min={-limit}
-					max={limit}
-					step={0.125}
-					isDisabled={isReadOnly}
-					onChange={(y) => onCommit(patchObject(map, index, { y }))}
-				/>
-			</div>
-			<MapVector
-				labels={['缩放 X', '缩放 Y']}
-				values={object.scale}
-				min={0.01}
-				isDisabled={isReadOnly}
-				onChange={(scale) =>
-					onCommit(patchObject(map, index, { scale }))
-				}
-			/>
-			<Switch
-				size="sm"
-				isSelected={object.sortByY}
-				isDisabled={
-					isReadOnly ||
-					(!object.sortByY &&
-						Math.abs(object.y) > MAP_LIMITS.sortedObjectY)
-				}
-				onValueChange={(sortByY) =>
-					onCommit(patchObject(map, index, { sortByY }))
-				}
-			>
-				<span className="flex flex-col">
-					<span className={TYPOGRAPHY_STYLES.controlLabel}>
-						按脚部 Y 排序
-					</span>
-					<span className={TYPOGRAPHY_STYLES.caption}>
-						与角色前后交错，顺序为 −32×Y
-					</span>
-				</span>
-			</Switch>
-			<div className="grid grid-cols-2 items-end gap-2">
-				<div className="flex min-w-0 flex-col gap-1.5">
-					<span className={TYPOGRAPHY_STYLES.compactLabel}>
-						排序层
-					</span>
-					<Select<string>
-						ariaLabel="装饰排序层"
-						size="sm"
-						value={object.sortingLayer}
-						items={sortingOptions}
+			)}
+			{collider.shape === 'box' && (
+				<>
+					<MapVector
+						labels={['宽', '高']}
+						values={[collider.width, collider.height]}
+						min={0.01}
 						isDisabled={isReadOnly}
-						onChange={(sortingLayer) =>
-							onCommit(
-								patchObject(map, index, {
-									sortingLayer,
-									sortingValue: findSortingValue(
-										map,
-										sortingLayer
-									),
-								})
-							)
+						onChange={([width = 1, height = 1]) =>
+							patch({ height, width })
 						}
 					/>
-				</div>
-				{object.sortByY ? (
-					<MapProperty
-						label="排序顺序"
-						value={Math.trunc(-32 * object.y)}
-					/>
-				) : (
 					<MapNumber
-						label="排序顺序"
-						value={object.sortingOrder}
-						min={-32768}
-						max={32767}
+						label="角度（度）"
+						value={collider.rotation ?? 0}
+						min={-360}
+						max={360}
 						isDisabled={isReadOnly}
-						onChange={(sortingOrder) =>
-							onCommit(patchObject(map, index, { sortingOrder }))
-						}
+						onChange={(rotation) => {
+							const next: IDayMapBoxCollider = {
+								...collider,
+								rotation,
+							};
+							if (rotation === 0) delete next.rotation;
+							replace(next);
+						}}
 					/>
-				)}
-			</div>
-			{(object.transform || object.color || object.shader) && (
-				<div className="flex flex-col gap-1 rounded-medium bg-default/25 p-2">
-					{object.shader && (
-						<MapProperty label="材质" value={object.shader} />
-					)}
-					{object.transform && (
-						<MapProperty
-							label="变换"
-							value={object.transform
-								.map((value) => formatMapNumber(value, 3))
-								.join(', ')}
-						/>
-					)}
-					{object.color && (
-						<MapProperty
-							label="颜色"
-							value={object.color
-								.map((value) => formatMapNumber(value, 3))
-								.join(', ')}
-						/>
-					)}
-				</div>
+				</>
+			)}
+			{collider.shape === 'circle' && (
+				<MapNumber
+					label="半径"
+					value={collider.radius}
+					min={0.01}
+					max={4096}
+					isDisabled={isReadOnly}
+					onChange={(radius) => patch({ radius })}
+				/>
+			)}
+			{collider.shape === 'edge' && (
+				<Switch
+					size="sm"
+					isSelected={collider.closed === true}
+					isDisabled={isReadOnly}
+					onValueChange={(closed) => {
+						const next: IDayMapEdgeCollider = {
+							...collider,
+							closed,
+						};
+						if (!closed) delete next.closed;
+						replace(next);
+					}}
+				>
+					<span className="flex flex-col">
+						<span className={TYPOGRAPHY_STYLES.controlLabel}>
+							首尾相连
+						</span>
+						<span className={TYPOGRAPHY_STYLES.caption}>
+							闭合后仍只有线段阻挡，内部可走。
+						</span>
+					</span>
+				</Switch>
+			)}
+			{collider.shape === 'polygon' && collider.paths.length > 1 && (
+				<Button
+					size="sm"
+					variant="light"
+					className="self-start"
+					isDisabled={isReadOnly}
+					onPress={() =>
+						patch({ paths: collider.paths.slice(0, -1) })
+					}
+				>
+					删除最后一个洞
+				</Button>
+			)}
+			{(collider.shape === 'polygon' || collider.shape === 'edge') && (
+				<MapHint>
+					拖动顶点调整形状，双击边插入顶点，选中顶点后按 Delete
+					删除。多边形选中时按住 Shift 再用多边形工具绘制，可加洞。
+				</MapHint>
+			)}
+			{collider.shape === 'box' && !collider.rotation && (
+				<MapHint>拖动控制点调整大小，按住 Alt 不吸附。</MapHint>
 			)}
 			<SectionDeleteButton
 				className="self-start"
@@ -628,128 +770,33 @@ export function ObjectInspector({
 				onPress={() => {
 					if (
 						onCommit(
-							deleteEntities(map, 'object', new Set([index]))
+							deleteEntities(
+								map,
+								'collider',
+								new Set([index]),
+								colliderTarget
+							)
 						).isSuccess
 					)
 						onDeleted();
 				}}
 			>
-				删除装饰
+				删除碰撞
 			</SectionDeleteButton>
 		</MapPanel>
 	);
 }
 
-export function CollisionInspector({
-	index,
-	isReadOnly,
-	map,
-	onCommit,
-	onDeleted,
-	onFocus,
-	snapStep,
-}: IInspectorProps & { snapStep: number }) {
-	const box = map.collisions[index];
-	if (!box) return null;
-	const rect = getCollisionRect(box);
-	const step = snapStep > 0 ? snapStep : 0.25;
-	const isAligned =
-		snapToStep(rect.minX, step) === Number(rect.minX.toFixed(6)) &&
-		snapToStep(rect.minY, step) === Number(rect.minY.toFixed(6)) &&
-		snapToStep(rect.maxX, step) === Number(rect.maxX.toFixed(6)) &&
-		snapToStep(rect.maxY, step) === Number(rect.maxY.toFixed(6));
-	return (
-		<MapPanel
-			title="碰撞框属性"
-			meta={`#${index + 1}`}
-			actions={<LocateButton onFocus={onFocus} />}
-		>
-			<MapTextField
-				label="名称"
-				value={box.name}
-				isDisabled={isReadOnly}
-				onChange={(name) =>
-					onCommit(patchCollision(map, index, { name }))
-				}
-			/>
-			<MapVector
-				labels={['中心 X', '中心 Y']}
-				values={[box.x, box.y]}
-				min={-MAP_LIMITS.coordinate}
-				max={MAP_LIMITS.coordinate}
-				isDisabled={isReadOnly}
-				onChange={([x = 0, y = 0]) =>
-					onCommit(patchCollision(map, index, { x, y }))
-				}
-			/>
-			<MapVector
-				labels={['宽', '高']}
-				values={[box.width, box.height]}
-				min={0.01}
-				isDisabled={isReadOnly}
-				onChange={([width = 1, height = 1]) =>
-					onCommit(patchCollision(map, index, { height, width }))
-				}
-			/>
-			<div className="grid grid-cols-2 gap-x-2 gap-y-1 rounded-medium bg-default/25 p-2">
-				<MapProperty label="左" value={formatMapNumber(rect.minX, 4)} />
-				<MapProperty label="右" value={formatMapNumber(rect.maxX, 4)} />
-				<MapProperty label="下" value={formatMapNumber(rect.minY, 4)} />
-				<MapProperty label="上" value={formatMapNumber(rect.maxY, 4)} />
-			</div>
-			<div className="flex flex-wrap gap-2">
-				{!isAligned && (
-					<Button
-						size="sm"
-						variant="flat"
-						isDisabled={isReadOnly}
-						onPress={() => {
-							const minX = snapToStep(rect.minX, step);
-							const minY = snapToStep(rect.minY, step);
-							const maxX = Math.max(
-								minX + step,
-								snapToStep(rect.maxX, step)
-							);
-							const maxY = Math.max(
-								minY + step,
-								snapToStep(rect.maxY, step)
-							);
-							onCommit(
-								patchCollision(map, index, {
-									height: maxY - minY,
-									width: maxX - minX,
-									x: (minX + maxX) / 2,
-									y: (minY + maxY) / 2,
-								})
-							);
-						}}
-					>
-						对齐到 {formatMapNumber(step, 3)} 网格
-					</Button>
-				)}
-				<SectionDeleteButton
-					isDisabled={isReadOnly}
-					onPress={() => {
-						if (
-							onCommit(
-								deleteEntities(
-									map,
-									'collision',
-									new Set([index])
-								)
-							).isSuccess
-						)
-							onDeleted();
-					}}
-				>
-					删除碰撞框
-				</SectionDeleteButton>
-			</div>
-			<MapHint>
-				选择工具下拖动控制点调整大小，按住 Alt 不吸附。人物横向半宽约
-				0.29 格，窄口至少留 1.2 格。
-			</MapHint>
-		</MapPanel>
+/** 出生点是否落在任何实心碰撞内（地图碰撞与物件模板碰撞）。 */
+function findBlockingCollider(map: IDayMap, x: number, y: number) {
+	const placed = map.objects.flatMap((object) =>
+		(
+			map.prefabs.find((prefab) => prefab.key === object.prefab)
+				?.colliders ?? []
+		).map((collider) => placeCollider(collider, getObjectPlacement(object)))
+	);
+	return [...map.colliders, ...placed].find((collider) =>
+		isPointInCollider(collider, x, y)
 	);
 }
 
@@ -764,9 +811,7 @@ export function SpawnInspector({
 	const spawn = map.spawnMarkers[index];
 	if (!spawn) return null;
 	const isDefault = spawn.name === map.defaultSpawnMarker;
-	const blocking = map.collisions.find((box) =>
-		isPointInRect(spawn, getCollisionRect(box))
-	);
+	const blocking = findBlockingCollider(map, spawn.x, spawn.y);
 	return (
 		<MapPanel
 			title="出生点属性"
@@ -786,8 +831,8 @@ export function SpawnInspector({
 			<MapVector
 				labels={['X', 'Y']}
 				values={[spawn.x, spawn.y]}
-				min={-MAP_LIMITS.coordinate}
-				max={MAP_LIMITS.coordinate}
+				min={-DAY_MAP_LIMITS.coordinate}
+				max={DAY_MAP_LIMITS.coordinate}
 				isDisabled={isReadOnly}
 				onChange={([x = 0, y = 0]) =>
 					onCommit(patchSpawn(map, index, { x, y }))
@@ -853,7 +898,8 @@ export function SpawnInspector({
 			</Button>
 			{blocking && (
 				<WarningNotice>
-					出生点中心位于碰撞框“{blocking.name || '未命名'}
+					出生点中心位于{COLLIDER_LABELS[blocking.shape]}碰撞“
+					{blocking.name ?? '未命名'}
 					”内，导出检查会报错。建议离任何碰撞至少 0.3 格。
 				</WarningNotice>
 			)}
@@ -862,8 +908,11 @@ export function SpawnInspector({
 				isDisabled={isReadOnly}
 				onPress={() => {
 					if (
-						onCommit(deleteEntities(map, 'spawn', new Set([index])))
-							.isSuccess
+						onCommit(
+							deleteEntities(map, 'spawn', new Set([index]), {
+								kind: 'map',
+							})
+						).isSuccess
 					)
 						onDeleted();
 				}}
@@ -878,6 +927,44 @@ export function SpawnInspector({
 	);
 }
 
+/** 正在编辑模板碰撞时的提示与返回入口。 */
+export function ColliderTargetPanel({
+	colliderTarget,
+	map,
+	onExit,
+}: {
+	colliderTarget: TColliderTarget;
+	map: IDayMap;
+	onExit(): void;
+}) {
+	const object = getTargetObject(map, colliderTarget);
+	const prefab = getTargetPrefab(map, colliderTarget);
+	if (!object || !prefab) return null;
+	const instances = map.objects.filter(
+		(item) => item.prefab === prefab.key
+	).length;
+	return (
+		<MapPanel
+			title={`正在编辑模板“${prefab.key}”的碰撞`}
+			icon={<ObjectModeIcon />}
+		>
+			<MapHint>
+				以物件“{object.name ?? prefab.key}”为锚点绘制，修改会作用于全部{' '}
+				{instances} 个实例。地图碰撞淡显，不能选中。
+			</MapHint>
+			<Button
+				size="sm"
+				variant="flat"
+				color="primary"
+				className="self-start"
+				onPress={onExit}
+			>
+				返回编辑地图碰撞
+			</Button>
+		</MapPanel>
+	);
+}
+
 export function MultiSelectionPanel({
 	count,
 	kind,
@@ -888,8 +975,8 @@ export function MultiSelectionPanel({
 	return (
 		<MapPanel title={`已选择 ${count} 个${ENTITY_LABELS[kind].name}`}>
 			<MapHint>
-				拖动任意一个可整体移动；方向键按吸附步长微调（Shift 为 1
-				格）；Ctrl+D 复制，Delete 删除。
+				拖动任意一个可整体移动；方向键按吸附步长微调（Shift 为 4
+				倍）；Ctrl+D 复制，Delete 删除。
 			</MapHint>
 		</MapPanel>
 	);
