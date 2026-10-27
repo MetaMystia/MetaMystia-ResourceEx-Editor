@@ -1351,6 +1351,16 @@ export function validateResourcePackRules(
 		});
 	});
 
+	(data.gifts ?? []).forEach((gift, index) => {
+		if (gift.productType !== 'Item' && gift.productId != null) {
+			checkItemReference(
+				gift.productType,
+				gift.productId,
+				`礼物#${index + 1}“${gift.title || '未命名礼物'}”`
+			);
+		}
+	});
+
 	data.characters.forEach((character) => {
 		Object.entries(character.kizuna ?? {}).forEach(([field, value]) => {
 			if (Array.isArray(value)) {

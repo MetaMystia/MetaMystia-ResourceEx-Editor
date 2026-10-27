@@ -342,12 +342,12 @@ export function collectResourcePackReferenceLocations(
 	});
 	(resourcePack.gifts ?? []).forEach((gift, index) => {
 		const owner = { key: index, kind: 'gift' } as const;
-		addReference(
+		addItemReference(
 			locations,
 			owner,
-			['itemId'],
-			'item',
-			gift.itemId ?? undefined
+			['productId'],
+			gift.productType,
+			gift.productId ?? undefined
 		);
 		addReference(
 			locations,

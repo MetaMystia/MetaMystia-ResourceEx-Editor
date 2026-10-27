@@ -105,11 +105,11 @@ export function remapResourcePackItemReferences(
 	if (fromId === toId) return resourcePack;
 	const next = cloneJsonObject(resourcePack);
 
-	if (kind === 'Item') {
-		(next.gifts ?? []).forEach((gift) => {
-			if (gift.itemId === fromId) gift.itemId = toId;
-		});
-	}
+	(next.gifts ?? []).forEach((gift) => {
+		if (gift.productType === kind && gift.productId === fromId) {
+			gift.productId = toId;
+		}
+	});
 
 	next.recipes.forEach((recipe) => {
 		if (kind === 'Food') {

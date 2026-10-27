@@ -1,17 +1,30 @@
-import { useId } from 'react';
+import { useId, useMemo } from 'react';
 
 import Input from '@/design/ui/components/input';
 import Switch from '@/design/ui/components/switch';
 
-import type { IGiftConfig } from '@/domain/resourcePack/contracts/gift';
-import { validateGift } from '@/domain/resourcePack/giftValidation';
+import { GIFT_PRODUCT_TYPES } from '@/domain/resourcePack/constants';
+import type {
+	GiftProductType,
+	IGiftConfig,
+} from '@/domain/resourcePack/contracts/gift';
+import {
+	GIFT_PRODUCT_TYPE_LABELS,
+	MAX_GIFT_AMOUNT,
+	validateGift,
+} from '@/domain/resourcePack/giftValidation';
 
 import { Label } from '@/features/resourceEditor/client/components/fields/Label';
 import { EditorDetailEmptyState } from '@/features/resourceEditor/client/components/layout/EditorDetailEmptyState';
 import { EditorDetailHeader } from '@/features/resourceEditor/client/components/layout/EditorDetailHeader';
 import { EditorDetailPanel } from '@/features/resourceEditor/client/components/layout/EditorDetailPanel';
 import { EditorSection } from '@/features/resourceEditor/client/components/layout/EditorSection';
-import { Select } from '@/features/resourceEditor/client/components/select/Select';
+import { getProductIdOptions } from '@/features/resourceEditor/client/components/select/productIdOptions';
+import { PRODUCT_TYPE_LABELS } from '@/features/resourceEditor/client/components/select/productTypeOptions';
+import {
+	type ISelectOption,
+	Select,
+} from '@/features/resourceEditor/client/components/select/Select';
 import { WarningNotice } from '@/features/resourceEditor/client/components/status/WarningNotice';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
@@ -22,18 +35,40 @@ interface IProps {
 
 export function GiftEditor({ gift, onUpdate }: IProps) {
 	const titleId = useId();
-	const itemId = useId();
+	const productFieldId = useId();
+	const amountId = useId();
 	const dialogId = useId();
 	const { resourcePack } = useResourceEditor();
+	const productType = gift?.productType;
+	const { beverages, clothes, foods, ingredients, recipes } = resourcePack;
+	const productItems = useMemo<ISelectOption<number>[]>(() => {
+		if (productType === 'Item') {
+			return clothes.map((item) => ({
+				value: item.id,
+				label: `[${item.id}] ${item.name}`,
+			}));
+		}
+		return getProductIdOptions(productType ?? 'Item', {
+			beverages,
+			foods,
+			ingredients,
+			recipes,
+		}).map((option) => ({
+			value: option.id,
+			label: `[${option.id}] ${option.name}`,
+			description: option.source,
+		}));
+	}, [productType, beverages, clothes, foods, ingredients, recipes]);
 	if (!gift) return <EditorDetailEmptyState itemLabel="礼物" />;
 	const issues = validateGift(gift, resourcePack);
 	const isInvalid = (field: keyof IGiftConfig) =>
 		issues.some(
 			(issue) => issue.field === field && issue.severity === 'error'
 		);
-	const localClothes = resourcePack.clothes.find(
-		(clothes) => clothes.id === gift.itemId
+	const selectedProduct = productItems.find(
+		(item) => item.value === gift.productId
 	);
+	const typeLabel = GIFT_PRODUCT_TYPE_LABELS[gift.productType];
 	const localDialog = resourcePack.dialogPackages.find(
 		(dialog) => dialog.name === gift.dialogPackageName
 	);
@@ -42,7 +77,7 @@ export function GiftEditor({ gift, onUpdate }: IProps) {
 		<EditorDetailPanel>
 			<EditorDetailHeader
 				title="礼物编辑"
-				description="游戏中显示对话，结束后发放一件物品。列表顺序就是邮箱中的显示顺序。"
+				description="游戏中显示对话，结束后发放所选物品、食谱、料理、酒水或食材。列表顺序就是邮箱中的显示顺序。"
 			/>
 			<EditorSection title="基本信息">
 				<div className="flex flex-col gap-1">
@@ -58,39 +93,99 @@ export function GiftEditor({ gift, onUpdate }: IProps) {
 				</div>
 				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 					<div className="flex flex-col gap-1">
+						<Label tip="Item包含衣服、装饰、唱片等；食谱填写食谱ID，不是料理ID。">
+							礼物类型（productType）
+						</Label>
+						<Select<GiftProductType>
+							ariaLabel="礼物类型"
+							value={gift.productType}
+							items={GIFT_PRODUCT_TYPES.map((type) => ({
+								value: type,
+								label: PRODUCT_TYPE_LABELS[type],
+							}))}
+							getChangeConfirmation={(nextType, currentType) =>
+								nextType !== currentType &&
+								(gift.productId != null ||
+									gift.productAmount !== 1)
+									? {
+											confirmLabel: '切换类型',
+											description:
+												'切换礼物类型会清空当前已选择的ID和数量。',
+											title: '确定要切换礼物类型吗？',
+										}
+									: null
+							}
+							onChange={(type) =>
+								onUpdate({
+									productType: type,
+									productId: null,
+									productAmount: 1,
+								})
+							}
+						/>
+					</div>
+					<div className="flex flex-col gap-1">
 						<Label
-							htmlFor={itemId}
-							tip="只接受Item及其派生类，不接受食材、料理或酒水。原版与外部资源包的Item可手填ID。"
+							htmlFor={amountId}
+							tip="食谱只会学会一次，数量固定为1；衣服、装饰和唱片不能叠加，请保持为1。"
 						>
-							Item ID
+							数量（productAmount）
 						</Label>
 						<Input
-							id={itemId}
+							id={amountId}
+							type="number"
+							step={1}
+							min={1}
+							max={MAX_GIFT_AMOUNT}
+							value={String(gift.productAmount)}
+							isDisabled={gift.productType === 'Recipe'}
+							isInvalid={isInvalid('productAmount')}
+							onChange={(event) => {
+								const value = Number(event.target.value);
+								if (Number.isFinite(value))
+									onUpdate({ productAmount: value });
+							}}
+						/>
+					</div>
+				</div>
+				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+					<div className="flex flex-col gap-1">
+						<Label
+							htmlFor={productFieldId}
+							tip="原版与外部资源包的对象可手填ID。"
+						>
+							{typeLabel}ID（productId）
+						</Label>
+						<Input
+							id={productFieldId}
 							type="number"
 							step={1}
 							value={
-								gift.itemId == null ? '' : String(gift.itemId)
+								gift.productId == null
+									? ''
+									: String(gift.productId)
 							}
-							isInvalid={isInvalid('itemId')}
+							isInvalid={isInvalid('productId')}
 							onChange={(event) => {
 								const raw = event.target.value;
 								const value = raw === '' ? null : Number(raw);
 								if (value === null || Number.isFinite(value))
-									onUpdate({ itemId: value });
+									onUpdate({ productId: value });
 							}}
 						/>
 					</div>
 					<div className="flex flex-col gap-1">
-						<Label>从本包衣服中选择</Label>
+						<Label>
+							{gift.productType === 'Item'
+								? '从本包衣服中选择'
+								: `从原版与本包${typeLabel}中选择`}
+						</Label>
 						<Select<number>
-							ariaLabel="从本包衣服中选择"
-							value={localClothes?.id}
-							items={resourcePack.clothes.map((clothes) => ({
-								value: clothes.id,
-								label: `[${clothes.id}] ${clothes.name}`,
-							}))}
-							isDisabled={resourcePack.clothes.length === 0}
-							onChange={(value) => onUpdate({ itemId: value })}
+							ariaLabel={`选择${typeLabel}`}
+							value={selectedProduct?.value}
+							items={productItems}
+							isDisabled={productItems.length === 0}
+							onChange={(value) => onUpdate({ productId: value })}
 						/>
 					</div>
 				</div>
@@ -101,7 +196,7 @@ export function GiftEditor({ gift, onUpdate }: IProps) {
 					允许重复领取
 				</Switch>
 				<WarningNotice>
-					关闭时，当前已持有同一Item就不再发放；物品移除后可重新领取。衣服、装饰和唱片即使开启重复领取，仍按游戏规则去重。
+					关闭时，当前已持有同一对象（食谱为已学会）就不再发放；物品移除或料理、酒水、食材用完后可重新领取。衣服、装饰和唱片即使开启重复领取，仍按游戏规则去重。
 				</WarningNotice>
 			</EditorSection>
 			<EditorSection title="绑定对话">
