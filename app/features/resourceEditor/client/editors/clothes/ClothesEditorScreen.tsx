@@ -2,6 +2,12 @@
 
 import { useCallback, useMemo } from 'react';
 
+import {
+	createClothesPixelFullConfigName,
+	createDefaultClothesAssetPaths,
+	createDefaultClothesSpritePaths,
+	followClothesDefaults,
+} from '@/domain/resourcePack/clothesDefaults';
 import type { Clothes } from '@/domain/resourcePack/contracts/items';
 import { remapResourcePackItemReferences } from '@/domain/resourcePack/entityReferences';
 
@@ -21,7 +27,11 @@ import { ClothesEditor } from './ClothesEditor';
 import { ClothesList } from './ClothesList';
 
 export function ClothesEditorScreen() {
-	const { resourcePack: data, updateResourcePack } = useResourceEditor();
+	const {
+		moveAssets,
+		resourcePack: data,
+		updateResourcePack,
+	} = useResourceEditor();
 	const { detailKey, replaceSelection, selectedIndex, setSelectedIndex } =
 		useEditorSelection();
 	useEditorEntityNavigationIntent({
@@ -41,39 +51,18 @@ export function ClothesEditorScreen() {
 			clothes.map((item) => item.name),
 			'新衣服'
 		);
-		const packLabel = data.packInfo.label || 'ResourceExample';
 		const newClothes: Clothes = {
 			id: newId,
 			name: newName,
 			description: '',
-			spritePath: `assets/Clothes/${newId}/icon.png`,
-			portraitPath: `assets/Clothes/${newId}/portrait.png`,
+			...createDefaultClothesAssetPaths(newId),
 			pixelFullConfig: {
-				name: `_${packLabel}_Clothes_${newId}_${newName}`,
-				mainSprite: Array(12)
-					.fill('')
-					.map(
-						(_, i) =>
-							`assets/Clothes/${newId}/Sprite/Main_${Math.floor(i / 3)}, ${i % 3}.png`
-					),
-				eyeSprite: Array(24)
-					.fill('')
-					.map(
-						(_, i) =>
-							`assets/Clothes/${newId}/Sprite/Eyes_${Math.floor(i / 4)}, ${i % 4}.png`
-					),
-				hairSprite: Array(12)
-					.fill('')
-					.map(
-						(_, i) =>
-							`assets/Clothes/${newId}/Sprite/Hair_${Math.floor(i / 3)}, ${i % 3}.png`
-					),
-				backSprite: Array(12)
-					.fill('')
-					.map(
-						(_, i) =>
-							`assets/Clothes/${newId}/Sprite/Back_${Math.floor(i / 3)}, ${i % 3}.png`
-					),
+				name: createClothesPixelFullConfigName(
+					data.packInfo.label,
+					newId,
+					newName
+				),
+				...createDefaultClothesSpritePaths(newId),
 			},
 		};
 		const newClothesList = [...clothes, newClothes];
@@ -101,21 +90,33 @@ export function ClothesEditorScreen() {
 			if (index === null) {
 				return;
 			}
+			let pathMoves: ReadonlyMap<string, string> = new Map();
 			updateResourcePack((current) => {
 				const previous = current.clothes[index];
 				if (!previous) return current;
+				const followed = followClothesDefaults(
+					previous,
+					{ ...previous, ...updates },
+					current.clothes.filter((_, i) => i !== index),
+					current.packInfo.label
+				);
+				pathMoves = followed.pathMoves;
 				const clothes = [...current.clothes];
-				const updated = { ...previous, ...updates };
-				clothes[index] = updated;
+				clothes[index] = followed.clothes;
 				return remapResourcePackItemReferences(
 					{ ...current, clothes },
 					'Item',
 					previous.id,
-					updated.id
+					followed.clothes.id
 				);
 			});
+			if (pathMoves.size > 0) {
+				moveAssets(
+					Array.from(pathMoves, ([from, to]) => ({ from, to }))
+				);
+			}
 		},
-		[updateResourcePack]
+		[moveAssets, updateResourcePack]
 	);
 
 	const selectedClothes = useMemo(
