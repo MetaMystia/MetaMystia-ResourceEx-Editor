@@ -6,6 +6,10 @@ import Button from '@/design/ui/components/button';
 import Input from '@/design/ui/components/input';
 import Textarea from '@/design/ui/components/textarea';
 
+import {
+	createClothesPixelFullConfigName,
+	createDefaultClothesSpritePaths,
+} from '@/domain/resourcePack/clothesDefaults';
 import type {
 	Clothes,
 	PixelFullConfig,
@@ -84,9 +88,11 @@ export const ClothesEditor = memo<ClothesEditorProps>(function ClothesEditor({
 
 	const autoName = useMemo(() => {
 		if (!clothes) return '';
-		const packLabel = resourcePack.packInfo.label || 'ResourceExample';
-		const clothesName = clothes.name || 'Unnamed';
-		return `_${packLabel}_Clothes_${clothes.id}_${clothesName}`;
+		return createClothesPixelFullConfigName(
+			resourcePack.packInfo.label,
+			clothes.id,
+			clothes.name
+		);
 	}, [clothes, resourcePack.packInfo.label]);
 
 	const handleIconSpriteUpdate = useCallback(
@@ -137,30 +143,7 @@ export const ClothesEditor = memo<ClothesEditorProps>(function ClothesEditor({
 		if (!clothes) return;
 		updatePixelFullConfig({
 			name: autoName,
-			mainSprite: Array(12)
-				.fill('')
-				.map(
-					(_, i) =>
-						`assets/Clothes/${clothes.id}/Sprite/Main_${Math.floor(i / 3)}, ${i % 3}.png`
-				),
-			eyeSprite: Array(24)
-				.fill('')
-				.map(
-					(_, i) =>
-						`assets/Clothes/${clothes.id}/Sprite/Eyes_${Math.floor(i / 4)}, ${i % 4}.png`
-				),
-			hairSprite: Array(12)
-				.fill('')
-				.map(
-					(_, i) =>
-						`assets/Clothes/${clothes.id}/Sprite/Hair_${Math.floor(i / 3)}, ${i % 3}.png`
-				),
-			backSprite: Array(12)
-				.fill('')
-				.map(
-					(_, i) =>
-						`assets/Clothes/${clothes.id}/Sprite/Back_${Math.floor(i / 3)}, ${i % 3}.png`
-				),
+			...createDefaultClothesSpritePaths(clothes.id),
 		});
 	}, [autoName, clothes, updatePixelFullConfig]);
 
@@ -180,7 +163,7 @@ export const ClothesEditor = memo<ClothesEditorProps>(function ClothesEditor({
 						<div className="flex items-center justify-between">
 							<Label
 								htmlFor={idId}
-								tip="衣服是一种物品，该ID在全局物品中应唯一。"
+								tip="衣服是一种物品，该ID在全局物品中应唯一。修改ID时，默认路径（assets/Clothes/{ID}/）下的图片与路径同步更新。"
 							>
 								ID
 							</Label>
@@ -308,7 +291,7 @@ export const ClothesEditor = memo<ClothesEditorProps>(function ClothesEditor({
 									className={
 										TYPOGRAPHY_STYLES.subsectionTitle
 									}
-									tip="衣服小人名称，格式为_{PackLabel}_Clothes_{衣服名称}_{ID}，根据资源包标识符、衣服名称和ID自动生成。"
+									tip="衣服小人名称，格式为_{PackLabel}_Clothes_{ID}_{衣服名称}，随ID和名称自动更新。"
 								>
 									衣服小人名称（Name）
 								</Label>
