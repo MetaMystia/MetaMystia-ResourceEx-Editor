@@ -3,14 +3,15 @@
 `scripts/checkResourcePack.ts` 用导出检查的同一套规则检查资源包目录，供资源包仓库的 CI 使用。
 
 ```bash
-node scripts/checkResourcePack.ts <资源包目录>
+node scripts/checkResourcePack.ts <资源包目录> [--report <文件>]
 pnpm check:pack <资源包目录>
 ```
 
 需要 Node.js 22.18 或更高版本，不需要安装依赖。目录中须有 `ResourceEx.json`；只有 `assets/` 下的文件视为包内资产。
 
 - 存在错误时退出码为 1，只有警告时为 0。
-- 在 GitHub Actions 中输出错误与警告注释，并把完整列表写入运行摘要。
+- 在 GitHub Actions 中输出错误与警告注释，并把结果表格写入运行摘要。
+- `--report <文件>` 把同一份 Markdown 写入文件，供 PR 评论使用。表格最多列出 200 条，其余见运行日志。
 - 编辑器模型尚未包含顶层 `items`，脚本从原始 JSON 读取后交给校验。衣服与 `items` 共用物品 ID。
 
 引用的判定：

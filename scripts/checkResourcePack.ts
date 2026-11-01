@@ -1,9 +1,11 @@
 /**
- * 检查 ResourceEx 资源包目录：node scripts/checkResourcePack.ts <资源包目录>
+ * 检查 ResourceEx 资源包目录：
+ * node scripts/checkResourcePack.ts <资源包目录> [--report <报告文件>]
  *
  * 复用编辑器导出时的校验规则。需要 Node.js 22.18 或更高版本。
  * 存在 error 时退出码为 1，warning 不影响退出码。
- * 在 GitHub Actions 中输出注释，并把完整列表写入运行摘要。
+ * 在 GitHub Actions 中输出注释，并把结果表格写入运行摘要；
+ * `--report` 把同一份 Markdown 写入指定文件，供 PR 评论使用。
  */
 import {
 	appendFileSync,
@@ -11,12 +13,16 @@ import {
 	readdirSync,
 	readFileSync,
 	statSync,
+	writeFileSync,
 } from 'node:fs';
 import { registerHooks } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parseArgs } from 'node:util';
 
 const APP_DIRECTORY = fileURLToPath(new URL('../app/', import.meta.url));
+/** PR 评论长度有限，超出部分只在运行日志中列出。 */
+const MAX_REPORT_ROWS = 200;
 
 function isFile(filePath: string): boolean {
 	return existsSync(filePath) && statSync(filePath).isFile();
@@ -197,7 +203,14 @@ function escapeTableCell(value: string): string {
 	return value.replaceAll('|', '\\|').replaceAll(/\r?\n/g, ' ');
 }
 
-const issues = (await checkResourcePack(path.resolve(process.argv[2] ?? '.')))
+const {
+	positionals: [packDirectory = '.'],
+	values: { report: reportPath },
+} = parseArgs({
+	allowPositionals: true,
+	options: { report: { type: 'string' } },
+});
+const issues = (await checkResourcePack(path.resolve(packDirectory)))
 	.slice()
 	.sort((a, b) =>
 		a.severity === b.severity ? 0 : a.severity === 'error' ? -1 : 1
@@ -216,28 +229,32 @@ for (const { category, message, severity } of issues) {
 }
 console.log(`资源包检查完成：${errorCount} 个错误，${warningCount} 个警告。`);
 
+const reportRows = issues.slice(0, MAX_REPORT_ROWS);
+const report = [
+	'## 资源包检查',
+	'',
+	`${errorCount} 个错误，${warningCount} 个警告。`,
+	...(reportRows.length > 0
+		? [
+				'',
+				'| 级别 | 类别 | 说明 |',
+				'| --- | --- | --- |',
+				...reportRows.map(
+					({ category, message, severity }) =>
+						`| ${severityNames[severity]} | ${escapeTableCell(category)} | ${escapeTableCell(message)} |`
+				),
+			]
+		: []),
+	...(issues.length > reportRows.length
+		? [
+				'',
+				`另有 ${issues.length - reportRows.length} 条未列出，见运行日志。`,
+			]
+		: []),
+	'',
+].join('\n');
 const summaryPath = process.env['GITHUB_STEP_SUMMARY'];
-if (summaryPath) {
-	appendFileSync(
-		summaryPath,
-		[
-			'## 资源包检查',
-			'',
-			`${errorCount} 个错误，${warningCount} 个警告。`,
-			...(issues.length > 0
-				? [
-						'',
-						'| 级别 | 类别 | 说明 |',
-						'| --- | --- | --- |',
-						...issues.map(
-							({ category, message, severity }) =>
-								`| ${severityNames[severity]} | ${escapeTableCell(category)} | ${escapeTableCell(message)} |`
-						),
-					]
-				: []),
-			'',
-		].join('\n')
-	);
-}
+if (summaryPath) appendFileSync(summaryPath, report);
+if (reportPath) writeFileSync(reportPath, report);
 
 process.exitCode = errorCount > 0 ? 1 : 0;
