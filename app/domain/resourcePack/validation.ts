@@ -1,3 +1,13 @@
+import { BEVERAGE_NAMES } from '@/domain/data/beverages';
+import { DAY_SCENE_MAP } from '@/domain/data/daySceneMap';
+import { FOOD_NAMES } from '@/domain/data/foods';
+import { INGREDIENT_NAMES } from '@/domain/data/ingredients';
+import { IZAKAYAS } from '@/domain/data/izakayas';
+import { RECIPE_NAMES } from '@/domain/data/recipes';
+import { SPECIAL_GUESTS } from '@/domain/data/specialGuest';
+import { SPECIAL_PORTRAITS } from '@/domain/data/specialPortraits';
+import { BEVERAGE_TAGS, FOOD_TAGS } from '@/domain/data/tags';
+
 import { collectResourcePackAssetReferences } from './assetReferences';
 import { isImageAssetPath } from './assetTypes';
 import {
@@ -11,9 +21,10 @@ import {
 	UNMANAGED_ID_MIN,
 } from './constants';
 import type { EventData, EventNodeTrigger } from './contracts/event';
+import type { IItemConfig } from './contracts/items';
 import type { MissionReward } from './contracts/mission';
 import type { ResourceEx } from './contracts/resourceEx';
-import { resolveDayMapAssetPath } from './dayMapAssets';
+import { isValidAssetPath, resolveDayMapAssetPath } from './dayMapAssets';
 import { validateDayMap } from './dayMapValidation';
 import { validateGift } from './giftValidation';
 import { validateSpellResources } from './spellValidation';
@@ -29,6 +40,52 @@ export interface IResourcePackValidationIssue {
 export interface IValidateResourcePackRulesOptions {
 	availableAssetPaths?: ReadonlySet<string>;
 	isIdSignatureValid?: boolean;
+	/** 顶层 `items`；编辑器模型尚未包含该数组，由调用方从原始 JSON 读取。 */
+	items?: readonly IItemConfig[];
+}
+
+type TItemReferenceKind =
+	'Beverage' | 'Food' | 'Ingredient' | 'Item' | 'Recipe';
+
+const ITEM_REFERENCE_KIND_NAMES = {
+	Beverage: '酒水',
+	Food: '料理',
+	Ingredient: '食材',
+	Item: '物品',
+	Recipe: '食谱',
+} as const satisfies Record<TItemReferenceKind, string>;
+
+/** 游戏原生 Item 没有数据表，不核验。 */
+const GAME_ITEM_ID_SETS: Partial<
+	Record<TItemReferenceKind, ReadonlySet<number>>
+> = {
+	Beverage: new Set<number>(BEVERAGE_NAMES.map(({ id }) => id)),
+	Food: new Set<number>(FOOD_NAMES.map(({ id }) => id)),
+	Ingredient: new Set<number>(INGREDIENT_NAMES.map(({ id }) => id)),
+	Recipe: new Set<number>(RECIPE_NAMES.map(({ id }) => id)),
+};
+const GAME_CHARACTER_IDS = new Set<number>(SPECIAL_GUESTS.map(({ id }) => id));
+const GAME_CHARACTER_LABELS = new Set<string>(
+	SPECIAL_GUESTS.map(({ label }) => label)
+);
+const GAME_PORTRAIT_KEYS = new Set<string>(
+	SPECIAL_PORTRAITS.map(({ characterId, pid }) => `${characterId}:${pid}`)
+);
+const GAME_MAP_LABELS = new Set<string>(
+	DAY_SCENE_MAP.map(({ label }) => label)
+);
+const GAME_IZAKAYA_IDS = new Set<number>(IZAKAYAS.map(({ id }) => id));
+const FOOD_TAG_IDS = new Set<number>(FOOD_TAGS.map(({ id }) => id));
+const BEVERAGE_TAG_IDS = new Set<number>(BEVERAGE_TAGS.map(({ id }) => id));
+/** Mod 为白天地图生成的地图标识前缀（`DayMapRegistry.GetLabel`）。 */
+const DAY_MAP_LABEL_PREFIX = '_ResourceEx_Map_';
+
+function isItemReferenceKind(
+	value: string | undefined
+): value is TItemReferenceKind {
+	return (
+		value !== undefined && Object.hasOwn(ITEM_REFERENCE_KIND_NAMES, value)
+	);
 }
 
 /**
@@ -45,6 +102,7 @@ export function validateResourcePackRules(
 	const issues: IResourcePackValidationIssue[] = [];
 	const assetSet = options.availableAssetPaths ?? null;
 	const checkedAssetReferences = new Set<string>();
+	const items = options.items ?? [];
 	const packLabel = data.packInfo.label;
 	const prefix = packLabel ? `_${packLabel}_` : '';
 
@@ -941,16 +999,37 @@ export function validateResourcePackRules(
 		);
 	});
 
+	// ── Items ─────────────────────────────────────────────
+	// 衣服也注册为 Item，与 items 共用 ID。
+	const itemNamesById = new Map<number, string>();
+	data.clothes.forEach((clothes, index) => {
+		if (!itemNamesById.has(clothes.id))
+			itemNamesById.set(clothes.id, clothesNames(index));
+	});
+	items.forEach((item, index) => {
+		const name = item.name || `物品#${index + 1}`;
+		checkId(item.id, '物品', name);
+		const previousName = itemNamesById.get(item.id);
+		if (previousName === undefined) {
+			itemNamesById.set(item.id, name);
+		} else {
+			issues.push({
+				severity: 'error',
+				category: '物品',
+				message: `${name}与${previousName}的ID（${item.id}）重复`,
+			});
+		}
+		checkAssetPath(item.spritePath, '物品', name, '图标路径（spritePath）');
+	});
+
 	// ── Entity references ─────────────────────────────────
 	const itemIdSets = {
 		Beverage: new Set(data.beverages.map(({ id }) => id)),
 		Food: new Set(data.foods.map(({ id }) => id)),
 		Ingredient: new Set(data.ingredients.map(({ id }) => id)),
+		Item: new Set(itemNamesById.keys()),
 		Recipe: new Set(data.recipes.map(({ id }) => id)),
-	};
-	const characterIdsByType = new Set(
-		data.characters.map(({ id, type }) => `${type}:${id}`)
-	);
+	} as const satisfies Record<TItemReferenceKind, ReadonlySet<number>>;
 	const localCharactersByTypeAndId = new Map(
 		data.characters.map((character) => [
 			`${character.type}:${character.id}`,
@@ -969,53 +1048,103 @@ export function validateResourcePackRules(
 	const missionLabels = new Set(
 		data.missionNodes.map(({ label }) => label.trim())
 	);
+	const mapLabels = new Set(
+		data.dayMaps.map(({ id }) => `${DAY_MAP_LABEL_PREFIX}${id}`)
+	);
 	const checkedEntityReferences = new Set<string>();
 
-	function reportDanglingReference(message: string): void {
+	function reportDanglingReference(
+		message: string,
+		severity: IssueSeverity = 'error'
+	): void {
 		if (checkedEntityReferences.has(message)) return;
 		checkedEntityReferences.add(message);
-		issues.push({ severity: 'error', category: '实体引用', message });
+		issues.push({ severity, category: '实体引用', message });
 	}
 
+	function reportOtherPackReference(owner: string, target: string): void {
+		reportDanglingReference(
+			`${owner}引用了本包以外的${target}，暂不支持引用其他资源包`,
+			'warning'
+		);
+	}
+
+	/** 本包段内须已声明；0～8999 须存在于游戏；其余视为其他包。 */
 	function checkItemReference(
-		kind: keyof typeof itemIdSets,
+		kind: TItemReferenceKind,
 		id: number,
 		owner: string
 	): void {
-		const isBuiltInIngredientId = kind === 'Ingredient' && id === -1;
-		if (
-			!Number.isFinite(id) ||
-			!Number.isInteger(id) ||
-			(id < 0 && !isBuiltInIngredientId)
-		) {
-			reportDanglingReference(`${owner}引用了无效的${kind} ID（${id}）`);
+		const kindName = ITEM_REFERENCE_KIND_NAMES[kind];
+		if (!Number.isInteger(id)) {
+			reportDanglingReference(
+				`${owner}引用了无效的${kindName} ID（${id}）`
+			);
 			return;
 		}
-		if (id <= GAME_ID_MAX || itemIdSets[kind].has(id)) return;
-		if (!hasIdRange || id < idRangeStart! || id > idRangeEnd!) {
+		if (itemIdSets[kind].has(id)) return;
+		if (id <= GAME_ID_MAX) {
+			const gameIds = GAME_ITEM_ID_SETS[kind];
+			if (gameIds ? !gameIds.has(id) : id < 0) {
+				reportDanglingReference(
+					`${owner}引用了游戏中不存在的${kindName} ID（${id}）`
+				);
+			}
 			return;
 		}
-		reportDanglingReference(`${owner}引用了不存在的${kind} ID（${id}）`);
+		if (hasIdRange && id >= idRangeStart && id <= idRangeEnd) {
+			reportDanglingReference(
+				`${owner}引用了不存在的${kindName} ID（${id}）`
+			);
+			return;
+		}
+		reportOtherPackReference(owner, `${kindName} ID（${id}）`);
 	}
 
-	function checkLocalLabelReference(
+	/** 本包前缀须已声明；其他 `_` 开头视为其他包；其余视为游戏内容。 */
+	function checkLabelReference(
 		label: string | undefined,
 		availableLabels: ReadonlySet<string>,
 		entityType: string,
-		owner: string
+		owner: string,
+		gameLabels?: ReadonlySet<string>
 	): void {
 		const normalizedLabel = label?.trim();
-		if (
-			!normalizedLabel ||
-			!prefix ||
-			!normalizedLabel.startsWith(prefix)
-		) {
-			return;
+		if (!normalizedLabel || availableLabels.has(normalizedLabel)) return;
+		if (prefix && normalizedLabel.startsWith(prefix)) {
+			reportDanglingReference(
+				`${owner}引用了不存在的${entityType}“${normalizedLabel}”`
+			);
+		} else if (normalizedLabel.startsWith('_')) {
+			reportOtherPackReference(
+				owner,
+				`${entityType}“${normalizedLabel}”`
+			);
+		} else if (!gameLabels) {
+			reportDanglingReference(
+				`${owner}引用的${entityType}“${normalizedLabel}”不在本包中，无法核验是否为游戏内容`,
+				'warning'
+			);
+		} else if (!gameLabels.has(normalizedLabel)) {
+			reportDanglingReference(
+				`${owner}引用了游戏中不存在的${entityType}“${normalizedLabel}”`
+			);
 		}
-		if (availableLabels.has(normalizedLabel)) return;
-		reportDanglingReference(
-			`${owner}引用了不存在的${entityType}“${normalizedLabel}”`
-		);
+	}
+
+	function checkTagReferences(
+		tagIds: readonly number[],
+		availableTagIds: ReadonlySet<number>,
+		tagType: string,
+		owner: string
+	): void {
+		tagIds.forEach((tagId) => {
+			if (!availableTagIds.has(tagId)) {
+				reportDanglingReference(
+					`${owner}引用了游戏中不存在的${tagType}标签（${tagId}）`
+				);
+			}
+		});
 	}
 
 	function checkRewardReferences(
@@ -1034,23 +1163,19 @@ export function validateResourcePackRules(
 					reportDanglingReference(`${owner}的羁绊奖励未选择目标角色`);
 					return;
 				}
-				checkLocalLabelReference(
+				checkLabelReference(
 					reward.rewardId,
 					characterLabels,
 					'角色',
-					owner
+					owner,
+					GAME_CHARACTER_LABELS
 				);
 			}
 			if (reward.rewardType === 'GiveItem') {
 				const objectType = reward.objectType;
 				if (!objectType) {
 					reportDanglingReference(`${owner}的物品奖励未选择物品类型`);
-				} else if (
-					objectType === 'Beverage' ||
-					objectType === 'Food' ||
-					objectType === 'Ingredient' ||
-					objectType === 'Recipe'
-				) {
+				} else if (isItemReferenceKind(objectType)) {
 					reward.rewardIntArray?.forEach((id) =>
 						checkItemReference(objectType, id, owner)
 					);
@@ -1076,11 +1201,12 @@ export function validateResourcePackRules(
 			reportDanglingReference(`${owner}未选择目标角色`);
 			return;
 		}
-		checkLocalLabelReference(
+		checkLabelReference(
 			trigger.triggerId,
 			characterLabels,
 			'角色',
-			owner
+			owner,
+			GAME_CHARACTER_LABELS
 		);
 	}
 
@@ -1093,7 +1219,7 @@ export function validateResourcePackRules(
 			reportDanglingReference(`${owner}的对话事件未选择对话包`);
 			return;
 		}
-		checkLocalLabelReference(
+		checkLabelReference(
 			eventData.dialogPackageName,
 			dialogPackageNames,
 			'对话包',
@@ -1182,7 +1308,7 @@ export function validateResourcePackRules(
 						reportDanglingReference(`${owner}未填写事件标识`);
 					if (!event.text.trim())
 						reportDanglingReference(`${owner}未填写事件说明`);
-					checkLocalLabelReference(
+					checkLabelReference(
 						event.label,
 						eventLabels,
 						'事件',
@@ -1291,44 +1417,60 @@ export function validateResourcePackRules(
 	data.dialogPackages.forEach((dialogPackage) =>
 		dialogPackage.dialogList.forEach((dialog) => {
 			const characterKey = `${dialog.characterType}:${dialog.characterId}`;
+			const owner = `对话包“${dialogPackage.name}”`;
+			const localCharacter = localCharactersByTypeAndId.get(characterKey);
+			if (localCharacter) {
+				if (
+					!(localCharacter.portraits ?? []).some(
+						(portrait) => portrait.pid === dialog.pid
+					)
+				) {
+					reportDanglingReference(
+						`${owner}引用了${localCharacter.name}不存在的立绘PID（${dialog.pid}）`
+					);
+				}
+				return;
+			}
 			if (
 				hasIdRange &&
-				dialog.characterId >= idRangeStart! &&
-				dialog.characterId <= idRangeEnd! &&
-				!characterIdsByType.has(
-					`${dialog.characterType}:${dialog.characterId}`
-				)
+				dialog.characterId >= idRangeStart &&
+				dialog.characterId <= idRangeEnd
 			) {
 				reportDanglingReference(
-					`对话包“${dialogPackage.name}”引用了不存在的角色（${dialog.characterType}:${dialog.characterId}）`
+					`${owner}引用了不存在的角色（${characterKey}）`
 				);
+				return;
 			}
-			const localCharacter = localCharactersByTypeAndId.get(characterKey);
-			if (
-				localCharacter &&
-				!(localCharacter.portraits ?? []).some(
-					(portrait) => portrait.pid === dialog.pid
-				)
+			if (dialog.characterType !== 'Special') return;
+			if (dialog.characterId > GAME_ID_MAX) {
+				reportOtherPackReference(owner, `角色（${characterKey}）`);
+			} else if (!GAME_CHARACTER_IDS.has(dialog.characterId)) {
+				reportDanglingReference(
+					`${owner}引用了游戏中不存在的角色（${characterKey}）`
+				);
+			} else if (
+				!GAME_PORTRAIT_KEYS.has(`${dialog.characterId}:${dialog.pid}`)
 			) {
 				reportDanglingReference(
-					`对话包“${dialogPackage.name}”引用了${localCharacter.name}不存在的立绘PID（${dialog.pid}）`
+					`${owner}引用了游戏角色（${characterKey}）不存在的立绘PID（${dialog.pid}）`
 				);
 			}
 		})
 	);
 
 	data.merchants.forEach((merchant) => {
-		checkLocalLabelReference(
+		checkLabelReference(
 			merchant.key,
 			characterLabels,
 			'角色',
-			`商人“${merchant.key}”`
+			`商人“${merchant.key}”`,
+			GAME_CHARACTER_LABELS
 		);
 		[
 			...merchant.welcomeDialogPackageNames,
 			...merchant.nullDialogPackageNames,
 		].forEach((name) =>
-			checkLocalLabelReference(
+			checkLabelReference(
 				name,
 				dialogPackageNames,
 				'对话包',
@@ -1336,12 +1478,7 @@ export function validateResourcePackRules(
 			)
 		);
 		merchant.merchandise.forEach(({ item }) => {
-			if (
-				item.productType === 'Beverage' ||
-				item.productType === 'Food' ||
-				item.productType === 'Ingredient' ||
-				item.productType === 'Recipe'
-			) {
+			if (isItemReferenceKind(item.productType)) {
 				checkItemReference(
 					item.productType,
 					item.productId,
@@ -1356,7 +1493,7 @@ export function validateResourcePackRules(
 			if (Array.isArray(value)) {
 				value.forEach((name) => {
 					if (typeof name !== 'string') return;
-					checkLocalLabelReference(
+					checkLabelReference(
 						name,
 						dialogPackageNames,
 						'对话包',
@@ -1367,7 +1504,7 @@ export function validateResourcePackRules(
 				typeof value === 'string' &&
 				field.endsWith('PrerequisiteEvent')
 			) {
-				checkLocalLabelReference(
+				checkLabelReference(
 					value,
 					eventLabels,
 					'事件',
@@ -1380,7 +1517,13 @@ export function validateResourcePackRules(
 	data.missionNodes.forEach((mission) => {
 		const owner = `任务“${mission.label}”`;
 		[mission.sender, mission.reciever].forEach((label) =>
-			checkLocalLabelReference(label, characterLabels, '角色', owner)
+			checkLabelReference(
+				label,
+				characterLabels,
+				'角色',
+				owner,
+				GAME_CHARACTER_LABELS
+			)
 		);
 		mission.finishConditions.forEach((condition, conditionIndex) => {
 			const conditionOwner = `${owner}的完成条件#${conditionIndex + 1}`;
@@ -1388,10 +1531,7 @@ export function validateResourcePackRules(
 			if (
 				condition.conditionType === 'SubmitItem' &&
 				condition.productId !== undefined &&
-				(condition.productType === 'Beverage' ||
-					condition.productType === 'Food' ||
-					condition.productType === 'Ingredient' ||
-					condition.productType === 'Recipe')
+				isItemReferenceKind(condition.productType)
 			) {
 				checkItemReference(
 					condition.productType,
@@ -1416,10 +1556,28 @@ export function validateResourcePackRules(
 				condition.conditionType === 'ReachTargetCharacterKisunaLevel' ||
 				condition.conditionType === 'ServeInWork'
 			) {
-				checkLocalLabelReference(
+				checkLabelReference(
 					condition.label,
 					characterLabels,
 					'角色',
+					owner,
+					GAME_CHARACTER_LABELS
+				);
+			}
+			if (
+				condition.conditionType === 'SubmitByTag' ||
+				condition.conditionType === 'SubmitByTags' ||
+				condition.conditionType === 'SubmitByAnyOneTag'
+			) {
+				const isBeverage = condition.sellableType === 'Beverage';
+				checkTagReferences(
+					condition.conditionType === 'SubmitByTag'
+						? condition.tag === undefined
+							? []
+							: [condition.tag]
+						: (condition.tags ?? []),
+					isBeverage ? BEVERAGE_TAG_IDS : FOOD_TAG_IDS,
+					isBeverage ? '酒水' : '料理',
 					owner
 				);
 			}
@@ -1481,7 +1639,7 @@ export function validateResourcePackRules(
 				);
 				return;
 			}
-			checkLocalLabelReference(label, missionLabels, '任务', owner);
+			checkLabelReference(label, missionLabels, '任务', owner);
 		});
 		mission.postEvents?.forEach((label, index) => {
 			if (!label) {
@@ -1490,7 +1648,7 @@ export function validateResourcePackRules(
 				);
 				return;
 			}
-			checkLocalLabelReference(label, eventLabels, '事件', owner);
+			checkLabelReference(label, eventLabels, '事件', owner);
 		});
 		[mission.missionFinishEvent, mission.missionFailedEvent].forEach(
 			(eventData) => checkEventData(eventData, owner)
@@ -1509,7 +1667,7 @@ export function validateResourcePackRules(
 				);
 				return;
 			}
-			checkLocalLabelReference(label, missionLabels, '任务', owner);
+			checkLabelReference(label, missionLabels, '任务', owner);
 		});
 		eventNode.postEvents?.forEach((label, index) => {
 			if (!label) {
@@ -1518,7 +1676,7 @@ export function validateResourcePackRules(
 				);
 				return;
 			}
-			checkLocalLabelReference(label, eventLabels, '事件', owner);
+			checkLabelReference(label, eventLabels, '事件', owner);
 		});
 		checkEventData(eventNode.scheduledEvent?.eventData, owner);
 		checkCharacterTriggerReference(
@@ -1527,16 +1685,167 @@ export function validateResourcePackRules(
 		);
 	});
 
-	if (assetSet) {
-		for (const path of collectResourcePackAssetReferences(data)) {
-			if (checkedAssetReferences.has(path) || assetSet.has(path))
-				continue;
+	data.foods.forEach((food, index) =>
+		checkTagReferences(
+			[...food.tags, ...food.banTags],
+			FOOD_TAG_IDS,
+			'料理',
+			foodNames(index)
+		)
+	);
+	data.ingredients.forEach((ingredient, index) =>
+		checkTagReferences(
+			ingredient.tags,
+			FOOD_TAG_IDS,
+			'料理',
+			ingNames(index)
+		)
+	);
+	data.beverages.forEach((beverage, index) =>
+		checkTagReferences(
+			beverage.tags,
+			BEVERAGE_TAG_IDS,
+			'酒水',
+			bevNames(index)
+		)
+	);
+	data.characters.forEach((character, index) => {
+		const owner = charNames(index);
+		const { guest } = character;
+		if (guest) {
+			checkTagReferences(
+				[
+					...guest.hateFoodTag,
+					...guest.likeFoodTag.map(({ tagId }) => tagId),
+					...guest.foodRequests.map(({ tagId }) => tagId),
+				],
+				FOOD_TAG_IDS,
+				'料理',
+				owner
+			);
+			checkTagReferences(
+				[
+					...guest.likeBevTag.map(({ tagId }) => tagId),
+					...guest.bevRequests.map(({ tagId }) => tagId),
+				],
+				BEVERAGE_TAG_IDS,
+				'酒水',
+				owner
+			);
+			guest.spawn?.forEach(({ izakayaId }) => {
+				if (!GAME_IZAKAYA_IDS.has(izakayaId)) {
+					reportDanglingReference(
+						`${owner}的出现地点引用了游戏中不存在的酒馆（${izakayaId}）`
+					);
+				}
+			});
+		}
+		[character.spawnMarker?.mapLabel, character.kizuna?.commisionAreaLabel]
+			.filter((label) => label !== undefined)
+			.forEach((label) =>
+				checkLabelReference(
+					label,
+					mapLabels,
+					'地图',
+					owner,
+					GAME_MAP_LABELS
+				)
+			);
+	});
+
+	// ── Recipe coverage ───────────────────────────────────
+	const recipeIdsByFoodId = new Map<number, number[]>();
+	data.recipes.forEach(({ foodId, id }) =>
+		recipeIdsByFoodId.set(foodId, [
+			...(recipeIdsByFoodId.get(foodId) ?? []),
+			id,
+		])
+	);
+	data.foods.forEach((food, index) => {
+		const recipeIds = recipeIdsByFoodId.get(food.id) ?? [];
+		if (recipeIds.length === 0) {
+			issues.push({
+				severity: 'warning',
+				category: '料理',
+				message: `${foodNames(index)}没有对应的食谱`,
+			});
+		} else if (recipeIds.length > 1) {
+			issues.push({
+				severity: 'warning',
+				category: '料理',
+				message: `${foodNames(index)}有多个食谱（ID：${recipeIds.join('、')}）`,
+			});
+		}
+	});
+	const obtainableRecipeIds = new Set<number>();
+	[...data.missionNodes, ...data.eventNodes].forEach((node) =>
+		[...(node.rewards ?? []), ...(node.postRewards ?? [])].forEach(
+			(reward) => {
+				if (
+					reward.rewardType === 'GiveItem' &&
+					reward.objectType === 'Recipe'
+				) {
+					reward.rewardIntArray?.forEach((id) =>
+						obtainableRecipeIds.add(id)
+					);
+				}
+			}
+		)
+	);
+	data.merchants.forEach(({ merchandise }) =>
+		merchandise.forEach(({ item }) => {
+			if (item.productType === 'Recipe')
+				obtainableRecipeIds.add(item.productId);
+		})
+	);
+	data.recipes.forEach((recipe, index) => {
+		if (!obtainableRecipeIds.has(recipe.id)) {
+			issues.push({
+				severity: 'warning',
+				category: '食谱',
+				message: `${recipeNames(index)}没有获得途径（任务、事件奖励或商人）`,
+			});
+		}
+	});
+
+	// ── Asset references ──────────────────────────────────
+	const referencedAssetPaths = new Set<string>();
+	for (const path of [
+		...collectResourcePackAssetReferences(data),
+		...items.flatMap(({ spritePath }) =>
+			spritePath.trim() ? [spritePath] : []
+		),
+	]) {
+		const localPath = resolveDayMapAssetPath(path, packLabel);
+		if (localPath !== null) referencedAssetPaths.add(localPath);
+		if (checkedAssetReferences.has(path)) continue;
+		if (!isValidAssetPath(path)) {
+			issues.push({
+				severity: 'error',
+				category: '资产引用',
+				message: `引用的资产路径“${path}”无效，须为包内相对路径`,
+			});
+		} else if (localPath === null) {
+			issues.push({
+				severity: 'warning',
+				category: '资产引用',
+				message: `引用了本包以外的资产“${path}”，暂不支持引用其他资源包`,
+			});
+		} else if (assetSet && !assetSet.has(localPath)) {
 			issues.push({
 				severity: 'error',
 				category: '资产引用',
 				message: `引用的资产“${path}”在当前项目中不存在`,
 			});
 		}
+	}
+	for (const path of assetSet ?? []) {
+		if (path.endsWith('/') || referencedAssetPaths.has(path)) continue;
+		issues.push({
+			severity: 'warning',
+			category: '资产引用',
+			message: `资产“${path}”未被引用`,
+		});
 	}
 
 	return issues;

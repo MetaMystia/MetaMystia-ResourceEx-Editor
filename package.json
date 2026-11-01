@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "next dev",
 		"build": "next build",
+		"check:pack": "node scripts/checkResourcePack.ts",
 		"serve": "pnpx serve out",
 		"format": "prettier --cache --write .",
 		"preinstall": "npx only-allow pnpm",
