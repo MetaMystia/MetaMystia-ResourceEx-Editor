@@ -3,7 +3,8 @@
 
 # next.js
 /.next/
-/out/
+/.deploy/
+/out
 
 # local env files
 .env*.local
