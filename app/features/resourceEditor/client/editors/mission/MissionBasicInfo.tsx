@@ -13,6 +13,7 @@ import type {
 	MissionType,
 } from '@/domain/resourcePack/contracts/mission';
 
+import { DayConfigFields } from '@/features/resourceEditor/client/components/fields/DayConfigFields';
 import { EditorField } from '@/features/resourceEditor/client/components/fields/EditorField';
 import { Label } from '@/features/resourceEditor/client/components/fields/Label';
 import { EditorSection } from '@/features/resourceEditor/client/components/layout/EditorSection';
@@ -287,219 +288,21 @@ export const MissionBasicInfo = memo<MissionBasicInfoProps>(
 										/>
 									</div>
 
-									<div className="flex flex-col gap-1">
-										<Label size="sm">
-											日期类型（Day Type）
-										</Label>
-										<Select<string>
-											ariaLabel="日期类型"
-											value={
-												mission.missionTimeLimit?.time
-													?.dayType ?? 'Relative'
-											}
-											onChange={(v) =>
-												onUpdate({
-													missionTimeLimit: {
-														...(mission.missionTimeLimit ?? {
-															triggerType:
-																'OnWorkEnd',
-														}),
-														time: {
-															...(mission
-																.missionTimeLimit
-																?.time ?? {
-																dayType:
-																	'Relative',
-																dayCalcType:
-																	'Constant',
-															}),
-															dayType: v as
-																| 'Relative'
-																| 'Absolute',
-														},
-													},
-												})
-											}
-											items={[
-												{
-													value: 'Relative',
-													label: '相对（Relative）',
+									<DayConfigFields
+										value={mission.missionTimeLimit?.time}
+										defaultDay={1}
+										onChange={(time) =>
+											onUpdate({
+												missionTimeLimit: {
+													...(mission.missionTimeLimit ?? {
+														triggerType:
+															'OnWorkEnd',
+													}),
+													time,
 												},
-												{
-													value: 'Absolute',
-													label: '绝对（Absolute）',
-												},
-											]}
-										/>
-									</div>
-
-									<div className="flex flex-col gap-1">
-										<Label size="sm">
-											日期计算方式（Day Calc Type）
-										</Label>
-										<Select<string>
-											ariaLabel="日期计算方式"
-											value={
-												mission.missionTimeLimit?.time
-													?.dayCalcType ?? 'Constant'
-											}
-											onChange={(v) =>
-												onUpdate({
-													missionTimeLimit: {
-														...(mission.missionTimeLimit ?? {
-															triggerType:
-																'OnWorkEnd',
-														}),
-														time: {
-															...(mission
-																.missionTimeLimit
-																?.time ?? {
-																dayType:
-																	'Relative',
-																dayCalcType:
-																	'Constant',
-															}),
-															dayCalcType: v as
-																| 'Constant'
-																| 'Random',
-														},
-													},
-												})
-											}
-											items={[
-												{
-													value: 'Constant',
-													label: '固定（Constant）',
-												},
-												{
-													value: 'Random',
-													label: '随机（Random）',
-												},
-											]}
-										/>
-									</div>
-
-									{mission.missionTimeLimit?.time
-										?.dayCalcType === 'Random' ? (
-										<>
-											<div className="flex flex-col gap-1">
-												<Label size="sm">
-													最小天数
-												</Label>
-												<Input
-													type="number"
-													min={0}
-													value={String(
-														mission.missionTimeLimit
-															?.time
-															?.dayRangeMin ?? 0
-													)}
-													onChange={(e) =>
-														onUpdate({
-															missionTimeLimit: {
-																...(mission.missionTimeLimit ?? {
-																	triggerType:
-																		'OnWorkEnd',
-																}),
-																time: {
-																	...(mission
-																		.missionTimeLimit
-																		?.time ?? {
-																		dayType:
-																			'Relative',
-																		dayCalcType:
-																			'Constant',
-																	}),
-																	dayRangeMin:
-																		Number(
-																			e
-																				.target
-																				.value
-																		),
-																},
-															},
-														})
-													}
-												/>
-											</div>
-											<div className="flex flex-col gap-1">
-												<Label size="sm">
-													最大天数
-												</Label>
-												<Input
-													type="number"
-													min={0}
-													value={String(
-														mission.missionTimeLimit
-															?.time
-															?.dayRangeMax ?? 0
-													)}
-													onChange={(e) =>
-														onUpdate({
-															missionTimeLimit: {
-																...(mission.missionTimeLimit ?? {
-																	triggerType:
-																		'OnWorkEnd',
-																}),
-																time: {
-																	...(mission
-																		.missionTimeLimit
-																		?.time ?? {
-																		dayType:
-																			'Relative',
-																		dayCalcType:
-																			'Constant',
-																	}),
-																	dayRangeMax:
-																		Number(
-																			e
-																				.target
-																				.value
-																		),
-																},
-															},
-														})
-													}
-												/>
-											</div>
-										</>
-									) : (
-										<div className="flex flex-col gap-1">
-											<Label size="sm">天数（Day）</Label>
-											<Input
-												type="number"
-												min={0}
-												value={String(
-													mission.missionTimeLimit
-														?.time?.day ?? 1
-												)}
-												onChange={(e) =>
-													onUpdate({
-														missionTimeLimit: {
-															...(mission.missionTimeLimit ?? {
-																triggerType:
-																	'OnWorkEnd',
-															}),
-															time: {
-																...(mission
-																	.missionTimeLimit
-																	?.time ?? {
-																	dayType:
-																		'Relative',
-																	dayCalcType:
-																		'Constant',
-																}),
-																day: Number(
-																	e.target
-																		.value
-																),
-															},
-														},
-													})
-												}
-											/>
-										</div>
-									)}
+											})
+										}
+									/>
 								</div>
 							</EditorField>
 						</>

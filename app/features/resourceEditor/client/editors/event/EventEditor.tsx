@@ -1,14 +1,9 @@
 'use client';
 
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 
 import Input from '@/design/ui/components/input';
 
-import { BEVERAGE_NAMES } from '@/domain/data/beverages';
-import { FOOD_NAMES } from '@/domain/data/foods';
-import { INGREDIENT_NAMES } from '@/domain/data/ingredients';
-import { RECIPE_NAMES } from '@/domain/data/recipes';
-import { SPECIAL_GUESTS } from '@/domain/data/specialGuest';
 import type { Character } from '@/domain/resourcePack/contracts/character';
 import type { DialogPackage } from '@/domain/resourcePack/contracts/dialogue';
 import type { EventNode } from '@/domain/resourcePack/contracts/event';
@@ -19,6 +14,7 @@ import type {
 	Recipe,
 } from '@/domain/resourcePack/contracts/items';
 import type { MissionNode } from '@/domain/resourcePack/contracts/mission';
+import type { INewsNode } from '@/domain/resourcePack/contracts/news';
 
 import { SectionDeleteButton } from '@/features/resourceEditor/client/components/actions/SectionDeleteButton';
 import { EditorField } from '@/features/resourceEditor/client/components/fields/EditorField';
@@ -30,6 +26,7 @@ import { ErrorBadge } from '@/features/resourceEditor/client/components/status/E
 import { WarningBadge } from '@/features/resourceEditor/client/components/status/WarningBadge';
 import { MissionRewardList } from '@/features/resourceEditor/client/editors/mission/MissionRewardList';
 import { PostMissionList } from '@/features/resourceEditor/client/editors/mission/PostMissionList';
+import { useRewardOptions } from '@/features/resourceEditor/client/editors/mission/useRewardOptions';
 import { useLabelPrefixValidation } from '@/features/resourceEditor/client/hooks/useLabelPrefixValidation';
 
 import { PostEventList } from './PostEventList';
@@ -41,6 +38,7 @@ interface EventEditorProps {
 	allEvents: EventNode[];
 	allCharacters: Character[];
 	allDialogPackages: DialogPackage[];
+	allNews: INewsNode[];
 	beverages: Beverage[];
 	foods: Food[];
 	ingredients: Ingredient[];
@@ -55,6 +53,7 @@ export default memo<EventEditorProps>(function EventEditor({
 	allEvents,
 	allCharacters,
 	allDialogPackages,
+	allNews,
 	beverages,
 	foods,
 	ingredients,
@@ -62,66 +61,19 @@ export default memo<EventEditorProps>(function EventEditor({
 	onRemove,
 	onUpdate,
 }) {
-	const allFoods = useMemo(() => {
-		const result = [...FOOD_NAMES];
-		foods.forEach((f) => {
-			if (!result.find((r) => r.id === f.id)) {
-				result.push({ id: f.id, name: f.name });
-			}
-		});
-		return result.sort((a, b) => a.id - b.id);
-	}, [foods]);
-
-	const allIngredients = useMemo(() => {
-		const result = [...INGREDIENT_NAMES];
-		ingredients.forEach((i) => {
-			if (!result.find((r) => r.id === i.id)) {
-				result.push({ id: i.id, name: i.name });
-			}
-		});
-		return result.sort((a, b) => a.id - b.id);
-	}, [ingredients]);
-
-	const allBeverages = useMemo(() => {
-		const result = [...BEVERAGE_NAMES];
-		beverages.forEach((beverage) => {
-			if (!result.find(({ id }) => id === beverage.id)) {
-				result.push({ id: beverage.id, name: beverage.name });
-			}
-		});
-		return result.sort((a, b) => a.id - b.id);
-	}, [beverages]);
-
-	const allRecipes = useMemo(() => {
-		const result = [...RECIPE_NAMES];
-		recipes.forEach((r) => {
-			if (!result.find((existing) => existing.id === r.id)) {
-				const targetFood = allFoods.find((f) => f.id === r.foodId);
-				const name = targetFood ? targetFood.name : `Food_${r.foodId}`;
-				result.push({ id: r.id, name });
-			}
-		});
-		return result.sort((a, b) => a.id - b.id);
-	}, [recipes, allFoods]);
-
-	const characterOptions = useMemo(() => {
-		const options: { value: string; label: string }[] = [];
-		// Add built-in special guests
-		SPECIAL_GUESTS.forEach((g) => {
-			options.push({
-				value: g.label,
-				label: `[${g.id}] ${g.name}（${g.label}）`,
-			});
-		});
-		// Add custom characters
-		allCharacters.forEach((c) => {
-			options.push({
-				value: c.label,
-				label: `[${c.id}] ${c.name}（${c.label}）`,
-			});
-		});
-		return options;
-	}, [allCharacters]);
+	const {
+		allBeverages,
+		allFoods,
+		allIngredients,
+		allRecipes,
+		characterOptions,
+	} = useRewardOptions({
+		beverages,
+		characters: allCharacters,
+		foods,
+		ingredients,
+		recipes,
+	});
 
 	const {
 		isValid: isLabelPrefixValid,
@@ -212,6 +164,7 @@ export default memo<EventEditorProps>(function EventEditor({
 				allFoods={allFoods}
 				allIngredients={allIngredients}
 				allRecipes={allRecipes}
+				allNews={allNews}
 				onUpdate={(rewards) => onUpdate({ rewards })}
 			/>
 
@@ -223,6 +176,7 @@ export default memo<EventEditorProps>(function EventEditor({
 				allFoods={allFoods}
 				allIngredients={allIngredients}
 				allRecipes={allRecipes}
+				allNews={allNews}
 				onUpdate={(postRewards) => onUpdate({ postRewards })}
 			/>
 

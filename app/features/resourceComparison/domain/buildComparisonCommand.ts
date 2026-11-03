@@ -83,6 +83,12 @@ const ENTITY_REFERENCE_DESCRIPTORS: readonly IEntityReferenceDescriptor[] = [
 		stableKey: 'label',
 	},
 	{
+		collection: 'newsNodes',
+		ownerKind: 'news',
+		referencedKind: 'news',
+		stableKey: 'label',
+	},
+	{
 		collection: 'recipes',
 		ownerKind: 'recipe',
 		referencedKind: 'recipe',
@@ -101,6 +107,7 @@ const REFERENCE_KIND_MAP = {
 	ingredient: 'ingredient',
 	item: 'item',
 	mission: 'mission',
+	news: 'news',
 	recipe: 'recipe',
 } as const satisfies Record<
 	TResourcePackReferenceKind,

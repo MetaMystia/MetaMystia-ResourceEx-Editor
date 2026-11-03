@@ -100,6 +100,12 @@ export const RESOURCE_ENTITY_DESCRIPTORS = [
 		stableKey: 'label',
 	},
 	{
+		collection: 'newsNodes',
+		displayField: 'title',
+		label: '新闻节点',
+		stableKey: 'label',
+	},
+	{
 		collection: 'recipes',
 		displayField: 'id',
 		label: '食谱',

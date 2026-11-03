@@ -51,6 +51,14 @@ export function createMissionReward(rewardType: RewardType): MissionReward {
 	if (rewardType === 'GiveItem') {
 		return { rewardType, objectType: 'Food', rewardIntArray: [] };
 	}
+	if (rewardType === 'ScheduleNews') {
+		// 当天的新闻在进入白天时已经发布，默认安排到下一天。
+		return {
+			rewardType,
+			rewardIdArray: [],
+			time: { dayType: 'Relative', dayCalcType: 'Constant', day: 1 },
+		};
+	}
 	return { rewardType };
 }
 

@@ -8,7 +8,8 @@ import type { ResourceEx } from './contracts/resourceEx';
 export type TItemReferenceKind =
 	'Beverage' | 'Food' | 'Ingredient' | 'Item' | 'Recipe';
 
-export type TLabelReferenceKind = 'DialogPackage' | 'Event' | 'Mission';
+export type TLabelReferenceKind =
+	'DialogPackage' | 'Event' | 'Mission' | 'News';
 
 export interface ICharacterReferenceRemap {
 	fromId: number;
@@ -96,6 +97,30 @@ function remapCharacterReward(
 	}
 }
 
+function remapNewsReward(
+	reward: MissionReward,
+	fromLabel: string,
+	toLabel: string
+): void {
+	if (reward.rewardType === 'ScheduleNews' && reward.rewardIdArray) {
+		reward.rewardIdArray = reward.rewardIdArray.map((label) =>
+			remapString(label, fromLabel, toLabel)
+		);
+	}
+	if (reward.rewardType === 'DismissNews' && reward.rewardId) {
+		reward.rewardId = remapString(reward.rewardId, fromLabel, toLabel);
+	}
+}
+
+/** 任务、事件和新闻节点的全部奖励与后置奖励。 */
+function collectSchedulerRewards(resourcePack: ResourceEx): MissionReward[] {
+	return [
+		...resourcePack.missionNodes,
+		...resourcePack.eventNodes,
+		...resourcePack.newsNodes,
+	].flatMap((node) => [...(node.rewards ?? []), ...(node.postRewards ?? [])]);
+}
+
 export function remapResourcePackItemReferences(
 	resourcePack: ResourceEx,
 	kind: TItemReferenceKind,
@@ -144,6 +169,14 @@ export function remapResourcePackItemReferences(
 			remapRewardItem(reward, kind, fromId, toId)
 		);
 		eventNode.postRewards?.forEach((reward) =>
+			remapRewardItem(reward, kind, fromId, toId)
+		);
+	});
+	next.newsNodes.forEach((newsNode) => {
+		newsNode.rewards?.forEach((reward) =>
+			remapRewardItem(reward, kind, fromId, toId)
+		);
+		newsNode.postRewards?.forEach((reward) =>
 			remapRewardItem(reward, kind, fromId, toId)
 		);
 	});
@@ -209,6 +242,14 @@ export function remapResourcePackCharacterReferences(
 			eventNode.scheduledEvent?.trigger,
 			fromLabel,
 			toLabel
+		);
+	});
+	next.newsNodes.forEach((newsNode) => {
+		newsNode.rewards?.forEach((reward) =>
+			remapCharacterReward(reward, fromLabel, toLabel)
+		);
+		newsNode.postRewards?.forEach((reward) =>
+			remapCharacterReward(reward, fromLabel, toLabel)
 		);
 	});
 
@@ -351,6 +392,11 @@ export function remapResourcePackLabelReferences(
 				fromLabel,
 				toLabel
 			)
+		);
+	}
+	if (kind === 'News') {
+		collectSchedulerRewards(next).forEach((reward) =>
+			remapNewsReward(reward, fromLabel, toLabel)
 		);
 	}
 

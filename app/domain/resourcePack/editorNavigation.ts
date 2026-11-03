@@ -17,6 +17,7 @@ export const RESOURCE_EDITOR_ROUTE_BY_ENTITY_KIND = {
 	license: '/info',
 	merchant: '/merchant',
 	mission: '/mission',
+	news: '/news',
 	'pack-info': '/info',
 	recipe: '/recipe',
 } as const;
@@ -51,6 +52,7 @@ export const RESOURCE_EDITOR_TARGET_BY_COLLECTION = {
 	ingredients: { entityKind: 'ingredient', route: '/ingredient' },
 	merchants: { entityKind: 'merchant', route: '/merchant' },
 	missionNodes: { entityKind: 'mission', route: '/mission' },
+	newsNodes: { entityKind: 'news', route: '/news' },
 	recipes: { entityKind: 'recipe', route: '/recipe' },
 } as const satisfies Record<
 	TResourceEditorCollection,

@@ -1,17 +1,19 @@
 import type { KizunaInfo } from './contracts/character';
+import type { DayConfig } from './contracts/event';
 import type { ResourceEx } from './contracts/resourceEx';
 import { collectResourcePackReferenceLocations } from './referenceLocations';
 
 /**
- * 任务节点与事件节点组成的计划（Scheduler）流程图。
+ * 任务、事件与新闻节点组成的计划（Scheduler）流程图。
  *
  * 游戏在 RunTimeScheduler 中按两个阶段处理一个完成的节点：
  * - 结算（FinishSchedulerNode）：rewards → postEvents 安排事件 → postMissions 开始任务；
  * - 演出（对话包或 Timeline）结束后（FinishSchedulerNodePost）：postRewards → postMissionsAfterPerformance。
+ * 新闻在发布当天（ApplyNews）依次执行这两个阶段，没有演出。
  * 图中的出口按这两个阶段区分，入口统一为“被安排/开始”。
  */
 
-export type TSchedulerGraphNodeKind = 'event' | 'mission';
+export type TSchedulerGraphNodeKind = 'event' | 'mission' | 'news';
 
 /** local：本资源包定义；missing：带本包前缀但找不到；external：原版或其他资源包的节点。 */
 export type TSchedulerGraphNodeOrigin = 'external' | 'local' | 'missing';
@@ -19,9 +21,11 @@ export type TSchedulerGraphNodeOrigin = 'external' | 'local' | 'missing';
 export type TSchedulerGraphPhase = 'afterPerformance' | 'settle';
 
 export type TSchedulerGraphEdgeKind =
+	| 'dismissNews'
 	| 'fakeMissionSignal'
 	| 'kizunaEntry'
 	| 'scheduleEvent'
+	| 'scheduleNews'
 	| 'startMission'
 	| 'waitEvent';
 
@@ -32,7 +36,7 @@ export interface ISchedulerGraphNode {
 	kind: TSchedulerGraphNodeKind;
 	label: string;
 	origin: TSchedulerGraphNodeOrigin;
-	/** 本资源包节点在 missionNodes / eventNodes 中的下标。 */
+	/** 本资源包节点在 missionNodes / eventNodes / newsNodes 中的下标。 */
 	index?: number;
 	/** 与前面的同类节点标签重复；游戏只注册第一个同名节点。 */
 	isDuplicate: boolean;
@@ -64,6 +68,10 @@ export interface ISchedulerGraphEdge {
 	kizunaLevel?: TKizunaPrerequisiteLevel;
 	/** 外部信号的名称（FinishFakeMission.rewardId / FakeMission.label）。 */
 	signal?: string;
+	/** 安排新闻的发布日（ScheduleNews.time）；缺省为当天。 */
+	newsTime?: DayConfig;
+	/** 安排新闻的候选数量；多于一个时发布时随机取其一。 */
+	newsCandidateCount?: number;
 }
 
 export interface ISchedulerGraph {
@@ -111,6 +119,7 @@ export function buildSchedulerGraph(resourcePack: ResourceEx): ISchedulerGraph {
 	const localNodeIdsByKind = {
 		event: [] as string[],
 		mission: [] as string[],
+		news: [] as string[],
 	} satisfies Record<TSchedulerGraphNodeKind, string[]>;
 
 	const addLocalNodes = (
@@ -144,6 +153,10 @@ export function buildSchedulerGraph(resourcePack: ResourceEx): ISchedulerGraph {
 	addLocalNodes(
 		'event',
 		resourcePack.eventNodes.map(({ label }) => label)
+	);
+	addLocalNodes(
+		'news',
+		resourcePack.newsNodes.map(({ label }) => label)
 	);
 
 	/** 解析被引用的节点；本包里没有时生成外部或缺失节点。 */
@@ -217,6 +230,7 @@ export function buildSchedulerGraph(resourcePack: ResourceEx): ISchedulerGraph {
 			continue;
 		}
 
+		// 新闻节点只通过奖励连接，在下方按奖励推导。
 		if (ownerKind !== 'event' && ownerKind !== 'mission') continue;
 		if (referencedKind !== 'event' && referencedKind !== 'mission') {
 			continue;
@@ -261,7 +275,8 @@ export function buildSchedulerGraph(resourcePack: ResourceEx): ISchedulerGraph {
 		}
 	}
 
-	// FinishFakeMission 奖励按 rewardId 匹配正在追踪任务里同名的 FakeMission 条件。
+	// FinishFakeMission 奖励按 rewardId 匹配正在追踪任务里同名的 FakeMission 条件；
+	// ScheduleNews、DismissNews 奖励按标识连到新闻。
 	const fakeMissionTargets = new Map<
 		string,
 		{ conditionIndex: number; missionId: string }[]
@@ -284,7 +299,9 @@ export function buildSchedulerGraph(resourcePack: ResourceEx): ISchedulerGraph {
 			const owner =
 				node.kind === 'mission'
 					? resourcePack.missionNodes[node.index ?? -1]
-					: resourcePack.eventNodes[node.index ?? -1];
+					: node.kind === 'event'
+						? resourcePack.eventNodes[node.index ?? -1]
+						: resourcePack.newsNodes[node.index ?? -1];
 			if (!owner) return;
 			(
 				[
@@ -293,6 +310,45 @@ export function buildSchedulerGraph(resourcePack: ResourceEx): ISchedulerGraph {
 				] as const
 			).forEach(([field, phase]) => {
 				owner[field]?.forEach((reward, rewardIndex) => {
+					if (reward.rewardType === 'ScheduleNews') {
+						const candidateCount =
+							reward.rewardIdArray?.filter((label) =>
+								label.trim()
+							).length ?? 0;
+						reward.rewardIdArray?.forEach((label, labelIndex) => {
+							if (!label.trim()) return;
+							addEdge({
+								fieldPath: [
+									field,
+									rewardIndex,
+									'rewardIdArray',
+									labelIndex,
+								],
+								kind: 'scheduleNews',
+								newsCandidateCount: candidateCount,
+								...(reward.time === undefined
+									? {}
+									: { newsTime: reward.time }),
+								ownerId: node.id,
+								source: node.id,
+								sourcePhase: phase,
+								target: resolveNodeId('news', label),
+							});
+						});
+						return;
+					}
+					if (reward.rewardType === 'DismissNews') {
+						if (!reward.rewardId?.trim()) return;
+						addEdge({
+							fieldPath: [field, rewardIndex, 'rewardId'],
+							kind: 'dismissNews',
+							ownerId: node.id,
+							source: node.id,
+							sourcePhase: phase,
+							target: resolveNodeId('news', reward.rewardId),
+						});
+						return;
+					}
 					if (
 						reward.rewardType !== 'FinishFakeMission' ||
 						!reward.rewardId
@@ -319,7 +375,13 @@ export function buildSchedulerGraph(resourcePack: ResourceEx): ISchedulerGraph {
 
 	const successorIdsBySourceId = new Map<string, string[]>();
 	edges.forEach(({ kind, source, target }) => {
-		if (kind === 'waitEvent' || kind === 'fakeMissionSignal') return;
+		if (
+			kind === 'waitEvent' ||
+			kind === 'fakeMissionSignal' ||
+			kind === 'dismissNews'
+		) {
+			return;
+		}
 		const successorIds = successorIdsBySourceId.get(source) ?? [];
 		successorIds.push(target);
 		successorIdsBySourceId.set(source, successorIds);

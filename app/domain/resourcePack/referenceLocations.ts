@@ -14,6 +14,7 @@ export type TResourcePackReferenceKind =
 	| 'ingredient'
 	| 'item'
 	| 'mission'
+	| 'news'
 	| 'recipe';
 
 export type TResourcePackReferenceOwnerKind =
@@ -31,6 +32,7 @@ export type TResourcePackReferenceOwnerKind =
 	| 'ingredient'
 	| 'merchant'
 	| 'mission'
+	| 'news'
 	| 'recipe';
 
 export type TResourcePackReferencePathSegment = number | string;
@@ -139,6 +141,26 @@ function addRewardReferences(
 				owner,
 				[...rewardPath, 'rewardId'],
 				'character',
+				reward.rewardId
+			);
+		}
+		if (reward.rewardType === 'ScheduleNews') {
+			reward.rewardIdArray?.forEach((label, labelIndex) =>
+				addReference(
+					locations,
+					owner,
+					[...rewardPath, 'rewardIdArray', labelIndex],
+					'news',
+					label
+				)
+			);
+		}
+		if (reward.rewardType === 'DismissNews') {
+			addReference(
+				locations,
+				owner,
+				[...rewardPath, 'rewardId'],
+				'news',
 				reward.rewardId
 			);
 		}
@@ -663,6 +685,17 @@ export function collectResourcePackReferenceLocations(
 			owner,
 			['scheduledEvent', 'trigger'],
 			eventNode.scheduledEvent?.trigger
+		);
+	});
+
+	resourcePack.newsNodes.forEach((newsNode) => {
+		const owner = { key: newsNode.label, kind: 'news' } as const;
+		addRewardReferences(locations, owner, ['rewards'], newsNode.rewards);
+		addRewardReferences(
+			locations,
+			owner,
+			['postRewards'],
+			newsNode.postRewards
 		);
 	});
 

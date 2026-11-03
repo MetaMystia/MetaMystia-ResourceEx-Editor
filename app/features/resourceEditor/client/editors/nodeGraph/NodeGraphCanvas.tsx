@@ -104,6 +104,7 @@ const MINIMAP_NODE_COLORS = {
 	event: 'hsl(var(--heroui-warning) / 0.7)',
 	external: 'hsl(var(--heroui-default-400) / 0.7)',
 	mission: 'hsl(var(--heroui-focus) / 0.7)',
+	news: 'hsl(var(--heroui-danger) / 0.7)',
 } as const satisfies Record<NonNullable<TNodeGraphFlowNode['type']>, string>;
 
 /** 浮在画布上的工具条底板。 */

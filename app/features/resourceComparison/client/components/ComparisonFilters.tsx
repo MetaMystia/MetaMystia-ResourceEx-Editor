@@ -47,6 +47,7 @@ const RESOURCE_TYPE_OPTIONS = [
 	{ label: '白天地图', value: 'dayMaps' },
 	{ label: '礼物邮箱', value: 'gifts' },
 	{ label: '事件', value: 'eventNodes' },
+	{ label: '新闻', value: 'newsNodes' },
 	{ label: 'License', value: 'license' },
 ];
 

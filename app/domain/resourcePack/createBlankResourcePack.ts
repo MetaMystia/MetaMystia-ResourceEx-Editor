@@ -22,6 +22,7 @@ export function createBlankResourcePack(): ResourceEx {
 		recipes: [],
 		missionNodes: [],
 		eventNodes: [],
+		newsNodes: [],
 		merchants: [],
 		clothes: [],
 	};
