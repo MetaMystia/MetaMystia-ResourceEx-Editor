@@ -28,7 +28,10 @@ import {
 	getWorldColliders,
 	isPointInCollider,
 } from '@/domain/resourcePack/dayMapGeometry';
-import { DAY_MAP_LIMITS } from '@/domain/resourcePack/dayMapValidation';
+import {
+	DAY_MAP_EDGE_COLLIDER_NOTICE,
+	DAY_MAP_LIMITS,
+} from '@/domain/resourcePack/dayMapValidation';
 
 import { SectionDeleteButton } from '@/features/resourceEditor/client/components/actions/SectionDeleteButton';
 import { Select } from '@/features/resourceEditor/client/components/select/Select';
@@ -59,6 +62,7 @@ import {
 	MapVector,
 } from '@/features/resourceEditor/client/editors/dayMap/MapFields';
 import {
+	AlertIcon,
 	ArrowIcon,
 	CollisionModeIcon,
 	CopyIcon,
@@ -109,6 +113,7 @@ const ROTATION_OPTIONS = [
 interface IEntityItem {
 	index: number;
 	isDefault: boolean;
+	isUnavailable: boolean;
 	meta: string;
 	name: string;
 }
@@ -135,6 +140,7 @@ function describeEntities(
 		return map.spawnMarkers.map((marker, index) => ({
 			index,
 			isDefault: marker.name === map.defaultSpawnMarker,
+			isUnavailable: false,
 			meta: `${formatMapNumber(marker.x)}, ${formatMapNumber(marker.y)} · ${ROTATION_OPTIONS.find((item) => item.value === marker.rotation)?.label ?? marker.rotation}`,
 			name: marker.name,
 		}));
@@ -142,6 +148,7 @@ function describeEntities(
 		return getTargetColliders(map, target).map((collider, index) => ({
 			index,
 			isDefault: false,
+			isUnavailable: collider.shape === 'edge',
 			meta: `${COLLIDER_LABELS[collider.shape]} · ${describeCollider(collider)}`,
 			name:
 				collider.name ??
@@ -150,6 +157,7 @@ function describeEntities(
 	return map.objects.map((object, index) => ({
 		index,
 		isDefault: false,
+		isUnavailable: false,
 		meta: `${object.prefab} @ ${formatMapNumber(object.x)}, ${formatMapNumber(object.y)}`,
 		name: object.name ?? `${object.prefab}`,
 	}));
@@ -359,7 +367,7 @@ export const EntityListPanel = memo(function EntityListPanel({
 			{count === 0 ? (
 				<MapHint className="rounded-medium border border-dashed border-divider px-3 py-4 text-center">
 					{kind === 'collider'
-						? '用多边形、折线、矩形或圆形工具在画布上绘制。实心形状挡住内部；折线只有线段阻挡，适合围出可走区域。'
+						? '用多边形、矩形或圆形工具在画布上绘制。实心形状挡住内部；多边形可加洞，围出可走区域。'
 						: kind === 'spawn'
 							? '用“放置出生点”工具在画布上点击添加。'
 							: '在物件模板库中选择模板，再用“放置物件”工具在画布上点击。'}
@@ -423,6 +431,16 @@ export const EntityListPanel = memo(function EntityListPanel({
 												<StarIcon
 													className="size-3.5 shrink-0 fill-warning text-warning"
 													aria-label="默认出生点"
+												/>
+											)}
+											{item.isUnavailable && (
+												<AlertIcon
+													className="size-3.5 shrink-0 text-warning"
+													role="img"
+													aria-hidden={false}
+													aria-label={
+														DAY_MAP_EDGE_COLLIDER_NOTICE
+													}
 												/>
 											)}
 										</span>
@@ -716,6 +734,12 @@ export function ColliderInspector({
 					isDisabled={isReadOnly}
 					onChange={(radius) => patch({ radius })}
 				/>
+			)}
+			{collider.shape === 'edge' && (
+				<WarningNotice>
+					{DAY_MAP_EDGE_COLLIDER_NOTICE}
+					，导出时会警告。可改用多边形（可加洞）或矩形。
+				</WarningNotice>
 			)}
 			{collider.shape === 'edge' && (
 				<Switch

@@ -17,7 +17,7 @@ import {
 	getDayMapAssetReferences,
 	resolveDayMapAssetPath,
 } from './dayMapAssets';
-import { validateDayMap } from './dayMapValidation';
+import { getDayMapWarnings, validateDayMap } from './dayMapValidation';
 import { validateGift } from './giftValidation';
 import { validateSpellResources } from './spellValidation';
 
@@ -376,6 +376,12 @@ export function validateResourcePackRules(
 		for (const message of validateDayMap(map))
 			issues.push({
 				severity: 'error',
+				category: '白天地图',
+				message: `${mapNames(index)}：${message}`,
+			});
+		for (const message of getDayMapWarnings(map))
+			issues.push({
+				severity: 'warning',
 				category: '白天地图',
 				message: `${mapNames(index)}：${message}`,
 			});

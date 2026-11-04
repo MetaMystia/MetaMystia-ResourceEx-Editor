@@ -16,6 +16,7 @@ import {
 	formatMapNumber,
 	formatSlopeAngle,
 	formatSnapStep,
+	DISABLED_MAP_TOOLS,
 	getToolDescription,
 	getToolLabel,
 	type IMapViewOptions,
@@ -103,6 +104,25 @@ export function MapToolRail({
 				const ToolIcon = MAP_TOOL_ICONS[item];
 				const isActive = item === tool;
 				const label = getToolLabel(mode, item);
+				const isToolDisabled = DISABLED_MAP_TOOLS.has(item);
+				const button = (
+					<Button
+						isIconOnly
+						size="sm"
+						radius="md"
+						variant={isActive ? 'flat' : 'light'}
+						color={isActive ? 'primary' : 'default'}
+						aria-label={`${label}（${MAP_TOOL_SHORTCUTS[item]}）`}
+						aria-pressed={isActive}
+						isDisabled={
+							isToolDisabled || (isReadOnly && item !== 'hand')
+						}
+						className="h-9 w-9 min-w-9 text-lg"
+						onPress={() => onToolChange(item)}
+					>
+						<ToolIcon />
+					</Button>
+				);
 				return (
 					<Tooltip
 						key={item}
@@ -116,20 +136,12 @@ export function MapToolRail({
 							/>
 						}
 					>
-						<Button
-							isIconOnly
-							size="sm"
-							radius="md"
-							variant={isActive ? 'flat' : 'light'}
-							color={isActive ? 'primary' : 'default'}
-							aria-label={`${label}（${MAP_TOOL_SHORTCUTS[item]}）`}
-							aria-pressed={isActive}
-							isDisabled={isReadOnly && item !== 'hand'}
-							className="h-9 w-9 min-w-9 text-lg"
-							onPress={() => onToolChange(item)}
-						>
-							<ToolIcon />
-						</Button>
+						{/* 禁用的按钮不响应指针，由外层触发说明。 */}
+						{isToolDisabled ? (
+							<span className="inline-flex">{button}</span>
+						) : (
+							button
+						)}
 					</Tooltip>
 				);
 			})}

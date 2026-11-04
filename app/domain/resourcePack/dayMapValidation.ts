@@ -118,6 +118,19 @@ export function checkCollider(collider: TDayMapCollider): string | null {
 	}
 }
 
+export const DAY_MAP_EDGE_COLLIDER_NOTICE = '折线碰撞在游戏中无法使用';
+
+/** 不阻止导出的提示。 */
+export function getDayMapWarnings(map: IDayMap): string[] {
+	const count = [
+		...map.colliders,
+		...map.prefabs.flatMap((prefab) => prefab.colliders),
+	].filter((collider) => collider.shape === 'edge').length;
+	return count > 0
+		? [`${DAY_MAP_EDGE_COLLIDER_NOTICE}（${count} 个）。`]
+		: [];
+}
+
 /** 静态配置检查，与 Mod 的加载校验一致；图块尺寸、音频解码和原版音乐地址由资产检查及游戏核验。 */
 export function validateDayMap(map: IDayMap): string[] {
 	const errors: string[] = [];

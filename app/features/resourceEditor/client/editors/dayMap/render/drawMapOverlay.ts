@@ -497,8 +497,11 @@ function drawColliders(screen: IScreen, state: IMapOverlayState) {
 	context.strokeStyle = 'rgba(248, 113, 113, 0.45)';
 	context.lineWidth = 1;
 	context.stroke(faintSolid);
+	// 折线碰撞在游戏中无法使用，虚线显示。
+	context.setLineDash([6, 4]);
 	context.strokeStyle = 'rgba(251, 146, 60, 0.45)';
 	context.stroke(faintEdge);
+	context.setLineDash([]);
 	context.fillStyle = isActive
 		? 'rgba(239, 68, 68, 0.2)'
 		: 'rgba(239, 68, 68, 0.1)';
@@ -508,7 +511,9 @@ function drawColliders(screen: IScreen, state: IMapOverlayState) {
 	context.stroke(solid);
 	context.strokeStyle = 'rgba(251, 146, 60, 0.95)';
 	context.lineWidth = isActive ? 2 : 1.25;
+	context.setLineDash([6, 4]);
 	context.stroke(edge);
+	context.setLineDash([]);
 	context.restore();
 	if (!isActive) return;
 	const world = isMapTarget ? map.colliders : targetColliders;

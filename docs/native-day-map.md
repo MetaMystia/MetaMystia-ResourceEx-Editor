@@ -6,7 +6,7 @@
 
 - 使用默认材质的 Tilemap（含 `BinaryTilemapDecompressor` 解压的格子）各成一张图层，保留排序层与排序值。原版地面本就是整张手绘图切成 48×48 的格子，转换后还原为整图。
 - 不在 `SortingGroup` 内的 `SpriteRenderer` 与最外层 `SortingGroup` 成为物件；组内按原排序合成一张图，带 `LayerSortingController` 的按 Y 排序。单张精灵只有平移和翻转时直接使用原图、原锚点与原像素密度，翻转写进物件缩放，重复的精灵共用模板。
-- `CompositeCollider2D`（Outlines）的轮廓成为闭合折线；独立的实心碰撞成为物件模板碰撞或地图碰撞；`CameraCollider` 成为相机多边形。
+- `CompositeCollider2D`（Outlines）的轮廓成为闭合折线（折线碰撞在游戏中无法使用，导出时警告）；独立的实心碰撞成为物件模板碰撞或地图碰撞；`CameraCollider` 成为相机多边形。
 - `HEIGHT_MAP` 成为坡度格，`SpawnMarker` 成为出生点，`hideClock` 保留，音乐引用原版 `LoopedBGMPackage` 地址。
 
 特殊材质（光照、阴影滤镜）、角色、出口与剧情演出不转换，数量写在转换报告中。碰撞成员是否并入合成轮廓按 Unity 规则判断：`usedByComposite` 但所在刚体没有 `CompositeCollider2D` 的碰撞不生效，也不转换。

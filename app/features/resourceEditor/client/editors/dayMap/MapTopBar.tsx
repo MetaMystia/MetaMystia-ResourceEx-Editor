@@ -146,6 +146,7 @@ const SHORTCUT_GROUPS = [
 			['1 – 6', '切换编辑内容'],
 			[
 				Object.entries(MAP_TOOL_SHORTCUTS)
+					.filter(([tool]) => tool !== 'edge')
 					.map(([, key]) => key)
 					.join(' '),
 				'切换工具',
@@ -223,8 +224,22 @@ function ShortcutHelp({
 	);
 }
 
-function IssuesButton({ issues }: { issues: readonly string[] }) {
-	const count = issues.length;
+function IssuesButton({
+	issues,
+	warnings,
+}: {
+	issues: readonly string[];
+	warnings: readonly string[];
+}) {
+	const items = [
+		...issues.map((message) => ({ isError: true, message })),
+		...warnings.map((message) => ({ isError: false, message })),
+	];
+	const count = items.length;
+	const summary = [
+		...(issues.length > 0 ? [`${issues.length} 项待处理`] : []),
+		...(warnings.length > 0 ? [`${warnings.length} 项警告`] : []),
+	].join('，');
 	return (
 		<Popover placement="bottom-end" offset={8}>
 			<PopoverTrigger>
@@ -243,9 +258,11 @@ function IssuesButton({ issues }: { issues: readonly string[] }) {
 				>
 					{count > 0 ? (
 						<>
-							<span className="hidden sm:inline">待处理</span>
+							<span className="hidden sm:inline">
+								{issues.length > 0 ? '待处理' : '警告'}
+							</span>
 							<span className="font-mono tabular-nums">
-								{count}
+								{issues.length > 0 ? issues.length : count}
 							</span>
 						</>
 					) : (
@@ -258,7 +275,7 @@ function IssuesButton({ issues }: { issues: readonly string[] }) {
 					<div className="border-b border-divider px-4 py-3">
 						<p className={TYPOGRAPHY_STYLES.subsectionTitle}>
 							地图检查{' '}
-							{count > 0 ? `· ${count} 项待处理` : '· 未发现问题'}
+							{count > 0 ? `· ${summary}` : '· 未发现问题'}
 						</p>
 						<p className={cn(TYPOGRAPHY_STYLES.caption, 'mt-0.5')}>
 							导出时还会读取图片尺寸和 WAV 结构，检查完整资源包。
@@ -267,7 +284,7 @@ function IssuesButton({ issues }: { issues: readonly string[] }) {
 					{count > 0 && (
 						<ScrollShadow className="max-h-80 px-4 py-3">
 							<ul className="flex flex-col gap-1.5">
-								{issues.slice(0, 200).map((issue, index) => (
+								{items.slice(0, 200).map((item, index) => (
 									<li
 										key={index}
 										className={cn(
@@ -277,10 +294,15 @@ function IssuesButton({ issues }: { issues: readonly string[] }) {
 									>
 										<span
 											aria-hidden
-											className="mt-2 size-1.5 shrink-0 rounded-full bg-warning"
+											className={cn(
+												'mt-2 size-1.5 shrink-0 rounded-full',
+												item.isError
+													? 'bg-danger'
+													: 'bg-warning'
+											)}
 										/>
 										<span className="min-w-0 break-normal">
-											{issue}
+											{item.message}
 										</span>
 									</li>
 								))}
@@ -318,6 +340,7 @@ interface IProps {
 	onRedo(): void;
 	onShortcutHelpOpenChange(isOpen: boolean): void;
 	onUndo(): void;
+	warnings: readonly string[];
 }
 
 export const MapTopBar = memo(function MapTopBar({
@@ -335,6 +358,7 @@ export const MapTopBar = memo(function MapTopBar({
 	onRedo,
 	onShortcutHelpOpenChange,
 	onUndo,
+	warnings,
 }: IProps) {
 	return (
 		<header className="flex flex-wrap items-center gap-2 rounded-large border border-divider bg-content1/40 p-2 shadow-sm backdrop-blur">
@@ -354,7 +378,7 @@ export const MapTopBar = memo(function MapTopBar({
 				/>
 			</ScrollShadow>
 			<div className="flex flex-1 basis-auto items-center justify-end gap-1">
-				<IssuesButton issues={issues} />
+				<IssuesButton issues={issues} warnings={warnings} />
 				<ShortcutHelp
 					isOpen={isShortcutHelpOpen}
 					onOpenChange={onShortcutHelpOpenChange}

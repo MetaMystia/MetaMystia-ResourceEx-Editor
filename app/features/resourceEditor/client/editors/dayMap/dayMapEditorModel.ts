@@ -1,3 +1,5 @@
+import { DAY_MAP_EDGE_COLLIDER_NOTICE } from '@/domain/resourcePack/dayMapValidation';
+
 export type TMapMode =
 	'collision' | 'height' | 'layer' | 'map' | 'object' | 'spawn';
 export type TMapTool =
@@ -143,7 +145,7 @@ export function getToolDescription(mode: TMapMode, tool: TMapTool) {
 		case 'circle':
 			return '从圆心拖出半径';
 		case 'edge':
-			return '逐点单击；双击或回车结束，单击起点闭合。只有线段阻挡，适合围出可走区域';
+			return `${DAY_MAP_EDGE_COLLIDER_NOTICE}，已禁用`;
 		case 'eraser':
 			return '拖动清除坡度';
 		case 'hand':
@@ -172,6 +174,8 @@ export function getToolDescription(mode: TMapMode, tool: TMapTool) {
 					: '点击选择，拖动移动；Shift 加选，空白处框选。选中多边形或折线后可拖动顶点';
 	}
 }
+
+export const DISABLED_MAP_TOOLS: ReadonlySet<TMapTool> = new Set(['edge']);
 
 export const MAP_TOOLS_BY_MODE = {
 	collision: ['select', 'polygon', 'edge', 'rectangle', 'circle', 'hand'],

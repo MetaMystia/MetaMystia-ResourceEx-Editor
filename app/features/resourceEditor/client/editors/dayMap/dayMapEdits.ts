@@ -11,7 +11,10 @@ import {
 	type IDayMapPlacement,
 	placeCollider,
 } from '@/domain/resourcePack/dayMapGeometry';
-import { DAY_MAP_LIMITS } from '@/domain/resourcePack/dayMapValidation';
+import {
+	DAY_MAP_EDGE_COLLIDER_NOTICE,
+	DAY_MAP_LIMITS,
+} from '@/domain/resourcePack/dayMapValidation';
 
 import { findNextAvailableSuffixedValue } from '@/features/resourceEditor/client/editorValueAllocation';
 
@@ -478,6 +481,8 @@ export function duplicateEntities(
 	}
 	if (kind === 'collider') {
 		const world = getTargetWorldColliders(map, target);
+		if (sorted.some((index) => world[index]?.shape === 'edge'))
+			return `${DAY_MAP_EDGE_COLLIDER_NOTICE}，不能复制。`;
 		const copies = sorted.flatMap((index) => {
 			const item = world[index];
 			return item

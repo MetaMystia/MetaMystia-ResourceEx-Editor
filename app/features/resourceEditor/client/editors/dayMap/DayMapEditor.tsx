@@ -20,7 +20,9 @@ import {
 	resolveDayMapAssetPath,
 } from '@/domain/resourcePack/dayMapAssets';
 import {
+	DAY_MAP_EDGE_COLLIDER_NOTICE,
 	DAY_MAP_FORMAT_VERSION,
+	getDayMapWarnings,
 	validateDayMap,
 } from '@/domain/resourcePack/dayMapValidation';
 
@@ -32,6 +34,7 @@ import { safeStorage } from '@/infrastructure/browser/storage/safeStorage';
 import {
 	DEFAULT_MAP_SNAP_STEP,
 	DEFAULT_MAP_TOOL_BY_MODE,
+	DISABLED_MAP_TOOLS,
 	DEFAULT_MAP_VIEW_OPTIONS,
 	type IMapPoint,
 	type IMapRect,
@@ -287,11 +290,15 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 	const handleToolChange = useCallback(
 		(next: TMapTool) => {
 			if (!isToolAvailable(mode, next)) return;
+			if (DISABLED_MAP_TOOLS.has(next)) {
+				showNotice(`${DAY_MAP_EDGE_COLLIDER_NOTICE}。`, 'info');
+				return;
+			}
 			setToolByMode((current) =>
 				current[mode] === next ? current : { ...current, [mode]: next }
 			);
 		},
-		[mode]
+		[mode, showNotice]
 	);
 
 	const handleSelectionChange = useCallback(
@@ -697,6 +704,10 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 			.map((path) => `缺少包内资产：${path}`);
 		return [...validateDayMap(deferredMap), ...missing];
 	}, [assetUrls, deferredMap, packLabel]);
+	const warnings = useMemo(
+		() => getDayMapWarnings(deferredMap),
+		[deferredMap]
+	);
 
 	const counts = useMemo(
 		() => ({
@@ -903,6 +914,7 @@ export function DayMapEditor({ index, map, mapControls }: IProps) {
 				onRedo={handleRedo}
 				onShortcutHelpOpenChange={setIsShortcutHelpOpen}
 				onUndo={handleUndo}
+				warnings={warnings}
 			/>
 			{isReadOnly && (
 				<WarningNotice>
