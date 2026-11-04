@@ -118,3 +118,19 @@ export function remapDayMapAssetPaths(
 		},
 	};
 }
+
+/** 包内相对路径或 rex:// URI 的路径部分不得为空、绝对或含 `.`、`..` 段。 */
+export function isValidAssetPath(path: string): boolean {
+	const relative = /^rex:\/\//i.test(path)
+		? path.slice(path.indexOf('/', 6) + 1)
+		: path;
+	return (
+		Boolean(relative.trim()) &&
+		!relative.startsWith('/') &&
+		!relative.includes('\\') &&
+		!relative.includes(':') &&
+		relative
+			.split('/')
+			.every((part) => part && part !== '.' && part !== '..')
+	);
+}

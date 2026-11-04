@@ -1,5 +1,5 @@
 import type { ResourceEx } from './contracts/resourceEx';
-import { resolveDayMapAssetPath } from './dayMapAssets';
+import { isValidAssetPath, resolveDayMapAssetPath } from './dayMapAssets';
 import { type IResourcePackValidationIssue } from './validation';
 
 export function validateSpellResources(
@@ -21,18 +21,7 @@ export function validateSpellResources(
 		isImage = false
 	) {
 		const local = resolve(path);
-		const relative = /^rex:\/\//i.test(path)
-			? path.slice(path.indexOf('/', 6) + 1)
-			: path;
-		if (
-			!relative.trim() ||
-			relative.startsWith('/') ||
-			relative.includes('\\') ||
-			relative.includes(':') ||
-			relative
-				.split('/')
-				.some((part) => !part || part === '.' || part === '..')
-		) {
+		if (!isValidAssetPath(path)) {
 			report(category, `${owner}的资源路径无效：${path}`);
 			return;
 		}
@@ -66,12 +55,6 @@ export function validateSpellResources(
 			report('符卡', `${owner}找不到本包中具有标识符的所属角色。`);
 		if (!spell.implementation.trim())
 			report('符卡', `${owner}未填写实现名。`);
-		else if (spell.implementation !== 'Mai')
-			report(
-				'符卡',
-				`${owner}的实现“${spell.implementation}”需确认已在目标 Mod 中注册。`,
-				'warning'
-			);
 		for (const kind of ['positive', 'negative'] as const) {
 			const card = spell[kind];
 			const label = kind === 'positive' ? '红卡' : '黑卡';
@@ -95,26 +78,6 @@ export function validateSpellResources(
 				)
 			)
 				report('符卡', `${owner}的特效包未在 assetBundles 中声明。`);
-		}
-		if (spell.implementation === 'Mai') {
-			if (!spell.vfxBundle?.trim())
-				report('符卡', `${owner}的 Mai 实现需要特效包。`);
-			for (const id of [11002, 11003]) {
-				if (
-					!data.buffs.some(
-						(buff) =>
-							buff.id === id &&
-							buff.name.trim() &&
-							buff.description.trim() &&
-							buff.icon.trim()
-					)
-				)
-					report(
-						'符卡',
-						`${owner}的 Mai 实现需要完整的 Buff ${id}；若由依赖包提供，需在游戏中核验。`,
-						'warning'
-					);
-			}
 		}
 	});
 	data.buffs.forEach((buff) => {
