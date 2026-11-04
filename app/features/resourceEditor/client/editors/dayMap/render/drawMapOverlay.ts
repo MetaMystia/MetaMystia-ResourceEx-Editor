@@ -2,7 +2,11 @@ import type {
 	IDayMap,
 	TDayMapCollider,
 } from '@/domain/resourcePack/contracts/dayMap';
-import { getColliderOutlines } from '@/domain/resourcePack/dayMapGeometry';
+import {
+	getColliderOutlines,
+	getWorldColliders,
+	isPointInCollider,
+} from '@/domain/resourcePack/dayMapGeometry';
 
 import {
 	formatMapNumber,
@@ -107,6 +111,7 @@ const OVERLAY_COLORS = {
 	slopeDown: '#f97316',
 	slopeUp: '#0ea5e9',
 	spawn: '#22c55e',
+	spawnBlocked: '#dc2626',
 } as const;
 
 interface IScreen {
@@ -598,9 +603,30 @@ const SPAWN_DIRECTIONS = {
 	Up: [0, -1],
 } as const;
 
+const blockedSpawnsCache = new WeakMap<IDayMap, ReadonlySet<number>>();
+
+/** 落在实心碰撞内的出生点。画布逐帧重绘，按地图快照缓存。 */
+function getBlockedSpawns(map: IDayMap) {
+	const cached = blockedSpawnsCache.get(map);
+	if (cached) return cached;
+	const colliders = getWorldColliders(map);
+	const blocked = new Set<number>();
+	map.spawnMarkers.forEach((marker, index) => {
+		if (
+			colliders.some((collider) =>
+				isPointInCollider(collider, marker.x, marker.y)
+			)
+		)
+			blocked.add(index);
+	});
+	blockedSpawnsCache.set(map, blocked);
+	return blocked;
+}
+
 function drawSpawns(screen: IScreen, state: IMapOverlayState) {
 	const { context } = screen;
 	const isActive = state.mode === 'spawn';
+	const blocked = getBlockedSpawns(state.map);
 	state.map.spawnMarkers.forEach((marker, index) => {
 		if (
 			marker.x < screen.visible.minX - 2 ||
@@ -614,10 +640,11 @@ function drawSpawns(screen: IScreen, state: IMapOverlayState) {
 		const isSelected = isActive && state.selection.has(index);
 		const isHovered = isActive && state.hoveredIndex === index;
 		const isDefault = marker.name === state.map.defaultSpawnMarker;
-		const radius = isActive ? 7 : 5;
+		const isBlocked = blocked.has(index);
+		const radius = isActive ? (isBlocked ? 8 : 7) : isBlocked ? 7 : 5;
 		const [dx, dy] = SPAWN_DIRECTIONS[marker.rotation] ?? [0, 1];
 		context.save();
-		context.globalAlpha = isActive ? 1 : 0.85;
+		context.globalAlpha = isActive || isBlocked ? 1 : 0.85;
 		context.beginPath();
 		context.moveTo(x + dx * (radius + 7), y + dy * (radius + 7));
 		context.lineTo(x + dx * radius - dy * 5, y + dy * radius + dx * 5);
@@ -630,13 +657,26 @@ function drawSpawns(screen: IScreen, state: IMapOverlayState) {
 		context.fill();
 		context.beginPath();
 		context.arc(x, y, radius, 0, Math.PI * 2);
-		context.fillStyle = isSelected
-			? OVERLAY_COLORS.selection
-			: OVERLAY_COLORS.spawn;
+		context.fillStyle = isBlocked
+			? OVERLAY_COLORS.spawnBlocked
+			: isSelected
+				? OVERLAY_COLORS.selection
+				: OVERLAY_COLORS.spawn;
 		context.lineWidth = 2;
 		context.stroke();
 		context.fill();
-		if (isDefault) {
+		if (isBlocked) {
+			const arm = radius * 0.45;
+			context.beginPath();
+			context.moveTo(x - arm, y - arm);
+			context.lineTo(x + arm, y + arm);
+			context.moveTo(x + arm, y - arm);
+			context.lineTo(x - arm, y + arm);
+			context.strokeStyle = '#ffffff';
+			context.lineWidth = 2;
+			context.lineCap = 'round';
+			context.stroke();
+		} else if (isDefault) {
 			context.beginPath();
 			context.arc(x, y, radius * 0.4, 0, Math.PI * 2);
 			context.fillStyle = '#ffffff';
@@ -652,15 +692,29 @@ function drawSpawns(screen: IScreen, state: IMapOverlayState) {
 			context.stroke();
 		}
 		context.restore();
-		if (isActive || screen.scale >= 20)
+		if (isActive || isBlocked || screen.scale >= 20) {
+			const note = isBlocked
+				? isDefault
+					? '（默认，位于碰撞内）'
+					: '（位于碰撞内）'
+				: isDefault
+					? '（默认）'
+					: '';
 			drawLabel(
 				screen,
-				isDefault ? `${marker.name}（默认）` : marker.name,
+				`${marker.name}${note}`,
 				x + radius + 6,
 				y - radius - 2,
 				state.fontFamily,
-				{ color: isSelected ? OVERLAY_COLORS.selection : '#ffffff' }
+				{
+					color: isSelected
+						? OVERLAY_COLORS.selection
+						: isBlocked
+							? '#fca5a5'
+							: '#ffffff',
+				}
 			);
+		}
 	});
 }
 

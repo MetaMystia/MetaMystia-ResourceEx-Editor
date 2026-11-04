@@ -1,4 +1,4 @@
-import type { TDayMapCollider } from './contracts/dayMap';
+import type { IDayMap, TDayMapCollider } from './contracts/dayMap';
 
 export interface IDayMapOutline {
 	isClosed: boolean;
@@ -172,4 +172,22 @@ export function placeCollider(
 			};
 		}
 	}
+}
+
+/** 地图碰撞与物件模板碰撞的世界坐标。 */
+export function getWorldColliders(map: IDayMap): TDayMapCollider[] {
+	const prefabs = new Map(map.prefabs.map((prefab) => [prefab.key, prefab]));
+	return [
+		...map.colliders,
+		...map.objects.flatMap((object) =>
+			(prefabs.get(object.prefab)?.colliders ?? []).map((collider) =>
+				placeCollider(collider, {
+					scaleX: object.scale[0] ?? 1,
+					scaleY: object.scale[1] ?? 1,
+					x: object.x,
+					y: object.y,
+				})
+			)
+		),
+	];
 }

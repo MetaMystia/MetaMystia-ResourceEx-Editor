@@ -5,7 +5,7 @@ import type {
 } from './contracts/dayMap';
 
 import { DAY_MAP_CHUNK_SIZE_PX } from './dayMapAssets';
-import { isPointInCollider, placeCollider } from './dayMapGeometry';
+import { getWorldColliders, isPointInCollider } from './dayMapGeometry';
 
 export const DAY_MAP_FORMAT_VERSION = 3;
 /** 与 Mod 的 DayMapRegistry 一致的单图上限。 */
@@ -220,31 +220,19 @@ export function validateDayMap(map: IDayMap): string[] {
 		heightPositions.add(key);
 	}
 	const names = new Set<string>();
+	const worldColliders = getWorldColliders(map);
 	for (const marker of map.spawnMarkers) {
 		if (!marker.name.trim() || names.has(marker.name))
 			errors.push(`出生点名称为空或重复：${marker.name}`);
 		names.add(marker.name);
 		if (!isCoordinate(marker.x) || !isCoordinate(marker.y))
 			errors.push(`出生点${marker.name}坐标无效。`);
-		const isBlocked =
-			map.colliders.some((collider) =>
+		if (
+			worldColliders.some((collider) =>
 				isPointInCollider(collider, marker.x, marker.y)
-			) ||
-			map.objects.some((object) =>
-				(prefabs.get(object.prefab)?.colliders ?? []).some((collider) =>
-					isPointInCollider(
-						placeCollider(collider, {
-							scaleX: object.scale[0] ?? 1,
-							scaleY: object.scale[1] ?? 1,
-							x: object.x,
-							y: object.y,
-						}),
-						marker.x,
-						marker.y
-					)
-				)
-			);
-		if (isBlocked) errors.push(`出生点${marker.name}位于碰撞内。`);
+			)
+		)
+			errors.push(`出生点${marker.name}位于碰撞内。`);
 	}
 	if (!names.has(map.defaultSpawnMarker)) errors.push('默认出生点不存在。');
 	if (!isVector(map.camera.position, 3)) errors.push('固定相机位置无效。');

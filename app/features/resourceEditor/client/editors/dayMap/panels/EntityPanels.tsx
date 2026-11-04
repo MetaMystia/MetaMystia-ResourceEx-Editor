@@ -25,8 +25,8 @@ import type {
 	TDayMapRotation,
 } from '@/domain/resourcePack/contracts/dayMap';
 import {
+	getWorldColliders,
 	isPointInCollider,
-	placeCollider,
 } from '@/domain/resourcePack/dayMapGeometry';
 import { DAY_MAP_LIMITS } from '@/domain/resourcePack/dayMapValidation';
 
@@ -50,7 +50,6 @@ import {
 	patchSpawn,
 	setCollider,
 } from '@/features/resourceEditor/client/editors/dayMap/dayMapEdits';
-import { getObjectPlacement } from '@/features/resourceEditor/client/editors/dayMap/dayMapSpatial';
 import {
 	MapHint,
 	MapNumber,
@@ -787,19 +786,6 @@ export function ColliderInspector({
 	);
 }
 
-/** 出生点是否落在任何实心碰撞内（地图碰撞与物件模板碰撞）。 */
-function findBlockingCollider(map: IDayMap, x: number, y: number) {
-	const placed = map.objects.flatMap((object) =>
-		(
-			map.prefabs.find((prefab) => prefab.key === object.prefab)
-				?.colliders ?? []
-		).map((collider) => placeCollider(collider, getObjectPlacement(object)))
-	);
-	return [...map.colliders, ...placed].find((collider) =>
-		isPointInCollider(collider, x, y)
-	);
-}
-
 export function SpawnInspector({
 	index,
 	isReadOnly,
@@ -811,7 +797,9 @@ export function SpawnInspector({
 	const spawn = map.spawnMarkers[index];
 	if (!spawn) return null;
 	const isDefault = spawn.name === map.defaultSpawnMarker;
-	const blocking = findBlockingCollider(map, spawn.x, spawn.y);
+	const blocking = getWorldColliders(map).find((collider) =>
+		isPointInCollider(collider, spawn.x, spawn.y)
+	);
 	return (
 		<MapPanel
 			title="出生点属性"
