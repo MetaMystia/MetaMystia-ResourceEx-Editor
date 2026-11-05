@@ -393,6 +393,12 @@ export function MapViewMenu({ mode, onChange, options }: IViewMenuProps) {
 			isVisible: mode !== 'height',
 		},
 		{
+			key: 'shouldShowPlayerPreview',
+			label: '玩家比例',
+			description: '光标处显示游戏内等比例的玩家和碰撞范围。',
+			isVisible: true,
+		},
+		{
 			key: 'shouldDimInactiveLayers',
 			label: '淡化其他图层',
 			description: '图层模式下突出当前图层。',

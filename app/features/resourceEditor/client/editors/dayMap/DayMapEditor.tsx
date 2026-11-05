@@ -108,6 +108,7 @@ const VIEW_OPTION_KEYS = [
 	'shouldDimInactiveLayers',
 	'shouldShowCollisions',
 	'shouldShowGrid',
+	'shouldShowPlayerPreview',
 	'shouldShowSlopes',
 	'shouldShowViewportPreview',
 ] as const satisfies readonly (keyof IMapViewOptions)[];

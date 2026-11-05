@@ -46,6 +46,7 @@ export interface IMapViewOptions {
 	shouldDimInactiveLayers: boolean;
 	shouldShowCollisions: boolean;
 	shouldShowGrid: boolean;
+	shouldShowPlayerPreview: boolean;
 	shouldShowSlopes: boolean;
 	shouldShowViewportPreview: boolean;
 }
@@ -54,9 +55,27 @@ export const DEFAULT_MAP_VIEW_OPTIONS = {
 	shouldDimInactiveLayers: false,
 	shouldShowCollisions: true,
 	shouldShowGrid: false,
+	shouldShowPlayerPreview: false,
 	shouldShowSlopes: false,
 	shouldShowViewportPreview: true,
 } as const satisfies IMapViewOptions;
+
+/** 默认皮肤玩家的站立帧与 BaseCharacter 的 PolygonCollider2D，都以脚底为原点。 */
+export const MAP_PLAYER_PREVIEW = {
+	colliderPoints: [
+		[0.235, 0.315],
+		[-0.234, 0.313],
+		[-0.276, 0.232],
+		[-0.174, -0.013],
+		[-0.1, -0.06],
+		[0.122, -0.06],
+		[0.186, -0.012],
+		[0.268, 0.237],
+	],
+	imageSizePx: 64,
+	imageUrl: '/assets/sprites/player.png',
+	pixelsPerUnit: 48,
+} as const;
 
 export const MAP_HISTORY_LIMIT = 100;
 export const MAP_BRUSH_SIZE_MAX = 9;

@@ -33,6 +33,7 @@ import {
 	type IMapView,
 	type IMapViewOptions,
 	MAP_ENTITY_KIND_BY_MODE,
+	MAP_PLAYER_PREVIEW,
 	MAP_ZOOM_MAX_PX_PER_UNIT,
 	MAP_ZOOM_MIN_PX_PER_UNIT,
 	type TColliderTarget,
@@ -315,6 +316,7 @@ export default function DayMapViewport(props: IProps) {
 		start: number;
 		to: IMapView;
 	} | null>(null);
+	const playerImageRef = useRef<HTMLImageElement | null>(null);
 	const wheelNavigationRef = useRef<IMapWheelNavigation | null>(null);
 	const fontFamilyRef = useRef('sans-serif');
 	const lastSceneRef = useRef<{
@@ -331,6 +333,16 @@ export default function DayMapViewport(props: IProps) {
 
 	function readShownMap() {
 		return draftRef.current ?? pendingRef.current ?? propsRef.current.map;
+	}
+
+	function readPlayerImage() {
+		if (!playerImageRef.current) {
+			const image = new Image();
+			image.onload = scheduleRender;
+			image.src = MAP_PLAYER_PREVIEW.imageUrl;
+			playerImageRef.current = image;
+		}
+		return playerImageRef.current;
 	}
 
 	function scheduleRender() {
@@ -597,6 +609,10 @@ export default function DayMapViewport(props: IProps) {
 					: null,
 			mode: p.mode,
 			options: p.options,
+			playerPreview:
+				p.options.shouldShowPlayerPreview && hover.world && !gesture
+					? { image: readPlayerImage(), position: hover.world }
+					: null,
 			selectedVertex:
 				gesture?.kind === 'vertex' ? gesture.vertex : p.selectedVertex,
 			selection:

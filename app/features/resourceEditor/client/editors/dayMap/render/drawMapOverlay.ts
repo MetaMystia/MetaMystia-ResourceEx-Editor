@@ -17,6 +17,7 @@ import {
 	type IMapVertexSelection,
 	type IMapView,
 	type IMapViewOptions,
+	MAP_PLAYER_PREVIEW,
 	type TColliderTarget,
 	type TMapMode,
 	type TMapTool,
@@ -77,6 +78,7 @@ export interface IMapOverlayState {
 	marquee: IMapRect | null;
 	mode: TMapMode;
 	options: IMapViewOptions;
+	playerPreview: { image: HTMLImageElement; position: IMapPoint } | null;
 	selectedVertex: IMapVertexSelection | null;
 	selection: ReadonlySet<number>;
 	tool: TMapTool;
@@ -106,6 +108,7 @@ const OVERLAY_COLORS = {
 	layer: '#a3e635',
 	marquee: '#60a5fa',
 	object: '#c084fc',
+	player: '#38bdf8',
 	selection: '#fbbf24',
 	solid: '#ef4444',
 	slopeDown: '#f97316',
@@ -723,6 +726,39 @@ function drawSpawns(screen: IScreen, state: IMapOverlayState) {
 	});
 }
 
+function drawPlayerPreview(screen: IScreen, state: IMapOverlayState) {
+	const preview = state.playerPreview;
+	if (!preview) return;
+	const { context } = screen;
+	const { image, position } = preview;
+	const { colliderPoints, imageSizePx, pixelsPerUnit } = MAP_PLAYER_PREVIEW;
+	const size = (imageSizePx / pixelsPerUnit) * screen.scale;
+	context.save();
+	if (image.complete && image.naturalWidth > 0) {
+		context.imageSmoothingEnabled = false;
+		context.drawImage(
+			image,
+			Math.round(screen.px(position.x) - size / 2),
+			Math.round(screen.py(position.y) - size),
+			size,
+			size
+		);
+	}
+	const collider = colliderPoints.map(([x, y]) => [
+		position.x + x,
+		position.y + y,
+	]);
+	context.fillStyle = 'rgba(56, 189, 248, 0.25)';
+	context.beginPath();
+	tracePath(screen, collider, true);
+	context.fill();
+	strokeWithHalo(screen, OVERLAY_COLORS.player, 1.5, () => {
+		context.beginPath();
+		tracePath(screen, collider, true);
+	});
+	context.restore();
+}
+
 function drawCamera(screen: IScreen, state: IMapOverlayState) {
 	const { bounds, shouldFollow } = state.map.camera;
 	const isActive = state.mode === 'map';
@@ -941,6 +977,7 @@ export function drawMapOverlay(
 	drawCamera(screen, state);
 	drawObjects(screen, state);
 	drawSpawns(screen, state);
+	drawPlayerPreview(screen, state);
 	drawBrush(screen, state);
 	drawDraft(screen, state);
 	const { marquee } = state;
