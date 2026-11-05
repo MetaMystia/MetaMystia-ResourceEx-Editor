@@ -24,8 +24,12 @@ import type { DayConfig, EventData, EventNodeTrigger } from './contracts/event';
 import type { IItemConfig } from './contracts/items';
 import type { MissionReward } from './contracts/mission';
 import type { ResourceEx } from './contracts/resourceEx';
-import { isValidAssetPath, resolveDayMapAssetPath } from './dayMapAssets';
-import { validateDayMap } from './dayMapValidation';
+import {
+	getDayMapAssetReferences,
+	isValidAssetPath,
+	resolveDayMapAssetPath,
+} from './dayMapAssets';
+import { getDayMapWarnings, validateDayMap } from './dayMapValidation';
 import { validateGift } from './giftValidation';
 import { validateSpellResources } from './spellValidation';
 
@@ -436,11 +440,15 @@ export function validateResourcePackRules(
 				category: '白天地图',
 				message: `${mapNames(index)}：${message}`,
 			});
-		for (const path of [
-			...map.tiles.map((tile) => tile.image),
-			map.mapBGM.intro,
-			map.mapBGM.loop,
-		]) {
+		for (const message of getDayMapWarnings(map))
+			issues.push({
+				severity: 'warning',
+				category: '白天地图',
+				message: `${mapNames(index)}：${message}`,
+			});
+		for (const path of new Set(
+			getDayMapAssetReferences(map).map(({ path }) => path)
+		)) {
 			if (
 				path.startsWith('rex://') &&
 				resolveDayMapAssetPath(path, packLabel) === null
@@ -1601,6 +1609,16 @@ export function validateResourcePackRules(
 				);
 			}
 		});
+	});
+
+	(data.gifts ?? []).forEach((gift, index) => {
+		if (gift.productType !== 'Item' && gift.productId != null) {
+			checkItemReference(
+				gift.productType,
+				gift.productId,
+				`礼物#${index + 1}“${gift.title || '未命名礼物'}”`
+			);
+		}
 	});
 
 	data.characters.forEach((character) => {

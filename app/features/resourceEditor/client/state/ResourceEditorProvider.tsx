@@ -21,6 +21,7 @@ import { downloadResourcePack } from '@/features/resourceEditor/client/archive/d
 import { writeResourcePackArchive } from '@/features/resourceEditor/client/archive/writeResourcePackArchive';
 import type { IAssetPathOperation } from '@/features/resourceEditor/client/assets/contracts';
 import { useAssetStore } from '@/features/resourceEditor/client/assets/useAssetStore';
+import type { IWorkspaceSnapshot } from '@/features/resourceEditor/client/workspaces/contracts';
 import { useResourceWorkspaces } from '@/features/resourceEditor/client/workspaces/useResourceWorkspaces';
 import {
 	clearGuestDrafts as clearStoredGuestDrafts,
@@ -87,6 +88,7 @@ export function ResourceEditorProvider({ children }: PropsWithChildren) {
 	const isMountedRef = useRef(false);
 	const licenseRef = useRef(license);
 	const leaseLossRef = useRef(leaseLoss);
+	const appliedSnapshotRef = useRef<IWorkspaceSnapshot | null>(null);
 	const resourcePackRef = useRef(resourcePack);
 	const revisionRef = useRef(revision);
 	isExportSnapshotRef.current = isExportSnapshot;
@@ -434,6 +436,7 @@ export function ResourceEditorProvider({ children }: PropsWithChildren) {
 
 	useEffect(() => {
 		if (!activeWorkspace) {
+			appliedSnapshotRef.current = null;
 			editorStateRef.current = createEmptyWorkspaceEditorState();
 			activeWorkspaceIdRef.current = null;
 			setActiveWorkspaceId(null);
@@ -441,9 +444,12 @@ export function ResourceEditorProvider({ children }: PropsWithChildren) {
 			return;
 		}
 		const { snapshot, workspace } = activeWorkspace;
+		// 只有新加载的快照才替换编辑内容；摘要同步沿用已应用的快照。
+		const isApplied = appliedSnapshotRef.current === snapshot;
+		appliedSnapshotRef.current = snapshot;
 		if (
 			activeWorkspaceId === workspace.id &&
-			revisionRef.current === snapshot.revision
+			(isApplied || revisionRef.current === snapshot.revision)
 		) {
 			return;
 		}

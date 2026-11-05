@@ -118,6 +118,7 @@ export interface MissionReward {
 	rewardIdArray?: string[];
 	/** `ScheduleNews` 的发布日；缺省为当天。 */
 	time?: DayConfig;
+	should?: boolean;
 }
 
 export type MissionFailedAction = 'None' | 'BackToMainMenu' | 'Rewind';

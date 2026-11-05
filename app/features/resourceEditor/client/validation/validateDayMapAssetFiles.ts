@@ -1,17 +1,28 @@
 import type { ResourceEx } from '@/domain/resourcePack/contracts/resourceEx';
-import { resolveDayMapAssetPath } from '@/domain/resourcePack/dayMapAssets';
+import {
+	getDayMapChunkPath,
+	getDayMapChunkSize,
+	resolveDayMapAssetPath,
+} from '@/domain/resourcePack/dayMapAssets';
 import { validateDayMapWav } from '@/domain/resourcePack/dayMapWav';
 import { type IResourcePackValidationIssue } from '@/domain/resourcePack/validation';
+
+const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10] as const;
+
+/** 只读 PNG 头部的宽高，与 Mod 的校验方式一致，不解码整张图。 */
+async function readPngSize(blob: Blob) {
+	const bytes = new Uint8Array(await blob.slice(0, 24).arrayBuffer());
+	if (!PNG_SIGNATURE.every((value, index) => bytes[index] === value))
+		return null;
+	const view = new DataView(bytes.buffer);
+	return { height: view.getUint32(20), width: view.getUint32(16) };
+}
 
 export async function validateDayMapAssetFiles(
 	resourcePack: ResourceEx,
 	assetUrls: Readonly<Record<string, string>>
 ): Promise<IResourcePackValidationIssue[]> {
 	const issues: IResourcePackValidationIssue[] = [];
-	const images = new Map<
-		string,
-		Promise<{ width: number; height: number } | null>
-	>();
 	const sounds = new Map<string, Promise<string | null>>();
 	const report = (message: string) =>
 		issues.push({ severity: 'error', category: '白天地图', message });
@@ -25,52 +36,47 @@ export async function validateDayMapAssetFiles(
 		if (!response.ok) throw new Error('无法读取本地资源');
 		return response.blob();
 	};
-	const readImage = (path: string) => {
-		let result = images.get(path);
-		if (!result) {
-			result = (async () => {
-				try {
-					const bitmap = await createImageBitmap(
-						await readBlob(path)
-					);
-					const dimensions = {
-						width: bitmap.width,
-						height: bitmap.height,
-					};
-					bitmap.close();
-					return dimensions;
-				} catch {
-					report(`图片${path}无法解码，请重新导入有效图片。`);
-					return null;
-				}
-			})();
-			images.set(path, result);
-		}
-		return result;
-	};
+	const label = resourcePack.packInfo.label;
 	for (const map of resourcePack.dayMaps) {
-		for (const tile of map.tiles) {
-			const path = resolveDayMapAssetPath(
-				tile.image,
-				resourcePack.packInfo.label
-			);
-			if (!path || !assetUrls[path]) continue;
-			const dimensions = await readImage(path);
-			const [x = 0, y = 0, width = 0, height = 0] = tile.rect;
-			if (
-				!tile.mesh &&
-				dimensions &&
-				(x + width > dimensions.width || y + height > dimensions.height)
-			)
-				report(
-					`${map.name}：瓦片${tile.key}超出图片${path}的${dimensions.width}×${dimensions.height}像素边界。`
-				);
-		}
+		const images = [
+			...map.layers.map((layer) => ({
+				image: layer.image,
+				owner: `图层${layer.name}`,
+			})),
+			...map.prefabs.map((prefab) => ({
+				image: prefab.image,
+				owner: `物件模板${prefab.key}`,
+			})),
+		];
+		for (const { image, owner } of images)
+			for (const chunk of image.chunks) {
+				const reference = getDayMapChunkPath(image, chunk);
+				const path = resolveDayMapAssetPath(reference, label);
+				if (!path) continue;
+				if (!assetUrls[path]) {
+					report(`${map.name}：${owner}缺少图块${path}。`);
+					continue;
+				}
+				const expected = getDayMapChunkSize(image, chunk);
+				let size: Awaited<ReturnType<typeof readPngSize>> = null;
+				try {
+					size = await readPngSize(await readBlob(path));
+				} catch {
+					// 读取失败按无效 PNG 报告。
+				}
+				if (!size)
+					report(`${map.name}：${owner}的图块${path}不是有效 PNG。`);
+				else if (
+					size.width !== expected.width ||
+					size.height !== expected.height
+				)
+					report(
+						`${map.name}：${owner}的图块${path}应为${expected.width}×${expected.height}像素，实际为${size.width}×${size.height}。`
+					);
+			}
 		for (const reference of [map.mapBGM.intro, map.mapBGM.loop]) {
-			const path = resolveDayMapAssetPath(
-				reference,
-				resourcePack.packInfo.label
-			);
+			if (!reference) continue;
+			const path = resolveDayMapAssetPath(reference, label);
 			if (!path || !assetUrls[path]) continue;
 			let result = sounds.get(path);
 			if (!result) {

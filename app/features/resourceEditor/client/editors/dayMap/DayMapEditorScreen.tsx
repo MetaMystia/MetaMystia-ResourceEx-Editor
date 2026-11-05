@@ -12,6 +12,7 @@ import {
 	UNMANAGED_ID_MIN,
 } from '@/domain/resourcePack/constants';
 import type { IDayMap } from '@/domain/resourcePack/contracts/dayMap';
+import { DAY_MAP_FORMAT_VERSION } from '@/domain/resourcePack/dayMapValidation';
 
 import { SectionDeleteButton } from '@/features/resourceEditor/client/components/actions/SectionDeleteButton';
 import { EditorPanel } from '@/features/resourceEditor/client/components/layout/EditorPanel';
@@ -24,35 +25,35 @@ import { useViewportFillHeight } from '@/features/resourceEditor/client/hooks/us
 import { useEditorEntityNavigationIntent } from '@/features/resourceEditor/client/navigation/editorNavigationIntent';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
+import { DEFAULT_MAP_PIXELS_PER_UNIT } from './dayMapEditorModel';
 import { DayMapEditor } from './DayMapEditor';
 import { MapModeIcon, PlusIcon } from './MapIcons';
 
 function createBlankMap(id: number): IDayMap {
 	return {
 		id,
-		formatVersion: 1,
+		formatVersion: DAY_MAP_FORMAT_VERSION,
 		name: '新地图',
 		description: '',
-		tiles: [],
-		layers: [
-			{
-				name: '地面',
-				sortingLayer: 'Background',
-				sortingOrder: -2000,
-				cells: [],
-			},
-		],
-		height: { cells: [] },
+		pixelsPerUnit: DEFAULT_MAP_PIXELS_PER_UNIT,
+		layers: [],
+		prefabs: [],
 		objects: [],
-		collisions: [],
+		colliders: [],
+		height: { cells: [] },
 		spawnMarkers: [{ name: 'Entry', x: 0, y: 0, rotation: 'Down' }],
 		defaultSpawnMarker: 'Entry',
 		camera: {
 			shouldFollow: true,
-			bounds: [-4, -3, 4, 3],
+			bounds: [
+				[-4, -3],
+				[4, -3],
+				[4, 3],
+				[-4, 3],
+			],
 			position: [0, 0, -10],
 		},
-		mapBGM: { intro: '', loop: '' },
+		mapBGM: {},
 	};
 }
 
@@ -150,7 +151,7 @@ export function DayMapEditorScreen() {
 					value: i,
 					label: item.name || '未命名地图',
 					textValue: `${item.name} ${item.id}`,
-					description: `ID ${item.id}${item.artOnly ? ' · 美术参考' : ''}`,
+					description: `ID ${item.id}`,
 				}))}
 				menuMaxHeight={360}
 				onChange={(value) => {
@@ -213,8 +214,8 @@ export function DayMapEditorScreen() {
 							还没有白天地图
 						</Heading>
 						<p className={TYPOGRAPHY_STYLES.subtleDescription}>
-							新建一张地图，导入 PNG
-							切成瓦片后即可绘制；坡面、碰撞、出生点与相机各自独立编辑。
+							新建一张地图，导入整张 PNG
+							作为图层，树木房屋导入为物件；碰撞、坡面、出生点与相机各自独立编辑。
 						</p>
 					</div>
 					<Button

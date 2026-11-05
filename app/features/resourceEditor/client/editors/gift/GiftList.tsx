@@ -1,7 +1,10 @@
 import Button from '@/design/ui/components/button';
 
 import type { IGiftConfig } from '@/domain/resourcePack/contracts/gift';
-import { validateGift } from '@/domain/resourcePack/giftValidation';
+import {
+	GIFT_PRODUCT_TYPE_LABELS,
+	validateGift,
+} from '@/domain/resourcePack/giftValidation';
 
 import { SectionDeleteButton } from '@/features/resourceEditor/client/components/actions/SectionDeleteButton';
 import {
@@ -84,7 +87,8 @@ export function GiftList({
 							{isInvalid && <ErrorBadge>待完善</ErrorBadge>}
 						</EditorCollectionItemTitle>
 						<EditorCollectionItemMeta>
-							Item ID：{gift.itemId ?? '未填写'} ·{' '}
+							{GIFT_PRODUCT_TYPE_LABELS[gift.productType]}ID：
+							{gift.productId ?? '未填写'} ×{gift.productAmount} ·{' '}
 							{gift.allowRepeat ? '允许重复' : '持有时不再发放'}
 						</EditorCollectionItemMeta>
 					</EditorCollectionItem>

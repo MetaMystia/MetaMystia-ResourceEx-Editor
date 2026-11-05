@@ -21,6 +21,8 @@ export function GiftEditorScreen() {
 
 	function addGift() {
 		const gift: IGiftConfig = {
+			productType: 'Item',
+			productAmount: 1,
 			title: '新礼物',
 			allowRepeat: false,
 			dialogPackageName: '',
