@@ -85,6 +85,10 @@ import {
 	snapPoint,
 	type TRectHandle,
 } from './dayMapSpatial';
+import {
+	createMapWheelNavigation,
+	type IMapWheelNavigation,
+} from './dayMapWheelNavigation';
 import { isEditableTarget, isOverlayActive } from './mapShortcuts';
 import { type MapViewportStore } from './mapViewportStore';
 import {
@@ -267,18 +271,6 @@ function easeOutCubic(value: number) {
 	return 1 - (1 - value) ** 3;
 }
 
-/** 区分鼠标滚轮（缩放）和触控板双指滑动（平移）。 */
-function classifyWheel(
-	event: WheelEvent,
-	previous: { kind: 'pan' | 'zoom'; time: number } | null
-): 'pan' | 'zoom' {
-	if (event.ctrlKey || event.metaKey) return 'zoom';
-	if (previous && event.timeStamp - previous.time < 120) return previous.kind;
-	if (event.deltaMode !== 0) return 'zoom';
-	if (event.deltaX === 0 && Math.abs(event.deltaY) >= 50) return 'zoom';
-	return 'pan';
-}
-
 const heightIndexCache = new WeakMap<object, Map<string, number>>();
 
 function getHeightIndex(map: IDayMap) {
@@ -323,9 +315,7 @@ export default function DayMapViewport(props: IProps) {
 		start: number;
 		to: IMapView;
 	} | null>(null);
-	const wheelRef = useRef<{ kind: 'pan' | 'zoom'; time: number } | null>(
-		null
-	);
+	const wheelNavigationRef = useRef<IMapWheelNavigation | null>(null);
 	const fontFamilyRef = useRef('sans-serif');
 	const lastSceneRef = useRef<{
 		height: number;
@@ -640,6 +630,7 @@ export default function DayMapViewport(props: IProps) {
 			x: Math.max(-5000, Math.min(5000, next.x)),
 			y: Math.max(-5000, Math.min(5000, next.y)),
 		};
+		if (isAnimated) wheelNavigationRef.current?.cancel();
 		if (isAnimated && !propsRef.current.isReducedMotion) {
 			animationRef.current = {
 				duration: 220,
@@ -1226,6 +1217,7 @@ export default function DayMapViewport(props: IProps) {
 	function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
 		const container = containerRef.current;
 		if (!container || event.target !== event.currentTarget) return;
+		wheelNavigationRef.current?.cancel();
 		if (event.pointerType === 'touch') {
 			touchesRef.current.set(event.pointerId, {
 				x: event.clientX,
@@ -2072,39 +2064,22 @@ export default function DayMapViewport(props: IProps) {
 			scheduleRender();
 		});
 		observer.observe(container);
-		const handleWheel = (event: WheelEvent) => {
-			event.preventDefault();
-			const kind = classifyWheel(event, wheelRef.current);
-			wheelRef.current = { kind, time: event.timeStamp };
-			const rect = container.getBoundingClientRect();
-			const screen = {
-				x: event.clientX - rect.left,
-				y: event.clientY - rect.top,
-			};
-			const unit =
-				event.deltaMode === 1
-					? 16
-					: event.deltaMode === 2
-						? rect.height
-						: 1;
-			if (kind === 'zoom') {
-				const intensity =
-					event.ctrlKey || event.metaKey ? 0.01 : 0.0022;
-				zoomAround(Math.exp(-event.deltaY * unit * intensity), screen);
-				return;
-			}
-			const view = viewRef.current;
-			const dx = (event.shiftKey ? event.deltaY : event.deltaX) * unit;
-			const dy = (event.shiftKey ? event.deltaX : event.deltaY) * unit;
-			animationRef.current = null;
-			setView({
-				...view,
-				x: view.x + dx / view.scale,
-				y: view.y - dy / view.scale,
-			});
-			if (!gestureRef.current) updateHover(readPointer(event).world);
-		};
-		container.addEventListener('wheel', handleWheel, { passive: false });
+		const wheelNavigation = createMapWheelNavigation(container, {
+			getScale: () => viewRef.current.scale,
+			isReducedMotion: () => propsRef.current.isReducedMotion,
+			onPan: (deltaX, deltaY, event) => {
+				const view = viewRef.current;
+				animationRef.current = null;
+				setView({
+					...view,
+					x: view.x + deltaX / view.scale,
+					y: view.y - deltaY / view.scale,
+				});
+				if (!gestureRef.current) updateHover(readPointer(event).world);
+			},
+			onZoom: zoomAround,
+		});
+		wheelNavigationRef.current = wheelNavigation;
 		// 捕获阶段处理空格和 Alt：指针在画布上时，焦点停在按钮上也能按住空格平移。
 		const handleKey = (event: globalThis.KeyboardEvent) => {
 			const isOwned =
@@ -2151,7 +2126,8 @@ export default function DayMapViewport(props: IProps) {
 		window.addEventListener('blur', handleBlur);
 		return () => {
 			observer.disconnect();
-			container.removeEventListener('wheel', handleWheel);
+			wheelNavigation.dispose();
+			wheelNavigationRef.current = null;
 			window.removeEventListener('keydown', handleKey, true);
 			window.removeEventListener('keyup', handleKey, true);
 			window.removeEventListener('blur', handleBlur);
