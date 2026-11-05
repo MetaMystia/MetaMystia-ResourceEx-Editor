@@ -50,16 +50,6 @@ export function RectangleIcon(props: TIconProps) {
 	);
 }
 
-export function FillIcon(props: TIconProps) {
-	return (
-		<Icon {...props}>
-			<path d="M4.6 11.3l6.7-6.7 7.8 7.8-6.7 6.7a2 2 0 0 1-2.8 0l-5-5a2 2 0 0 1 0-2.8z" />
-			<path d="M4.3 12.5h14.5" />
-			<path d="M20.5 15.8s1.6 1.8 1.6 3a1.6 1.6 0 0 1-3.2 0c0-1.2 1.6-3 1.6-3z" />
-		</Icon>
-	);
-}
-
 export function EraserIcon(props: TIconProps) {
 	return (
 		<Icon {...props}>
@@ -96,17 +86,6 @@ export function HandIcon(props: TIconProps) {
 			<path d="M11 11.5V5a1.5 1.5 0 0 1 3 0v6.5" />
 			<path d="M14 6.5a1.5 1.5 0 0 1 3 0V12" />
 			<path d="M17 9a1.5 1.5 0 0 1 3 0v5a7 7 0 0 1-7 7h-1a7 7 0 0 1-5.6-2.8l-2.3-3.1a1.6 1.6 0 0 1 2.4-2.1L8 15" />
-		</Icon>
-	);
-}
-
-export function TileModeIcon(props: TIconProps) {
-	return (
-		<Icon {...props}>
-			<rect x="4" y="4" width="7" height="7" rx="1.2" />
-			<rect x="13" y="4" width="7" height="7" rx="1.2" />
-			<rect x="4" y="13" width="7" height="7" rx="1.2" />
-			<rect x="13" y="13" width="7" height="7" rx="1.2" />
 		</Icon>
 	);
 }
@@ -392,13 +371,44 @@ export function ArrowIcon(props: TIconProps) {
 	);
 }
 
+export function PolygonIcon(props: TIconProps) {
+	return (
+		<Icon {...props}>
+			<path d="M5 8l7-4.5 7 5-2.5 10.5h-9z" />
+			<circle cx="12" cy="3.5" r="1.3" fill="currentColor" />
+			<circle cx="5" cy="8" r="1.3" fill="currentColor" />
+		</Icon>
+	);
+}
+
+export function EdgeIcon(props: TIconProps) {
+	return (
+		<Icon {...props}>
+			<path d="M3.5 18l5-9 5 6 7-10" />
+			<circle cx="8.5" cy="9" r="1.3" fill="currentColor" />
+			<circle cx="13.5" cy="15" r="1.3" fill="currentColor" />
+		</Icon>
+	);
+}
+
+export function CircleIcon(props: TIconProps) {
+	return (
+		<Icon {...props}>
+			<circle cx="12" cy="12" r="7.5" />
+			<path d="M12 12h7.5" opacity="0.45" />
+		</Icon>
+	);
+}
+
 export const MAP_TOOL_ICONS = {
 	brush: BrushIcon,
+	circle: CircleIcon,
+	edge: EdgeIcon,
 	eraser: EraserIcon,
-	fill: FillIcon,
 	hand: HandIcon,
 	picker: PickerIcon,
 	place: PlaceIcon,
+	polygon: PolygonIcon,
 	rectangle: RectangleIcon,
 	select: SelectIcon,
 } as const satisfies Record<TMapTool, (props: TIconProps) => ReactNode>;
@@ -406,8 +416,8 @@ export const MAP_TOOL_ICONS = {
 export const MAP_MODE_ICONS = {
 	collision: CollisionModeIcon,
 	height: SlopeModeIcon,
+	layer: LayersIcon,
 	map: MapModeIcon,
 	object: ObjectModeIcon,
 	spawn: SpawnModeIcon,
-	tile: TileModeIcon,
 } as const satisfies Record<TMapMode, (props: TIconProps) => ReactNode>;

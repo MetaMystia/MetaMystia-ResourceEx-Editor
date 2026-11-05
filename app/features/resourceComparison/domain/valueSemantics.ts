@@ -17,7 +17,7 @@ const KEYED_ARRAY_SEMANTICS = {
 	'characters[].portraits': { kind: 'keyed', stableKey: 'pid' },
 	clothes: { kind: 'keyed', stableKey: 'id' },
 	dayMaps: { kind: 'keyed', stableKey: 'id' },
-	'dayMaps[].tiles': { kind: 'keyed', stableKey: 'key' },
+	'dayMaps[].prefabs': { kind: 'keyed', stableKey: 'key' },
 	'dayMaps[].spawnMarkers': { kind: 'keyed', stableKey: 'name' },
 	dialogPackages: { kind: 'keyed', stableKey: 'name' },
 	eventNodes: { kind: 'keyed', stableKey: 'label' },

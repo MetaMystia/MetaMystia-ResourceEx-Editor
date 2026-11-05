@@ -106,18 +106,28 @@ const SHORTCUT_GROUPS = [
 		title: '画布',
 		items: [
 			['滚轮 / 双指捏合', '以光标为中心缩放'],
+			['双指横向滑动', '平移'],
 			['空格 + 拖动 / 中键拖动', '平移'],
 			['F', '定位选中项或整张地图'],
 			['+ / − / 0', '放大、缩小、恢复 100%'],
-			['方向键 / 回车', '移动格子光标、使用工具'],
 		],
 	},
 	{
-		title: '绘制',
+		title: '碰撞与相机',
+		items: [
+			['单击 / 双击 / 回车', '逐点绘制、结束'],
+			['单击起点', '闭合并结束'],
+			['退格 / Esc', '撤销上一点、取消绘制'],
+			['双击边', '插入顶点'],
+			['Delete（选中顶点）', '删除顶点'],
+			['Shift + 多边形工具', '给选中的多边形加洞'],
+		],
+	},
+	{
+		title: '坡面',
 		items: [
 			['右键拖动', '擦除'],
-			['按住 Alt 点击', '吸取瓦片或坡度'],
-			['Shift + 点击', '从上一笔连成直线'],
+			['按住 Alt 点击', '吸取坡度'],
 			['[ / ]', '缩小、放大笔刷'],
 		],
 	},
@@ -126,7 +136,7 @@ const SHORTCUT_GROUPS = [
 		items: [
 			['Shift / Ctrl + 点击', '加选、减选'],
 			['空白处拖动', '框选'],
-			['方向键（Shift）', '按吸附步长（1 格）微调'],
+			['方向键（Shift）', '按吸附步长（4 倍）微调；图层按 1（10）像素'],
 			['Ctrl + D / Delete', '复制、删除'],
 			['Alt + 拖动', '临时取消吸附'],
 		],
@@ -137,6 +147,7 @@ const SHORTCUT_GROUPS = [
 			['1 – 6', '切换编辑内容'],
 			[
 				Object.entries(MAP_TOOL_SHORTCUTS)
+					.filter(([tool]) => tool !== 'edge')
 					.map(([, key]) => key)
 					.join(' '),
 				'切换工具',
@@ -214,8 +225,22 @@ function ShortcutHelp({
 	);
 }
 
-function IssuesButton({ issues }: { issues: readonly string[] }) {
-	const count = issues.length;
+function IssuesButton({
+	issues,
+	warnings,
+}: {
+	issues: readonly string[];
+	warnings: readonly string[];
+}) {
+	const items = [
+		...issues.map((message) => ({ isError: true, message })),
+		...warnings.map((message) => ({ isError: false, message })),
+	];
+	const count = items.length;
+	const summary = [
+		...(issues.length > 0 ? [`${issues.length} 项待处理`] : []),
+		...(warnings.length > 0 ? [`${warnings.length} 项警告`] : []),
+	].join('，');
 	return (
 		<Popover placement="bottom-end" offset={8}>
 			<PopoverTrigger>
@@ -234,9 +259,11 @@ function IssuesButton({ issues }: { issues: readonly string[] }) {
 				>
 					{count > 0 ? (
 						<>
-							<span className="hidden sm:inline">待处理</span>
+							<span className="hidden sm:inline">
+								{issues.length > 0 ? '待处理' : '警告'}
+							</span>
 							<span className="font-mono tabular-nums">
-								{count}
+								{issues.length > 0 ? issues.length : count}
 							</span>
 						</>
 					) : (
@@ -249,7 +276,7 @@ function IssuesButton({ issues }: { issues: readonly string[] }) {
 					<div className="border-b border-divider px-4 py-3">
 						<p className={TYPOGRAPHY_STYLES.subsectionTitle}>
 							地图检查{' '}
-							{count > 0 ? `· ${count} 项待处理` : '· 未发现问题'}
+							{count > 0 ? `· ${summary}` : '· 未发现问题'}
 						</p>
 						<p className={cn(TYPOGRAPHY_STYLES.caption, 'mt-0.5')}>
 							导出时还会读取图片尺寸和 WAV 结构，检查完整资源包。
@@ -258,7 +285,7 @@ function IssuesButton({ issues }: { issues: readonly string[] }) {
 					{count > 0 && (
 						<ScrollShadow className="max-h-80 px-4 py-3">
 							<ul className="flex flex-col gap-1.5">
-								{issues.slice(0, 200).map((issue, index) => (
+								{items.slice(0, 200).map((item, index) => (
 									<li
 										key={index}
 										className={cn(
@@ -268,10 +295,15 @@ function IssuesButton({ issues }: { issues: readonly string[] }) {
 									>
 										<span
 											aria-hidden
-											className="mt-2 size-1.5 shrink-0 rounded-full bg-warning"
+											className={cn(
+												'mt-2 size-1.5 shrink-0 rounded-full',
+												item.isError
+													? 'bg-danger'
+													: 'bg-warning'
+											)}
 										/>
 										<span className="min-w-0 break-normal">
-											{issue}
+											{item.message}
 										</span>
 									</li>
 								))}
@@ -309,6 +341,7 @@ interface IProps {
 	onRedo(): void;
 	onShortcutHelpOpenChange(isOpen: boolean): void;
 	onUndo(): void;
+	warnings: readonly string[];
 }
 
 export const MapTopBar = memo(function MapTopBar({
@@ -326,6 +359,7 @@ export const MapTopBar = memo(function MapTopBar({
 	onRedo,
 	onShortcutHelpOpenChange,
 	onUndo,
+	warnings,
 }: IProps) {
 	return (
 		<header className="flex flex-wrap items-center gap-2 rounded-large border border-divider bg-content1/40 p-2 shadow-sm backdrop-blur">
@@ -345,7 +379,7 @@ export const MapTopBar = memo(function MapTopBar({
 				/>
 			</ScrollShadow>
 			<div className="flex flex-1 basis-auto items-center justify-end gap-1">
-				<IssuesButton issues={issues} />
+				<IssuesButton issues={issues} warnings={warnings} />
 				<ShortcutHelp
 					isOpen={isShortcutHelpOpen}
 					onOpenChange={onShortcutHelpOpenChange}

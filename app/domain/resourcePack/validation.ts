@@ -24,8 +24,12 @@ import type { EventData, EventNodeTrigger } from './contracts/event';
 import type { IItemConfig } from './contracts/items';
 import type { MissionReward } from './contracts/mission';
 import type { ResourceEx } from './contracts/resourceEx';
-import { isValidAssetPath, resolveDayMapAssetPath } from './dayMapAssets';
-import { validateDayMap } from './dayMapValidation';
+import {
+	getDayMapAssetReferences,
+	isValidAssetPath,
+	resolveDayMapAssetPath,
+} from './dayMapAssets';
+import { getDayMapWarnings, validateDayMap } from './dayMapValidation';
 import { validateGift } from './giftValidation';
 import { validateSpellResources } from './spellValidation';
 
@@ -434,11 +438,15 @@ export function validateResourcePackRules(
 				category: '白天地图',
 				message: `${mapNames(index)}：${message}`,
 			});
-		for (const path of [
-			...map.tiles.map((tile) => tile.image),
-			map.mapBGM.intro,
-			map.mapBGM.loop,
-		]) {
+		for (const message of getDayMapWarnings(map))
+			issues.push({
+				severity: 'warning',
+				category: '白天地图',
+				message: `${mapNames(index)}：${message}`,
+			});
+		for (const path of new Set(
+			getDayMapAssetReferences(map).map(({ path }) => path)
+		)) {
 			if (
 				path.startsWith('rex://') &&
 				resolveDayMapAssetPath(path, packLabel) === null

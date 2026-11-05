@@ -354,7 +354,12 @@ export function ResourceWorkspaceProvider({ children }: PropsWithChildren) {
 				setRecoveryWorkspace(summary);
 				return;
 			}
-			setActiveWorkspace(nextLoaded);
+			// 摘要同步不更换状态中的快照：本地可能已有更新的修改尚未发布，旧快照不能覆盖它。
+			setActiveWorkspace((current) =>
+				current?.workspace.id === summary.id
+					? { ...current, workspace: summary }
+					: nextLoaded
+			);
 		},
 		[]
 	);

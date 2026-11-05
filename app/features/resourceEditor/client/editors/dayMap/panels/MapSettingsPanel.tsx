@@ -21,6 +21,7 @@ import {
 	MapHint,
 	MapNumber,
 	MapPanel,
+	MapProperty,
 	MapTextField,
 	MapVector,
 } from '@/features/resourceEditor/client/editors/dayMap/MapFields';
@@ -65,7 +66,8 @@ export function MapSettingsPanel({
 	);
 	const [uploadTarget, setUploadTarget] = useState<TMapAudioTarget>('both');
 	const inputRef = useRef<HTMLInputElement>(null);
-	const hasCameraCollider = map.nativeColliders?.some((item) => item.camera);
+	const isNativeBgm = map.mapBGM.native !== undefined;
+	const { intro } = map.mapBGM;
 
 	function fitCamera() {
 		const art = getMapArtRect(map);
@@ -117,21 +119,29 @@ export function MapSettingsPanel({
 						onCommit({ ...map, description })
 					}
 				/>
-				<div className="flex flex-wrap gap-1.5">
-					<span className="rounded-small bg-default/40 px-1.5 py-0.5 text-[11px] text-foreground-600">
-						格式版本 {map.formatVersion}
-					</span>
-					{map.artOnly && (
-						<span className="rounded-small bg-warning/25 px-1.5 py-0.5 text-[11px] text-warning-700 dark:text-warning">
-							静态美术参考
-						</span>
-					)}
-					{(map.nativeColliders?.length ?? 0) > 0 && (
-						<span className="rounded-small bg-default/40 px-1.5 py-0.5 text-[11px] text-foreground-600">
-							原生碰撞 {map.nativeColliders?.length}
-						</span>
-					)}
+				<div className="grid grid-cols-2 gap-x-2 gap-y-1 rounded-medium bg-default/25 p-2">
+					<MapProperty label="格式版本" value={map.formatVersion} />
+					<MapProperty label="每单位像素" value={map.pixelsPerUnit} />
 				</div>
+				<Switch
+					size="sm"
+					isSelected={map.hideClock === true}
+					isDisabled={isReadOnly}
+					onValueChange={(hideClock) => {
+						const next: IDayMap = { ...map, hideClock };
+						if (!hideClock) delete next.hideClock;
+						onCommit(next);
+					}}
+				>
+					<span className="flex flex-col">
+						<span className={TYPOGRAPHY_STYLES.controlLabel}>
+							隐藏时钟
+						</span>
+						<span className={TYPOGRAPHY_STYLES.caption}>
+							对应原版 DaySceneMap.hideClock，如博丽大祭。
+						</span>
+					</span>
+				</Switch>
 			</MapPanel>
 			<MapPanel
 				title="相机"
@@ -153,17 +163,10 @@ export function MapSettingsPanel({
 						相机跟随玩家
 					</span>
 				</Switch>
-				<MapVector
-					labels={['最小 X', '最小 Y', '最大 X', '最大 Y']}
-					values={map.camera.bounds}
-					min={-4096}
-					max={4096}
-					step={0.03125}
-					isDisabled={isReadOnly}
-					onChange={(bounds) =>
-						onCommit({ ...map, camera: { ...map.camera, bounds } })
-					}
-				/>
+				<MapHint>
+					相机中心范围是多边形，共 {map.camera.bounds.length}{' '}
+					个顶点。在画布上用选择工具拖动顶点或整体，双击边插入顶点；也可用多边形或矩形工具重画。
+				</MapHint>
 				<div className="flex flex-wrap gap-2">
 					<Button
 						size="sm"
@@ -176,11 +179,6 @@ export function MapSettingsPanel({
 						按美术范围推算
 					</Button>
 				</div>
-				{hasCameraCollider && (
-					<MapHint>
-						这张地图带有原生相机碰撞，游戏中的相机范围由它决定。
-					</MapHint>
-				)}
 				{!map.camera.shouldFollow && (
 					<MapVector
 						labels={['位置 X', '位置 Y', '位置 Z']}
@@ -224,111 +222,171 @@ export function MapSettingsPanel({
 			<MapPanel
 				title="背景音乐"
 				icon={<MusicIcon />}
-				tip="Mod 仅支持 PCM 8/16/24/32 位或 IEEE float 32 位 WAV。前奏与循环可以使用同一个文件。"
+				tip="包内音乐仅支持 PCM 8/16/24/32 位或 IEEE float 32 位 WAV，前奏与循环可以使用同一个文件。原版音乐填写游戏中 LoopedBGMPackage 的 Addressables 地址，需要玩家拥有对应 DLC。"
 			>
-				{(['intro', 'loop'] as const).map((key) => {
-					const path = map.mapBGM[key];
-					const localPath = path
-						? resolveDayMapAssetPath(path, packLabel)
-						: null;
-					const url =
-						localPath === null ? undefined : assetUrls[localPath];
-					return (
-						<div
-							key={key}
-							className="flex flex-col gap-2 rounded-medium border border-divider bg-content1/20 p-2"
+				<div
+					role="radiogroup"
+					aria-label="音乐来源"
+					className="grid grid-cols-2 gap-1"
+				>
+					{[
+						{ isNative: false, label: '包内音频' },
+						{ isNative: true, label: '原版音乐' },
+					].map((option) => (
+						<Button
+							key={option.label}
+							role="radio"
+							aria-checked={isNativeBgm === option.isNative}
+							size="sm"
+							variant={
+								isNativeBgm === option.isNative
+									? 'flat'
+									: 'light'
+							}
+							color={
+								isNativeBgm === option.isNative
+									? 'primary'
+									: 'default'
+							}
+							isDisabled={isReadOnly}
+							onPress={() => {
+								if (isNativeBgm === option.isNative) return;
+								onCommit({
+									...map,
+									mapBGM: option.isNative
+										? { native: '' }
+										: {},
+								});
+							}}
 						>
-							<div className="flex items-center justify-between gap-2">
-								<span
-									className={TYPOGRAPHY_STYLES.compactTitle}
-								>
-									{key === 'intro' ? '前奏' : '循环'}
-								</span>
-								<div className="flex gap-1">
-									<Button
-										size="sm"
-										variant="light"
-										isDisabled={isReadOnly}
-										startContent={
-											<ImageIcon className="size-3.5" />
-										}
-										className="h-7 min-w-0 px-2 text-xs"
-										onPress={() => setPickerTarget(key)}
-									>
-										选择
-									</Button>
-									<Button
-										size="sm"
-										variant="light"
-										isDisabled={isReadOnly || isImporting}
-										startContent={
-											<UploadIcon className="size-3.5" />
-										}
-										className="h-7 min-w-0 px-2 text-xs"
-										onPress={() => {
-											setUploadTarget(key);
-											inputRef.current?.click();
-										}}
-									>
-										上传
-									</Button>
-								</div>
-							</div>
-							<p
-								title={path}
-								className={cn(
-									TYPOGRAPHY_STYLES.metadata,
-									'truncate',
-									!path && 'text-danger-600'
-								)}
+							{option.label}
+						</Button>
+					))}
+				</div>
+				{isNativeBgm && (
+					<MapTextField
+						label="原版音乐地址"
+						value={map.mapBGM.native ?? ''}
+						placeholder="例如 DLC3_HakureiFestival"
+						isDisabled={isReadOnly}
+						validate={(value) =>
+							value.trim() ? null : '地址不能为空'
+						}
+						onChange={(native) =>
+							onCommit({
+								...map,
+								mapBGM: { ...map.mapBGM, native },
+							})
+						}
+					/>
+				)}
+				{!isNativeBgm &&
+					(['intro', 'loop'] as const).map((key) => {
+						const path = map.mapBGM[key];
+						const localPath = path
+							? resolveDayMapAssetPath(path, packLabel)
+							: null;
+						const url =
+							localPath === null
+								? undefined
+								: assetUrls[localPath];
+						return (
+							<div
+								key={key}
+								className="flex flex-col gap-2 rounded-medium border border-divider bg-content1/20 p-2"
 							>
-								{path ||
-									(map.artOnly
-										? '未设置（美术参考包可省略）'
-										: '未设置')}
-							</p>
-							{path && !url && localPath !== null && (
-								<p className="text-xs text-danger">
-									包内找不到这个文件。
+								<div className="flex items-center justify-between gap-2">
+									<span
+										className={
+											TYPOGRAPHY_STYLES.compactTitle
+										}
+									>
+										{key === 'intro' ? '前奏' : '循环'}
+									</span>
+									<div className="flex gap-1">
+										<Button
+											size="sm"
+											variant="light"
+											isDisabled={isReadOnly}
+											startContent={
+												<ImageIcon className="size-3.5" />
+											}
+											className="h-7 min-w-0 px-2 text-xs"
+											onPress={() => setPickerTarget(key)}
+										>
+											选择
+										</Button>
+										<Button
+											size="sm"
+											variant="light"
+											isDisabled={
+												isReadOnly || isImporting
+											}
+											startContent={
+												<UploadIcon className="size-3.5" />
+											}
+											className="h-7 min-w-0 px-2 text-xs"
+											onPress={() => {
+												setUploadTarget(key);
+												inputRef.current?.click();
+											}}
+										>
+											上传
+										</Button>
+									</div>
+								</div>
+								<p
+									title={path}
+									className={cn(
+										TYPOGRAPHY_STYLES.metadata,
+										'truncate',
+										!path && 'text-danger-600'
+									)}
+								>
+									{path || '未设置'}
 								</p>
-							)}
-							{path && localPath === null && (
-								<p className="text-xs text-warning-700 dark:text-warning">
-									引用其他资源包，需在游戏中核验。
-								</p>
-							)}
-							{url && (
-								<audio
-									controls
-									preload="none"
-									src={url}
-									className="h-8 w-full"
-									aria-label={
-										key === 'intro'
-											? '试听前奏'
-											: '试听循环'
-									}
-								/>
-							)}
-						</div>
-					);
-				})}
-				<div className="flex flex-wrap gap-2">
-					<Button
-						size="sm"
-						variant="flat"
-						isDisabled={isReadOnly || isImporting}
-						isLoading={isImporting && uploadTarget === 'both'}
-						startContent={<UploadIcon className="size-4" />}
-						onPress={() => {
-							setUploadTarget('both');
-							inputRef.current?.click();
-						}}
-					>
-						上传 WAV 同时用于两者
-					</Button>
-					{map.mapBGM.intro &&
-						map.mapBGM.loop !== map.mapBGM.intro && (
+								{path && !url && localPath !== null && (
+									<p className="text-xs text-danger">
+										包内找不到这个文件。
+									</p>
+								)}
+								{path && localPath === null && (
+									<p className="text-xs text-warning-700 dark:text-warning">
+										引用其他资源包，需在游戏中核验。
+									</p>
+								)}
+								{url && (
+									<audio
+										controls
+										preload="none"
+										src={url}
+										className="h-8 w-full"
+										aria-label={
+											key === 'intro'
+												? '试听前奏'
+												: '试听循环'
+										}
+									/>
+								)}
+							</div>
+						);
+					})}
+				{!isNativeBgm && (
+					<div className="flex flex-wrap gap-2">
+						<Button
+							size="sm"
+							variant="flat"
+							isDisabled={isReadOnly || isImporting}
+							isLoading={isImporting && uploadTarget === 'both'}
+							startContent={<UploadIcon className="size-4" />}
+							onPress={() => {
+								setUploadTarget('both');
+								inputRef.current?.click();
+							}}
+						>
+							上传 WAV 同时用于两者
+						</Button>
+						{intro && map.mapBGM.loop !== intro && (
 							<Button
 								size="sm"
 								variant="light"
@@ -336,17 +394,15 @@ export function MapSettingsPanel({
 								onPress={() =>
 									onCommit({
 										...map,
-										mapBGM: {
-											...map.mapBGM,
-											loop: map.mapBGM.intro,
-										},
+										mapBGM: { ...map.mapBGM, loop: intro },
 									})
 								}
 							>
 								循环使用前奏
 							</Button>
 						)}
-				</div>
+					</div>
+				)}
 				<input
 					ref={inputRef}
 					hidden
