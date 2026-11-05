@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import type {
 	Dialog,
@@ -12,8 +12,12 @@ import {
 } from '@/domain/resourcePack/dialogueReferences';
 import { remapResourcePackLabelReferences } from '@/domain/resourcePack/entityReferences';
 
-import { EditorWorkspace } from '@/features/resourceEditor/client/components/layout/EditorWorkspace';
+import {
+	EditorWorkspace,
+	useEditorSelection,
+} from '@/features/resourceEditor/client/components/layout/EditorWorkspace';
 import { findNextAvailableSuffixedValue } from '@/features/resourceEditor/client/editorValueAllocation';
+import { useEditorEntityNavigationIntent } from '@/features/resourceEditor/client/navigation/editorNavigationIntent';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
 import { DialogEditor } from './DialogEditor';
@@ -29,7 +33,14 @@ const DEFAULT_DIALOG: Dialog = {
 
 export function DialogueEditorScreen() {
 	const { resourcePack: data, updateResourcePack } = useResourceEditor();
-	const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+	const { detailKey, replaceSelection, selectedIndex, setSelectedIndex } =
+		useEditorSelection();
+	useEditorEntityNavigationIntent({
+		entityKind: 'dialogue',
+		getStableKey: (dialogPackage) => dialogPackage.name,
+		items: data.dialogPackages,
+		onSelect: setSelectedIndex,
+	});
 
 	const addDialogPackage = useCallback(() => {
 		const packLabel = data.packInfo.label;
@@ -56,12 +67,12 @@ export function DialogueEditorScreen() {
 				dialogPackages: newPackages,
 			}));
 			if (selectedIndex === index) {
-				setSelectedIndex(newPackages.length > 0 ? 0 : null);
+				replaceSelection(newPackages.length > 0 ? 0 : null);
 			} else if (selectedIndex !== null && selectedIndex > index) {
 				setSelectedIndex(selectedIndex - 1);
 			}
 		},
-		[data, selectedIndex, updateResourcePack]
+		[data, replaceSelection, selectedIndex, updateResourcePack]
 	);
 
 	const updateDialogPackage = useCallback(
@@ -233,7 +244,7 @@ export function DialogueEditorScreen() {
 	);
 
 	return (
-		<EditorWorkspace>
+		<EditorWorkspace detailKey={detailKey}>
 			<DialogPackageList
 				packages={data.dialogPackages}
 				selectedIndex={selectedIndex}

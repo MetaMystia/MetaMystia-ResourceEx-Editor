@@ -3,6 +3,7 @@ import { type Metadata } from 'next';
 import { Noto_Sans, Noto_Sans_Mono, Noto_Sans_SC } from 'next/font/google';
 import { type PropsWithChildren } from 'react';
 
+import { THEME_VARIANT_CLASS_NAME } from './design/theme/runtime/constants';
 import ThemeScript from './design/theme/runtime/themeScript';
 import { AppNavbar } from './features/appShell/client/AppNavbar';
 import { BackToTop } from './features/appShell/client/BackToTop';
@@ -42,7 +43,8 @@ export default function RootLayout({ children }: PropsWithChildren) {
 				notoSans.variable,
 				notoSansMono.variable,
 				notoSansSC.variable,
-				'selection-custom light:izakaya dark:izakaya-dark'
+				'selection-custom',
+				THEME_VARIANT_CLASS_NAME
 			)}
 		>
 			<head>

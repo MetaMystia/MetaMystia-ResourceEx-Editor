@@ -2,6 +2,7 @@ import { memo, useCallback, useId } from 'react';
 
 import Button from '@/design/ui/components/button';
 import Input from '@/design/ui/components/input';
+import Tooltip from '@/design/ui/components/tooltip';
 
 import type {
 	Dialog,
@@ -17,6 +18,7 @@ import { EditorSection } from '@/features/resourceEditor/client/components/layou
 import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import { ErrorBadge } from '@/features/resourceEditor/client/components/status/ErrorBadge';
 import { WarningBadge } from '@/features/resourceEditor/client/components/status/WarningBadge';
+import { useFocusOnItemInsert } from '@/features/resourceEditor/client/hooks/useFocusOnItemAppend';
 import { useLabelPrefixValidation } from '@/features/resourceEditor/client/hooks/useLabelPrefixValidation';
 
 import { DialogItemWrapper } from './DialogItem';
@@ -44,6 +46,11 @@ export const DialogEditor = memo<DialogEditorProps>(function DialogEditor({
 	onUpdateDialog,
 }) {
 	const id = useId();
+	const { containerRef: dialogListRef, prepareFocusOnInsert } =
+		useFocusOnItemInsert(
+			dialogPackage?.dialogList.length ?? 0,
+			'textarea:not([disabled])'
+		);
 	const {
 		isValid: isNamePrefixValid,
 		prefix: expectedPrefix,
@@ -59,6 +66,18 @@ export const DialogEditor = memo<DialogEditorProps>(function DialogEditor({
 			);
 		},
 		[allPackages]
+	);
+	const handleAddDialog = useCallback(
+		(
+			insertIndex?: number,
+			searchPosition?: Dialog['position'] | 'recent'
+		) => {
+			prepareFocusOnInsert(
+				insertIndex ?? dialogPackage?.dialogList.length ?? 0
+			);
+			onAddDialog(insertIndex, searchPosition);
+		},
+		[dialogPackage?.dialogList.length, onAddDialog, prepareFocusOnInsert]
 	);
 
 	if (!dialogPackage) {
@@ -108,21 +127,21 @@ export const DialogEditor = memo<DialogEditorProps>(function DialogEditor({
 				actions={
 					<SectionAddButton
 						onPress={() => {
-							onAddDialog();
+							handleAddDialog();
 						}}
 					>
 						添加对话
 					</SectionAddButton>
 				}
 			>
-				<div className="flex flex-col gap-2">
+				<div ref={dialogListRef} className="flex flex-col gap-2">
 					{/* 在列表首位添加插入按钮 */}
 					{dialogPackage.dialogList.length > 0 && (
 						<Button
 							variant="bordered"
 							size="sm"
 							onPress={() => {
-								onAddDialog(0);
+								handleAddDialog(0);
 							}}
 							className="min-h-10 w-full text-xs sm:min-h-8"
 						>
@@ -130,7 +149,11 @@ export const DialogEditor = memo<DialogEditorProps>(function DialogEditor({
 						</Button>
 					)}
 					{dialogPackage.dialogList.map((dialog, index) => (
-						<div key={index} className="flex flex-col gap-2">
+						<div
+							key={index}
+							data-editor-appended-item
+							className="flex flex-col gap-2"
+						>
 							<DialogItemWrapper
 								dialog={dialog}
 								dialogCount={dialogPackage.dialogList.length}
@@ -143,39 +166,45 @@ export const DialogEditor = memo<DialogEditorProps>(function DialogEditor({
 								}
 							/>
 							<div className="flex w-full gap-1">
-								<Button
-									variant="bordered"
-									size="sm"
-									onPress={() => {
-										onAddDialog(index + 1, 'Left');
-									}}
-									className="min-h-10 flex-1 px-2 text-xs sm:min-h-8"
-									title="使用上方最近的左侧角色"
-								>
-									沿用左侧角色
-								</Button>
-								<Button
-									variant="bordered"
-									size="sm"
-									onPress={() => {
-										onAddDialog(index + 1, 'recent');
-									}}
-									className="min-h-10 flex-[2] px-2 text-xs sm:min-h-8"
-									title="使用上方最近的对话"
-								>
-									在此处插入对话
-								</Button>
-								<Button
-									variant="bordered"
-									size="sm"
-									onPress={() => {
-										onAddDialog(index + 1, 'Right');
-									}}
-									className="min-h-10 flex-1 px-2 text-xs sm:min-h-8"
-									title="使用上方最近的右侧角色"
-								>
-									沿用右侧角色
-								</Button>
+								<Tooltip content="使用上方最近的左侧角色">
+									<Button
+										variant="bordered"
+										size="sm"
+										onPress={() => {
+											handleAddDialog(index + 1, 'Left');
+										}}
+										className="min-h-10 flex-1 px-2 text-xs sm:min-h-8"
+									>
+										沿用左侧角色
+									</Button>
+								</Tooltip>
+								<Tooltip content="使用上方最近的对话">
+									<Button
+										variant="bordered"
+										size="sm"
+										onPress={() => {
+											handleAddDialog(
+												index + 1,
+												'recent'
+											);
+										}}
+										className="min-h-10 flex-[2] px-2 text-xs sm:min-h-8"
+									>
+										在此处插入对话
+									</Button>
+								</Tooltip>
+								<Tooltip content="使用上方最近的右侧角色">
+									<Button
+										variant="bordered"
+										size="sm"
+										onPress={() => {
+											handleAddDialog(index + 1, 'Right');
+										}}
+										className="min-h-10 flex-1 px-2 text-xs sm:min-h-8"
+									>
+										沿用右侧角色
+									</Button>
+								</Tooltip>
 							</div>
 						</div>
 					))}

@@ -33,8 +33,7 @@ export function createWorkspaceSaveQueue(
 				lastError = error;
 				isSuspended = true;
 				const queuedAfterFailure = pendingSnapshot as
-					| IWorkspaceSnapshot
-					| undefined;
+					IWorkspaceSnapshot | undefined;
 				if (
 					!queuedAfterFailure ||
 					queuedAfterFailure.revision < snapshot.revision

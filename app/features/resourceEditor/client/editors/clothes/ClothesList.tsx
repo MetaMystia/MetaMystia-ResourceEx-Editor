@@ -10,6 +10,7 @@ import {
 } from '@/features/resourceEditor/client/components/layout/EditorCollectionItem';
 import { EditorCollectionPanel } from '@/features/resourceEditor/client/components/layout/EditorCollectionPanel';
 import { ErrorBadge } from '@/features/resourceEditor/client/components/status/ErrorBadge';
+import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
 interface ClothesListProps {
 	clothes: Clothes[];
@@ -26,6 +27,7 @@ export const ClothesList = memo<ClothesListProps>(function ClothesList({
 	onAdd,
 	onRemove,
 }) {
+	const { resourcePack } = useResourceEditor();
 	const isIdDuplicate = useCallback(
 		(id: number, index: number) =>
 			clothes.some(
@@ -44,6 +46,15 @@ export const ClothesList = memo<ClothesListProps>(function ClothesList({
 		>
 			{clothes.map((item, index) => {
 				const isDuplicate = isIdDuplicate(item.id, index);
+				const giftTitles = (resourcePack.gifts ?? []).flatMap(
+					(gift, giftIndex) =>
+						gift.productType === 'Item' &&
+						gift.productId === item.id
+							? [
+									`${giftIndex + 1}. ${gift.title || '未命名礼物'}`,
+								]
+							: []
+				);
 
 				return (
 					<EditorCollectionItem
@@ -55,6 +66,11 @@ export const ClothesList = memo<ClothesListProps>(function ClothesList({
 							<SectionDeleteButton
 								iconOnly
 								confirmTitle="删除这件衣服？"
+								confirmDescription={
+									giftTitles.length > 0
+										? `以下礼物仍引用此物品：${giftTitles.join('、')}。删除后请修改对应礼物。`
+										: undefined
+								}
 								onPress={() => onRemove(index)}
 							>
 								删除衣服

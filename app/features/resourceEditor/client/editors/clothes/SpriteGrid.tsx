@@ -1,4 +1,7 @@
+import { cn } from '@heroui/theme';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
+
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 
 import type { IAssetMutationResult } from '@/features/resourceEditor/client/assets/contracts';
 import { Label } from '@/features/resourceEditor/client/components/fields/Label';
@@ -158,7 +161,7 @@ export const SpriteGrid = memo<SpriteGridProps>(function SpriteGrid({
 				{paths.map((path, i) => (
 					<div
 						key={i}
-						className="group relative flex flex-col gap-2 rounded-large border border-divider bg-content1/50 p-2 transition-colors hover:bg-default/30"
+						className="group relative flex flex-col gap-2 rounded-medium border border-divider bg-content1/50 p-2 transition-colors hover:bg-default/30"
 					>
 						<label
 							className="bg-checkerboard relative aspect-square cursor-pointer overflow-hidden rounded-medium border border-divider transition-colors hover:border-primary/50"
@@ -169,7 +172,12 @@ export const SpriteGrid = memo<SpriteGridProps>(function SpriteGrid({
 								if (file) void handleUpload(i, file);
 							}}
 						>
-							<span className="absolute left-1 top-1 z-10 rounded-small bg-content1/80 px-1 text-[10px] text-foreground-700">
+							<span
+								className={cn(
+									TYPOGRAPHY_STYLES.microLabel,
+									'absolute left-1 top-1 z-10 rounded-small bg-content1/80 px-1 text-foreground-700'
+								)}
+							>
 								{i}
 							</span>
 							{getAssetUrl(path) ? (
@@ -180,11 +188,19 @@ export const SpriteGrid = memo<SpriteGridProps>(function SpriteGrid({
 								/>
 							) : (
 								<div className="flex h-full w-full flex-col items-center justify-center text-foreground-500">
-									<span className="text-xs">上传</span>
+									<span
+										className={
+											TYPOGRAPHY_STYLES.compactInteractiveLabel
+										}
+									>
+										上传
+									</span>
 								</div>
 							)}
 							<div className="absolute inset-0 flex items-center justify-center bg-background/75 opacity-0 transition-opacity group-hover:opacity-100">
-								<span className="text-xs font-semibold text-foreground">
+								<span
+									className={TYPOGRAPHY_STYLES.compactTitle}
+								>
 									更换
 								</span>
 							</div>
@@ -199,7 +215,13 @@ export const SpriteGrid = memo<SpriteGridProps>(function SpriteGrid({
 								}}
 							/>
 						</label>
-						<p className="truncate text-center text-[10px] text-foreground-600">
+						<p
+							title={path.split('/').pop()}
+							className={cn(
+								TYPOGRAPHY_STYLES.caption,
+								'truncate text-center'
+							)}
+						>
 							{path.split('/').pop()}
 						</p>
 					</div>

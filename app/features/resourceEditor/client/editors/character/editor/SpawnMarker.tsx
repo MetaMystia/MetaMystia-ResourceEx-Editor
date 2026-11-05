@@ -1,5 +1,6 @@
 import { memo } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Input from '@/design/ui/components/input';
 
 import { DAY_SCENE_MAP } from '@/domain/data/daySceneMap';
@@ -21,7 +22,7 @@ export const SpawnMarkerEditor = memo<SpawnMarkerEditorProps>(
 	function SpawnMarkerEditor({ spawnMarker, onUpdate }) {
 		return (
 			<EditorSection title="出没地点（Spawn Marker）">
-				<p className="text-sm leading-6 text-foreground-600">
+				<p className={TYPOGRAPHY_STYLES.description}>
 					稀客在白天的出没地点
 				</p>
 				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1.25fr)_minmax(0,0.75fr)_minmax(0,0.75fr)]">

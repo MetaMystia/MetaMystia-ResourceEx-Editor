@@ -1,8 +1,11 @@
 'use client';
 
+import { cn } from '@heroui/theme';
 import { memo, type ReactNode } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
+import Heading from '@/design/ui/components/heading';
 
 import { CoordinatedModal } from '@/features/overlays/client';
 import type { TOverlayId } from '@/features/overlays/contracts';
@@ -47,9 +50,16 @@ export const ConfirmDialog = memo<IProps>(function ConfirmDialog({
 		>
 			<div className="flex flex-col gap-4">
 				<div className="space-y-2">
-					<h2 className="text-lg font-semibold">{title}</h2>
+					<Heading as="h2" variant="dialog" className="break-all">
+						{title}
+					</Heading>
 					{description !== undefined && (
-						<div className="whitespace-pre-line text-sm leading-6 text-foreground-600">
+						<div
+							className={cn(
+								TYPOGRAPHY_STYLES.description,
+								'whitespace-pre-line'
+							)}
+						>
 							{description}
 						</div>
 					)}

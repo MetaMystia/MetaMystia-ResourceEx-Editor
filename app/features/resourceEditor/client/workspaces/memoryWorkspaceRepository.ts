@@ -10,6 +10,10 @@ import type {
 	IWorkspaceSummary,
 	TWorkspaceLoadSource,
 } from './contracts';
+import {
+	cloneWorkspaceEditorState,
+	createEmptyWorkspaceEditorState,
+} from './workspaceEditorState';
 
 interface ICreateMemoryWorkspaceRepositoryInput {
 	createBlankResourcePack(): ResourceEx;
@@ -33,6 +37,7 @@ const EMPTY_FOLDERS = ['assets/'] as const;
 
 function cloneSnapshot(snapshot: IWorkspaceSnapshot): IWorkspaceSnapshot {
 	return {
+		editorState: cloneWorkspaceEditorState(snapshot.editorState),
 		files: new Map(snapshot.files),
 		folders: [...snapshot.folders],
 		hasLicenseFile: snapshot.hasLicenseFile,
@@ -47,6 +52,9 @@ function createSnapshot(
 	revision: number
 ): IWorkspaceSnapshot {
 	return {
+		editorState: cloneWorkspaceEditorState(
+			input.editorState ?? createEmptyWorkspaceEditorState()
+		),
 		files: new Map(input.files),
 		folders: [...input.folders],
 		hasLicenseFile: input.hasLicenseFile,

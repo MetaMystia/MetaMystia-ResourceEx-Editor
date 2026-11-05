@@ -4,7 +4,9 @@ import { InfoIcon, WarningIcon } from '@heroui/shared-icons';
 import { cn } from '@heroui/theme';
 import { memo, useMemo, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
+import Heading from '@/design/ui/components/heading';
 
 import { CoordinatedModal } from '@/features/overlays/client';
 import { type IResourcePackValidationIssue } from '@/features/resourceEditor/client/validation/validateResourcePackForExport';
@@ -41,8 +43,10 @@ function IssueGroup({
 						severity === 'error' ? 'bg-danger' : 'bg-warning'
 					)}
 				/>
-				<span className="text-sm font-semibold">{category}</span>
-				<span className="text-xs text-foreground-500">
+				<span className={TYPOGRAPHY_STYLES.subsectionTitle}>
+					{category}
+				</span>
+				<span className={TYPOGRAPHY_STYLES.caption}>
 					（{items.length}）
 				</span>
 			</div>
@@ -51,7 +55,7 @@ function IssueGroup({
 					<li
 						key={`${item.message}-${index}`}
 						className={cn(
-							'text-sm',
+							TYPOGRAPHY_STYLES.body,
 							severity === 'error'
 								? 'text-danger'
 								: 'text-warning-600 dark:text-warning-400'
@@ -98,11 +102,11 @@ export const ExportValidationDialog = memo<IProps>(
 						) : (
 							<InfoIcon className="h-6 w-6 shrink-0 text-warning" />
 						)}
-						<div>
-							<h2 className="text-xl font-bold">
+						<div className="space-y-1">
+							<Heading as="h2" variant="dialog">
 								资源包导出检查
-							</h2>
-							<p className="text-sm text-foreground-600">
+							</Heading>
+							<p className={TYPOGRAPHY_STYLES.description}>
 								{errors.length > 0
 									? '存在以下问题，建议修正后再导出'
 									: '存在部分建议项，可确认后继续导出'}

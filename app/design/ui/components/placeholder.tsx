@@ -10,7 +10,7 @@ export default memo<PropsWithChildren<IProps>>(function Placeholder({
 	return (
 		<div
 			className={cn(
-				'my-auto flex select-none flex-col items-center justify-center gap-1 text-center leading-relaxed text-foreground-600',
+				'my-auto flex select-none flex-col items-center justify-center gap-1 text-center',
 				className
 			)}
 		>

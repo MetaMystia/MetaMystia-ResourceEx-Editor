@@ -1,13 +1,7 @@
 import type { CharacterType } from './character';
 
 export type DialogActionType =
-	| 'CameraShake'
-	| 'CG'
-	| 'BG'
-	| 'Sound'
-	| 'Branch'
-	| 'Goto'
-	| 'End';
+	'CameraShake' | 'CG' | 'BG' | 'Sound' | 'Branch' | 'Goto' | 'End';
 
 export interface DialogBranchOption {
 	text: string;

@@ -3,9 +3,11 @@
 import { cn } from '@heroui/theme';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
 import Input from '@/design/ui/components/input';
 import PressElement from '@/design/ui/components/pressElement';
+import Tooltip from '@/design/ui/components/tooltip';
 
 import { isValidPackLabel } from '@/domain/resourcePack/constants';
 
@@ -34,6 +36,7 @@ import { ConfirmDialog } from '@/features/resourceEditor/client/components/confi
 import { ConfirmPopover } from '@/features/resourceEditor/client/components/confirm/ConfirmPopover';
 import { Label } from '@/features/resourceEditor/client/components/fields/Label';
 import { ChevronRight } from '@/features/resourceEditor/client/components/icons/ChevronRight';
+import { EditorDetailHeader } from '@/features/resourceEditor/client/components/layout/EditorDetailHeader';
 import { EditorPanel } from '@/features/resourceEditor/client/components/layout/EditorPanel';
 import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import {
@@ -91,7 +94,12 @@ const ASSET_KIND_LABELS = {
 
 function FileKindBadge({ kind }: { kind: AssetEntry['kind'] }) {
 	return (
-		<span className="inline-flex min-w-10 items-center justify-center rounded-small bg-default/40 px-2 py-1 text-xs font-semibold text-foreground-600">
+		<span
+			className={cn(
+				TYPOGRAPHY_STYLES.badgeLabel,
+				'inline-flex min-w-10 items-center justify-center rounded-small bg-default/40 px-2 py-1'
+			)}
+		>
 			{ASSET_KIND_LABELS[kind]}
 		</span>
 	);
@@ -110,7 +118,7 @@ function FilePreview({ entry }: { entry: AssetEntry }) {
 			<img
 				src={entry.url}
 				alt={entry.name}
-				className="h-full w-full object-contain"
+				className="image-rendering-pixelated h-full w-full object-contain"
 				draggable={false}
 			/>
 		);
@@ -174,6 +182,7 @@ function AssetEntrySelectionButton({
 			as="div"
 			role="button"
 			tabIndex={0}
+			title={entry.path}
 			aria-label={`选择${ASSET_KIND_LABELS[entry.kind]}${entry.name}`}
 			aria-pressed={isSelected}
 			onBlur={clearTouchPointer}
@@ -1082,7 +1091,7 @@ export const AssetFileManager = memo<AssetFileManagerProps>(
 		return (
 			<EditorPanel
 				className={cn(
-					'min-h-[520px] overflow-hidden p-0',
+					'overflow-hidden p-0',
 					isDragging && 'ring-2 ring-primary',
 					className
 				)}
@@ -1092,7 +1101,7 @@ export const AssetFileManager = memo<AssetFileManagerProps>(
 					onDragOver={handleDragOver}
 					onDragLeave={handleDragLeave}
 					onDrop={handleDrop}
-					className="relative flex min-h-[520px] flex-1 flex-col gap-4 p-4"
+					className="relative flex flex-1 flex-col gap-4 p-4"
 				>
 					<ConfirmDialog
 						coordinationId={
@@ -1109,7 +1118,12 @@ export const AssetFileManager = memo<AssetFileManagerProps>(
 					/>
 					{isDragging && (
 						<div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-primary/10 backdrop-blur-sm">
-							<span className="rounded-medium border border-divider bg-content1/90 px-4 py-2 text-sm font-medium text-foreground shadow-sm">
+							<span
+								className={cn(
+									TYPOGRAPHY_STYLES.emphasizedText,
+									'rounded-medium border border-divider bg-content1/90 px-4 py-2 shadow-sm'
+								)}
+							>
 								松开鼠标以上传到{' '}
 								<code className="font-mono">
 									{currentFolder}
@@ -1118,68 +1132,67 @@ export const AssetFileManager = memo<AssetFileManagerProps>(
 						</div>
 					)}
 
-					<div className="flex flex-col gap-3 border-b border-divider pb-4">
-						<div className="flex flex-wrap items-center justify-between gap-2">
-							<div>
-								<h2 className="text-xl font-semibold">
-									资产文件
-								</h2>
-								<p className="text-xs leading-relaxed text-foreground-600">
-									{currentFolder} · {stats.folders}个目录 ·{' '}
-									{stats.files}个文件
-								</p>
-							</div>
-							<div className="flex flex-wrap items-center gap-2">
-								<Button
-									variant="light"
-									size="sm"
-									onPress={() =>
-										navigateTo(
-											getAssetParentFolder(
-												currentFolder,
-												normalizedRoot
+					<div className="flex flex-col gap-4">
+						<EditorDetailHeader
+							title="资产文件"
+							description={`${currentFolder} · ${stats.folders}个目录 · ${stats.files}个文件`}
+							actions={
+								<>
+									<Button
+										variant="light"
+										size="sm"
+										onPress={() =>
+											navigateTo(
+												getAssetParentFolder(
+													currentFolder,
+													normalizedRoot
+												)
 											)
-										)
-									}
-									isDisabled={
-										currentFolder === normalizedRoot
-									}
-									className="min-h-11 rounded-medium px-3 text-xs sm:min-h-8"
-								>
-									上一级
-								</Button>
-								<Button
-									color={
-										viewMode === 'grid'
-											? 'primary'
-											: 'default'
-									}
-									variant={
-										viewMode === 'grid' ? 'flat' : 'light'
-									}
-									size="sm"
-									onPress={() => setViewMode('grid')}
-									className="min-h-11 rounded-medium px-3 text-xs sm:min-h-8"
-								>
-									网格
-								</Button>
-								<Button
-									color={
-										viewMode === 'list'
-											? 'primary'
-											: 'default'
-									}
-									variant={
-										viewMode === 'list' ? 'flat' : 'light'
-									}
-									size="sm"
-									onPress={() => setViewMode('list')}
-									className="min-h-11 rounded-medium px-3 text-xs sm:min-h-8"
-								>
-									列表
-								</Button>
-							</div>
-						</div>
+										}
+										isDisabled={
+											currentFolder === normalizedRoot
+										}
+										className="min-h-11 rounded-medium px-3 text-xs sm:min-h-8"
+									>
+										上一级
+									</Button>
+									<Button
+										color={
+											viewMode === 'grid'
+												? 'primary'
+												: 'default'
+										}
+										variant={
+											viewMode === 'grid'
+												? 'flat'
+												: 'light'
+										}
+										size="sm"
+										onPress={() => setViewMode('grid')}
+										className="min-h-11 rounded-medium px-3 text-xs sm:min-h-8"
+									>
+										网格
+									</Button>
+									<Button
+										color={
+											viewMode === 'list'
+												? 'primary'
+												: 'default'
+										}
+										variant={
+											viewMode === 'list'
+												? 'flat'
+												: 'light'
+										}
+										size="sm"
+										onPress={() => setViewMode('list')}
+										className="min-h-11 rounded-medium px-3 text-xs sm:min-h-8"
+									>
+										列表
+									</Button>
+								</>
+							}
+						/>
 
 						<div className="flex flex-col gap-2">
 							<div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
@@ -1192,22 +1205,24 @@ export const AssetFileManager = memo<AssetFileManagerProps>(
 											{index > 0 && (
 												<ChevronRight className="h-3 w-3 shrink-0 text-foreground-400" />
 											)}
-											<Button
-												variant="light"
-												size="sm"
-												onPress={() =>
-													navigateTo(crumb.path)
-												}
-												className={cn(
-													'h-8 min-w-0 max-w-[10rem] truncate rounded-medium px-2 font-mono text-xs sm:max-w-[14rem]',
-													crumb.path === currentFolder
-														? 'bg-default/40 text-foreground'
-														: 'text-primary-600'
-												)}
-												title={crumb.path}
-											>
-												{crumb.label}
-											</Button>
+											<Tooltip content={crumb.path}>
+												<Button
+													variant="light"
+													size="sm"
+													onPress={() =>
+														navigateTo(crumb.path)
+													}
+													className={cn(
+														'h-8 min-w-0 max-w-[10rem] truncate rounded-medium px-2 font-mono text-xs sm:max-w-[14rem]',
+														crumb.path ===
+															currentFolder
+															? 'bg-default/40 text-foreground'
+															: 'text-primary-600'
+													)}
+												>
+													{crumb.label}
+												</Button>
+											</Tooltip>
 										</div>
 									))}
 								</div>
@@ -1245,17 +1260,18 @@ export const AssetFileManager = memo<AssetFileManagerProps>(
 									>
 										上传文件
 									</Button>
-									<Button
-										variant="flat"
-										size="sm"
-										onPress={() =>
-											folderInputRef.current?.click()
-										}
-										className="min-h-11 rounded-medium px-3 text-xs sm:min-h-8"
-										title="浏览器不会提供空目录；请使用“新建文件夹”单独创建"
-									>
-										上传目录
-									</Button>
+									<Tooltip content="浏览器不会提供空目录；请使用“新建文件夹”单独创建">
+										<Button
+											variant="flat"
+											size="sm"
+											onPress={() =>
+												folderInputRef.current?.click()
+											}
+											className="min-h-11 rounded-medium px-3 text-xs sm:min-h-8"
+										>
+											上传目录
+										</Button>
+									</Tooltip>
 									<input
 										ref={fileInputRef}
 										type="file"
@@ -1285,7 +1301,7 @@ export const AssetFileManager = memo<AssetFileManagerProps>(
 								</div>
 							</div>
 							{isCreateFolderOpen && (
-								<div className="flex flex-col gap-3 rounded-large border border-dashed border-divider bg-content2/30 p-3 sm:flex-row sm:items-end">
+								<div className="flex flex-col gap-3 rounded-medium border border-dashed border-divider bg-content2/30 p-3 sm:flex-row sm:items-end">
 									<div className="flex flex-1 flex-col gap-1">
 										<Label
 											htmlFor="asset-new-folder-name"
@@ -1343,8 +1359,8 @@ export const AssetFileManager = memo<AssetFileManagerProps>(
 						<WarningNotice>{operationError}</WarningNotice>
 					)}
 
-					<div className="flex flex-col items-stretch gap-3 rounded-large border border-divider bg-content2/30 p-3 sm:flex-row sm:items-center sm:justify-between">
-						<div className="text-xs leading-relaxed text-foreground-600">
+					<div className="flex flex-col items-stretch gap-3 rounded-medium border border-divider bg-content2/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+						<div className={TYPOGRAPHY_STYLES.compactDescription}>
 							已选择{selectedPaths.size}项
 							{selectedAssetPaths.length > 0 &&
 								`，包含${selectedAssetPaths.length}个文件`}
@@ -1510,30 +1526,33 @@ export const AssetFileManager = memo<AssetFileManagerProps>(
 								<div
 									key={entry.path}
 									className={cn(
-										'relative flex min-h-0 flex-col overflow-hidden rounded-large border text-left transition-colors',
+										'relative flex min-h-0 flex-col overflow-hidden rounded-medium border text-left transition-colors',
 										selectedPaths.has(entry.path)
 											? 'border-primary bg-primary/15'
 											: 'border-divider bg-content2/30'
 									)}
-									title={entry.path}
 								>
-									<AssetEntrySelectionButton
-										className="rounded-large hover:ring-1 hover:ring-inset hover:ring-primary/40"
-										entry={entry}
-										isSelected={selectedPaths.has(
-											entry.path
-										)}
-										onSelect={(isAdditive) =>
-											selectEntry(entry, isAdditive)
-										}
-										{...(entry.kind === 'folder' ||
-										isSelectOnly
-											? {
-													onOpen: () =>
-														handleEntryOpen(entry),
-												}
-											: {})}
-									/>
+									<div className="absolute inset-0 z-0">
+										<AssetEntrySelectionButton
+											className="hover:ring-1 hover:ring-inset hover:ring-primary/40"
+											entry={entry}
+											isSelected={selectedPaths.has(
+												entry.path
+											)}
+											onSelect={(isAdditive) =>
+												selectEntry(entry, isAdditive)
+											}
+											{...(entry.kind === 'folder' ||
+											isSelectOnly
+												? {
+														onOpen: () =>
+															handleEntryOpen(
+																entry
+															),
+													}
+												: {})}
+										/>
+									</div>
 									<div
 										className={cn(
 											'pointer-events-none relative z-10 flex h-28 items-center justify-center overflow-hidden',
@@ -1548,66 +1567,82 @@ export const AssetFileManager = memo<AssetFileManagerProps>(
 									<div className="pointer-events-none relative z-10 flex min-w-0 flex-col gap-1 p-2">
 										<div className="flex min-w-0 items-center gap-1.5">
 											<FileKindBadge kind={entry.kind} />
-											<span className="truncate text-xs font-semibold">
+											<span
+												className={cn(
+													TYPOGRAPHY_STYLES.compactTitle,
+													'truncate'
+												)}
+											>
 												{entry.name}
 											</span>
 										</div>
-										<span className="truncate font-mono text-xs text-foreground-500">
+										<span
+											className={cn(
+												TYPOGRAPHY_STYLES.metadata,
+												'truncate'
+											)}
+										>
 											{entry.path}
 										</span>
 										<div className="pointer-events-auto mt-1 flex flex-wrap gap-1">
 											{entry.kind !== 'folder' && (
 												<>
-													<Button
-														variant="bordered"
-														size="sm"
-														onPress={() =>
-															copyText(
-																`path:${entry.path}`,
-																entry.path
-															)
-														}
-														className={cn(
-															'h-8 min-w-0 rounded-medium border-divider px-2 font-mono text-xs',
-															copiedKey ===
-																`path:${entry.path}` &&
-																'border-success text-success'
-														)}
-														title="复制assets/...路径"
-													>
-														{copiedKey ===
-														`path:${entry.path}`
-															? '已复制'
-															: 'path'}
-													</Button>
-													<Button
-														variant="bordered"
-														size="sm"
-														onPress={() =>
-															handleCopyRexUri(
-																entry.path
-															)
-														}
-														isDisabled={
-															!canCopyRexUri
-														}
-														className={cn(
-															'h-8 min-w-0 rounded-medium border-divider px-2 font-mono text-xs',
-															copiedKey ===
-																`uri:${entry.path}` &&
-																'border-success text-success'
-														)}
-														title={
+													<Tooltip content="复制assets/...路径">
+														<Button
+															variant="bordered"
+															size="sm"
+															onPress={() =>
+																copyText(
+																	`path:${entry.path}`,
+																	entry.path
+																)
+															}
+															className={cn(
+																'h-8 min-w-0 rounded-medium border-divider px-2 font-mono text-xs',
+																copiedKey ===
+																	`path:${entry.path}` &&
+																	'border-success text-success'
+															)}
+														>
+															{copiedKey ===
+															`path:${entry.path}`
+																? '已复制'
+																: 'path'}
+														</Button>
+													</Tooltip>
+													<Tooltip
+														content={
 															canCopyRexUri
-																? '复制rex:// URI'
+																? '复制rex://URI'
 																: '请先设置有效的资源包标识符'
 														}
 													>
-														{copiedKey ===
-														`uri:${entry.path}`
-															? '已复制'
-															: 'URI'}
-													</Button>
+														<span className="inline-flex">
+															<Button
+																variant="bordered"
+																size="sm"
+																onPress={() =>
+																	handleCopyRexUri(
+																		entry.path
+																	)
+																}
+																isDisabled={
+																	!canCopyRexUri
+																}
+																className={cn(
+																	'h-8 min-w-0 rounded-medium border-divider px-2 font-mono text-xs',
+																	copiedKey ===
+																		`uri:${entry.path}` &&
+																		'border-success text-success'
+																)}
+															>
+																{copiedKey ===
+																`uri:${entry.path}`
+																	? '已复制'
+																	: 'URI'}
+															</Button>
+														</span>
+													</Tooltip>
 												</>
 											)}
 											{(entry.kind === 'folder' ||
@@ -1631,7 +1666,7 @@ export const AssetFileManager = memo<AssetFileManagerProps>(
 							))}
 						</div>
 					) : (
-						<div className="overflow-hidden rounded-large border border-divider bg-content2/20">
+						<div className="overflow-hidden rounded-medium border border-divider bg-content2/20">
 							{entries.map((entry) => (
 								<div
 									key={entry.path}
@@ -1641,30 +1676,33 @@ export const AssetFileManager = memo<AssetFileManagerProps>(
 											? 'bg-primary/15'
 											: ''
 									)}
-									title={entry.path}
 								>
-									<AssetEntrySelectionButton
-										entry={entry}
-										isSelected={selectedPaths.has(
-											entry.path
-										)}
-										onSelect={(isAdditive) =>
-											selectEntry(entry, isAdditive)
-										}
-										{...(entry.kind === 'folder' ||
-										isSelectOnly
-											? {
-													onOpen: () =>
-														handleEntryOpen(entry),
-												}
-											: {})}
-									/>
+									<div className="absolute inset-0 z-0">
+										<AssetEntrySelectionButton
+											entry={entry}
+											isSelected={selectedPaths.has(
+												entry.path
+											)}
+											onSelect={(isAdditive) =>
+												selectEntry(entry, isAdditive)
+											}
+											{...(entry.kind === 'folder' ||
+											isSelectOnly
+												? {
+														onOpen: () =>
+															handleEntryOpen(
+																entry
+															),
+													}
+												: {})}
+										/>
+									</div>
 									<div className="pointer-events-none relative z-10 flex h-10 w-10 items-center justify-center overflow-hidden rounded-medium bg-default/30">
 										{entry.kind === 'image' && entry.url ? (
 											<img
 												src={entry.url}
 												alt={entry.name}
-												className="h-full w-full object-contain"
+												className="image-rendering-pixelated h-full w-full object-contain"
 												draggable={false}
 											/>
 										) : (
@@ -1672,64 +1710,82 @@ export const AssetFileManager = memo<AssetFileManagerProps>(
 										)}
 									</div>
 									<div className="pointer-events-none relative z-10 min-w-0">
-										<div className="truncate font-medium">
+										<div
+											className={cn(
+												TYPOGRAPHY_STYLES.compactItemTitle,
+												'truncate'
+											)}
+										>
 											{entry.name}
 										</div>
-										<div className="truncate font-mono text-xs text-foreground-500">
+										<div
+											className={cn(
+												TYPOGRAPHY_STYLES.metadata,
+												'truncate'
+											)}
+										>
 											{entry.path}
 										</div>
 									</div>
 									<div className="pointer-events-auto relative z-10 col-span-2 flex flex-wrap items-center justify-end gap-1 sm:col-span-1">
 										{entry.kind !== 'folder' ? (
 											<>
-												<Button
-													variant="bordered"
-													size="sm"
-													onPress={() =>
-														copyText(
-															`path:${entry.path}`,
-															entry.path
-														)
-													}
-													className={cn(
-														'h-8 min-w-0 rounded-medium border-divider px-2 font-mono text-xs',
-														copiedKey ===
-															`path:${entry.path}` &&
-															'border-success text-success'
-													)}
-													title="复制assets/...路径"
-												>
-													{copiedKey ===
-													`path:${entry.path}`
-														? '已复制'
-														: 'path'}
-												</Button>
-												<Button
-													variant="bordered"
-													size="sm"
-													onPress={() =>
-														handleCopyRexUri(
-															entry.path
-														)
-													}
-													isDisabled={!canCopyRexUri}
-													className={cn(
-														'h-8 min-w-0 rounded-medium border-divider px-2 font-mono text-xs',
-														copiedKey ===
-															`uri:${entry.path}` &&
-															'border-success text-success'
-													)}
-													title={
+												<Tooltip content="复制assets/...路径">
+													<Button
+														variant="bordered"
+														size="sm"
+														onPress={() =>
+															copyText(
+																`path:${entry.path}`,
+																entry.path
+															)
+														}
+														className={cn(
+															'h-8 min-w-0 rounded-medium border-divider px-2 font-mono text-xs',
+															copiedKey ===
+																`path:${entry.path}` &&
+																'border-success text-success'
+														)}
+													>
+														{copiedKey ===
+														`path:${entry.path}`
+															? '已复制'
+															: 'path'}
+													</Button>
+												</Tooltip>
+												<Tooltip
+													content={
 														canCopyRexUri
 															? '复制rex://URI'
 															: '请先设置有效的资源包标识符'
 													}
 												>
-													{copiedKey ===
-													`uri:${entry.path}`
-														? '已复制'
-														: 'URI'}
-												</Button>
+													<span className="inline-flex">
+														<Button
+															variant="bordered"
+															size="sm"
+															onPress={() =>
+																handleCopyRexUri(
+																	entry.path
+																)
+															}
+															isDisabled={
+																!canCopyRexUri
+															}
+															className={cn(
+																'h-8 min-w-0 rounded-medium border-divider px-2 font-mono text-xs',
+																copiedKey ===
+																	`uri:${entry.path}` &&
+																	'border-success text-success'
+															)}
+														>
+															{copiedKey ===
+															`uri:${entry.path}`
+																? '已复制'
+																: 'URI'}
+														</Button>
+													</span>
+												</Tooltip>
 											</>
 										) : (
 											<Button

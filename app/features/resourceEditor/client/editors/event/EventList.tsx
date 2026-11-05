@@ -55,7 +55,7 @@ export const EventList = memo<EventListProps>(function EventList({
 								<WarningBadge>前缀不规范</WarningBadge>
 							)}
 						</EditorCollectionItemTitle>
-						<EditorCollectionItemMeta className="break-all">
+						<EditorCollectionItemMeta>
 							{event.label}
 						</EditorCollectionItemMeta>
 					</EditorCollectionItem>

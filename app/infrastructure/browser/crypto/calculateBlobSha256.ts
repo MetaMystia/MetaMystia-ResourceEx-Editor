@@ -1,3 +1,5 @@
+import 'client-only';
+
 export async function calculateBlobSha256(blob: Blob): Promise<string> {
 	const digest = await crypto.subtle.digest(
 		'SHA-256',

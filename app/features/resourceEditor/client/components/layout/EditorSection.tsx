@@ -1,6 +1,8 @@
 import { cn } from '@heroui/theme';
 import { memo, type PropsWithChildren, type ReactNode } from 'react';
 
+import Heading from '@/design/ui/components/heading';
+
 interface IProps {
 	actions?: ReactNode;
 	className?: string;
@@ -12,16 +14,20 @@ export const EditorSection = memo<PropsWithChildren<IProps>>(
 		return (
 			<section
 				className={cn(
-					'flex min-w-0 flex-col gap-4 rounded-large border border-divider bg-content1/20 p-4',
+					'flex min-w-0 flex-col gap-4 rounded-medium border border-divider bg-content1/20 p-4',
 					className
 				)}
 			>
 				{(title !== undefined || actions !== undefined) && (
 					<div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
 						{title !== undefined && (
-							<h3 className="min-w-0 text-base font-semibold leading-6 text-foreground-700">
+							<Heading
+								as="h3"
+								variant="section"
+								className="min-w-0"
+							>
 								{title}
-							</h3>
+							</Heading>
 						)}
 						{actions !== undefined && (
 							<div className="flex shrink-0 flex-wrap items-center gap-2">

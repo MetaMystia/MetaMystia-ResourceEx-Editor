@@ -4,7 +4,9 @@ import { cn } from '@heroui/theme';
 import { memo, type ReactNode, type RefObject, useId } from 'react';
 
 import Button from '@/design/ui/components/button';
+import Heading from '@/design/ui/components/heading';
 import ScrollShadow from '@/design/ui/components/scrollShadow';
+import Tooltip from '@/design/ui/components/tooltip';
 
 import { ChevronRight } from '@/features/resourceEditor/client/components/icons/ChevronRight';
 
@@ -12,6 +14,7 @@ import { EditorPanel } from './EditorPanel';
 
 interface IProps {
 	actions?: ReactNode;
+	allowsStickyContent?: boolean;
 	children: ReactNode;
 	className?: string;
 	isCollapsed: boolean;
@@ -23,6 +26,7 @@ interface IProps {
 export const EditorCollapsiblePanel = memo<IProps>(
 	function EditorCollapsiblePanel({
 		actions,
+		allowsStickyContent = false,
 		children,
 		className,
 		isCollapsed,
@@ -37,50 +41,68 @@ export const EditorCollapsiblePanel = memo<IProps>(
 			<EditorPanel
 				as="aside"
 				className={cn(
-					'flex h-min min-w-0 flex-col gap-0 lg:sticky lg:top-24 lg:h-[calc(100dvh-7rem)] lg:gap-4 lg:overflow-hidden',
+					'flex h-min min-w-0 flex-col gap-0 lg:sticky lg:top-24 lg:max-h-[calc(var(--safe-h-dvh)_-_7rem)] lg:gap-4 lg:overflow-hidden',
 					className
 				)}
 			>
 				<div className="flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-2">
-					<h2
+					<Heading
+						as="h2"
 						id={titleId}
-						className="min-w-0 text-xl font-semibold leading-7 text-foreground"
+						variant="panel"
+						className="min-w-0"
 					>
 						{title}
-					</h2>
+					</Heading>
 					<div className="flex shrink-0 items-center gap-1.5">
-						<Button
-							isIconOnly
-							variant="light"
-							size="sm"
-							className="h-10 w-10 lg:hidden"
-							onPress={() => onCollapsedChange(!isCollapsed)}
-							aria-controls={contentId}
-							aria-expanded={!isCollapsed}
-							aria-label={isCollapsed ? '展开列表' : '折叠列表'}
+						<Tooltip
+							content={isCollapsed ? '展开列表' : '折叠列表'}
 						>
-							<ChevronRight
-								className={cn(
-									'h-4 w-4 shrink-0 transition-transform motion-reduce:transition-none',
-									isCollapsed ? '-rotate-90' : 'rotate-90'
-								)}
-							/>
-						</Button>
+							<Button
+								isIconOnly
+								variant="light"
+								size="sm"
+								className="h-10 w-10 lg:hidden"
+								onPress={() => onCollapsedChange(!isCollapsed)}
+								aria-controls={contentId}
+								aria-expanded={!isCollapsed}
+								aria-label={
+									isCollapsed ? '展开列表' : '折叠列表'
+								}
+							>
+								<ChevronRight
+									className={cn(
+										'h-4 w-4 shrink-0 transition-transform motion-reduce:transition-none',
+										isCollapsed ? '-rotate-90' : 'rotate-90'
+									)}
+								/>
+							</Button>
+						</Tooltip>
 						{actions}
 					</div>
 				</div>
 
 				<ScrollShadow
+					isEnabled={!allowsStickyContent}
 					{...(scrollContainerRef === undefined
 						? {}
 						: { ref: scrollContainerRef })}
 					aria-labelledby={titleId}
-					className="min-h-0 lg:flex-1"
+					className={cn(
+						'min-h-0 lg:flex-1',
+						allowsStickyContent &&
+							'overflow-visible lg:overflow-y-auto'
+					)}
 				>
 					<div
 						id={contentId}
 						className={cn(
-							'grid overflow-hidden transition-[grid-template-rows] motion-reduce:transition-none lg:overflow-x-auto',
+							'grid transition-[grid-template-rows] motion-reduce:transition-none',
+							allowsStickyContent
+								? isCollapsed
+									? 'overflow-hidden lg:overflow-visible'
+									: 'overflow-visible'
+								: 'overflow-hidden lg:overflow-x-auto',
 							isCollapsed
 								? 'grid-rows-[0fr] lg:grid-rows-[1fr]'
 								: 'grid-rows-[1fr]'

@@ -1,6 +1,8 @@
 import { cn } from '@heroui/theme';
 import { type ReactNode } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
+
 interface IProps {
 	label?: ReactNode;
 	actions?: ReactNode;
@@ -23,7 +25,8 @@ export function EditorField({
 					{label && (
 						<label
 							className={cn(
-								'min-w-0 text-sm font-medium leading-5 text-foreground-700',
+								TYPOGRAPHY_STYLES.fieldLabel,
+								'min-w-0',
 								labelClassName
 							)}
 						>

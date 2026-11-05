@@ -1,7 +1,10 @@
+import { cn } from '@heroui/theme';
 import { memo, useCallback, useId, useMemo, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
 import Input from '@/design/ui/components/input';
+import Tooltip from '@/design/ui/components/tooltip';
 
 import {
 	IMAGE_ASSET_FILE_ACCEPT,
@@ -18,6 +21,7 @@ import type {
 import { getAssetReferenceStatus } from '@/features/resourceEditor/client/assets/assetPaths';
 import { SectionAddButton } from '@/features/resourceEditor/client/components/actions/SectionAddButton';
 import { SectionDeleteButton } from '@/features/resourceEditor/client/components/actions/SectionDeleteButton';
+import { ConfirmPopover } from '@/features/resourceEditor/client/components/confirm/ConfirmPopover';
 import { Label } from '@/features/resourceEditor/client/components/fields/Label';
 import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import {
@@ -26,6 +30,7 @@ import {
 } from '@/features/resourceEditor/client/components/select/Select';
 import { WarningBadge } from '@/features/resourceEditor/client/components/status/WarningBadge';
 import { AssetPickerDialog } from '@/features/resourceEditor/client/editors/asset/AssetPickerDialog';
+import { useFocusOnItemAppend } from '@/features/resourceEditor/client/hooks/useFocusOnItemAppend';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
 const ACTION_TYPES: DialogActionType[] = [
@@ -94,6 +99,7 @@ interface DialogActionsEditorProps {
 export const DialogActionsEditor = memo<DialogActionsEditorProps>(
 	function DialogActionsEditor({ actions, dialogCount, onChange }) {
 		const list = actions ?? [];
+		const actionListRef = useFocusOnItemAppend(list.length);
 
 		const update = useCallback(
 			(next: DialogAction[]) => {
@@ -139,9 +145,9 @@ export const DialogActionsEditor = memo<DialogActionsEditorProps>(
 		);
 
 		return (
-			<div className="flex min-w-0 flex-col gap-3 rounded-large border border-divider bg-content2/30 p-3">
+			<div className="flex min-w-0 flex-col gap-3 rounded-medium border border-divider bg-content2/30 p-3">
 				<div className="flex flex-wrap items-center justify-between gap-2">
-					<span className="text-xs font-semibold text-foreground-600">
+					<span className={TYPOGRAPHY_STYLES.compactTitle}>
 						动作列表（{list.length}）
 					</span>
 					<div className="flex flex-wrap gap-1">
@@ -161,7 +167,7 @@ export const DialogActionsEditor = memo<DialogActionsEditorProps>(
 				{list.length === 0 ? (
 					<EmptyState variant="text" title="无附加动作" />
 				) : (
-					<div className="flex flex-col gap-2">
+					<div ref={actionListRef} className="flex flex-col gap-2">
 						{list.map((action, index) => (
 							<DialogActionRow
 								key={index}
@@ -219,13 +225,21 @@ const DialogActionRow = memo<DialogActionRowProps>(function DialogActionRow({
 	const isEndAction = action.actionType === 'End';
 
 	return (
-		<div className="flex min-w-0 flex-col gap-3 rounded-large border border-divider bg-content1/50 p-3">
+		<div
+			data-editor-appended-item
+			className="flex min-w-0 flex-col gap-3 rounded-medium border border-divider bg-content1/50 p-3"
+		>
 			<div className="flex items-center justify-between gap-2">
 				<div className="flex items-center gap-2">
-					<span className="rounded-small bg-primary/15 px-2 py-1 font-mono text-xs text-primary-700 dark:text-primary">
+					<span
+						className={cn(
+							TYPOGRAPHY_STYLES.metadata,
+							'rounded-small bg-primary/15 px-2 py-1 text-primary-700 dark:text-primary'
+						)}
+					>
 						#{index + 1}
 					</span>
-					<span className="text-xs font-medium">
+					<span className={TYPOGRAPHY_STYLES.compactLabel}>
 						{ACTION_LABEL[action.actionType]}
 					</span>
 				</div>
@@ -236,7 +250,6 @@ const DialogActionRow = memo<DialogActionRowProps>(function DialogActionRow({
 						onPress={onMoveUp}
 						isDisabled={index === 0}
 						className="h-10 min-w-0 rounded-medium px-2 text-xs sm:h-8"
-						title="上移"
 					>
 						上移
 					</Button>
@@ -246,7 +259,6 @@ const DialogActionRow = memo<DialogActionRowProps>(function DialogActionRow({
 						onPress={onMoveDown}
 						isDisabled={index === total - 1}
 						className="h-10 min-w-0 rounded-medium px-2 text-xs sm:h-8"
-						title="下移"
 					>
 						下移
 					</Button>
@@ -350,7 +362,6 @@ const SpriteActionFields = memo<SpriteActionFieldsProps>(
 		}, [availableAssets, action.sprite, folder, spriteIssueLabel]);
 
 		const [isPickerOpen, setIsPickerOpen] = useState(false);
-
 		const handleModeChange = (next: SpriteMode) => {
 			if (next === 'clear') {
 				onUpdate({ sprite: undefined, shouldSet: false });
@@ -358,6 +369,21 @@ const SpriteActionFields = memo<SpriteActionFieldsProps>(
 				onUpdate({ shouldSet: undefined, sprite: action.sprite ?? '' });
 			}
 		};
+		const shouldConfirmClear = mode === 'set' && Boolean(action.sprite);
+		const clearButton = (
+			<Button
+				size="sm"
+				color="primary"
+				variant={mode === 'clear' ? 'flat' : 'bordered'}
+				aria-pressed={mode === 'clear'}
+				className="h-10 sm:h-8"
+				{...(shouldConfirmClear
+					? {}
+					: { onPress: () => handleModeChange('clear') })}
+			>
+				清空图片
+			</Button>
+		);
 
 		return (
 			<div className="flex flex-col gap-2">
@@ -372,16 +398,18 @@ const SpriteActionFields = memo<SpriteActionFieldsProps>(
 					>
 						设置图片
 					</Button>
-					<Button
-						size="sm"
-						color="primary"
-						variant={mode === 'clear' ? 'flat' : 'bordered'}
-						aria-pressed={mode === 'clear'}
-						className="h-10 sm:h-8"
-						onPress={() => handleModeChange('clear')}
-					>
-						清空（shouldSet：false）
-					</Button>
+					{shouldConfirmClear ? (
+						<ConfirmPopover
+							trigger={clearButton}
+							title="确定要清空这个图片动作吗？"
+							description="确认后会丢失当前图片设置，重新切回“设置图片”不会恢复。"
+							confirmLabel="清空"
+							color="warning"
+							onConfirm={() => handleModeChange('clear')}
+						/>
+					) : (
+						clearButton
+					)}
 				</div>
 
 				{mode === 'set' && (
@@ -391,11 +419,11 @@ const SpriteActionFields = memo<SpriteActionFieldsProps>(
 								<img
 									src={previewUrl}
 									alt="预览"
-									className="h-full w-full object-contain"
+									className="image-rendering-pixelated h-full w-full object-contain"
 									draggable={false}
 								/>
 							) : (
-								<span className="text-xs text-foreground-500">
+								<span className={TYPOGRAPHY_STYLES.caption}>
 									无预览
 								</span>
 							)}
@@ -434,13 +462,12 @@ const SpriteActionFields = memo<SpriteActionFieldsProps>(
 									size="sm"
 									onPress={() => setIsPickerOpen(true)}
 									className="h-10 shrink-0 rounded-medium px-3 sm:h-8"
-									title="浏览资产"
 								>
 									浏览资产
 								</Button>
 							</div>
 							{availableAssets.length === 0 && (
-								<p className="text-xs text-foreground-500">
+								<p className={TYPOGRAPHY_STYLES.caption}>
 									{folder}下暂无资产，请前往「资产」页上传。
 								</p>
 							)}
@@ -471,6 +498,7 @@ const BranchActionFields = memo<BranchActionFieldsProps>(
 	function BranchActionFields({ action, dialogCount, onUpdate }) {
 		const options = action.options ?? [];
 		const finishTarget = dialogCount + 1;
+		const optionListRef = useFocusOnItemAppend(options.length);
 
 		const updateOptions = (next: DialogBranchOption[]) => {
 			onUpdate({ options: next.length > 0 ? next : undefined });
@@ -503,7 +531,7 @@ const BranchActionFields = memo<BranchActionFieldsProps>(
 		return (
 			<div className="flex flex-col gap-2">
 				<div className="flex flex-wrap items-center justify-between gap-2">
-					<p className="text-xs leading-5 text-foreground-500">
+					<p className={TYPOGRAPHY_STYLES.caption}>
 						{`跳转目标使用左侧显示的对话编号，范围1～${finishTarget}，${finishTarget}表示结束当前对话包。`}
 					</p>
 					<SectionAddButton
@@ -515,15 +543,21 @@ const BranchActionFields = memo<BranchActionFieldsProps>(
 					</SectionAddButton>
 				</div>
 				{options.length === 0 ? (
-					<p className="rounded-medium border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning-700 dark:text-warning-600">
+					<p
+						className={cn(
+							TYPOGRAPHY_STYLES.compactBody,
+							'rounded-medium border border-warning/30 bg-warning/10 px-3 py-2 text-warning-700 dark:text-warning-600'
+						)}
+					>
 						Branch至少需要一个选项，否则运行时会被当作普通对话行。
 					</p>
 				) : (
-					<div className="flex flex-col gap-2">
+					<div ref={optionListRef} className="flex flex-col gap-2">
 						{options.map((option, optionIndex) => (
 							<div
 								key={optionIndex}
-								className="grid min-w-0 gap-3 rounded-large border border-divider bg-content2/30 p-3 sm:grid-cols-[minmax(0,1fr)_112px_112px_auto]"
+								data-editor-appended-item
+								className="grid min-w-0 gap-3 rounded-medium border border-divider bg-content2/30 p-3 sm:grid-cols-[minmax(0,1fr)_112px_112px_auto]"
 							>
 								<div className="flex flex-col gap-1">
 									<Label size="sm">选项文本</Label>
@@ -580,38 +614,41 @@ const BranchActionFields = memo<BranchActionFieldsProps>(
 									/>
 								</div>
 								<div className="flex items-end gap-1">
-									<Button
-										variant="light"
-										size="sm"
-										onPress={() =>
-											moveOption(
-												optionIndex,
-												optionIndex - 1
-											)
-										}
-										isDisabled={optionIndex === 0}
-										className="h-10 min-w-0 rounded-medium px-2 text-xs sm:h-8"
-										title="上移选项"
-									>
-										上移
-									</Button>
-									<Button
-										variant="light"
-										size="sm"
-										onPress={() =>
-											moveOption(
-												optionIndex,
-												optionIndex + 1
-											)
-										}
-										isDisabled={
-											optionIndex === options.length - 1
-										}
-										className="h-10 min-w-0 rounded-medium px-2 text-xs sm:h-8"
-										title="下移选项"
-									>
-										下移
-									</Button>
+									<Tooltip content="上移选项">
+										<Button
+											variant="light"
+											size="sm"
+											onPress={() =>
+												moveOption(
+													optionIndex,
+													optionIndex - 1
+												)
+											}
+											isDisabled={optionIndex === 0}
+											className="h-10 min-w-0 rounded-medium px-2 text-xs sm:h-8"
+										>
+											上移
+										</Button>
+									</Tooltip>
+									<Tooltip content="下移选项">
+										<Button
+											variant="light"
+											size="sm"
+											onPress={() =>
+												moveOption(
+													optionIndex,
+													optionIndex + 1
+												)
+											}
+											isDisabled={
+												optionIndex ===
+												options.length - 1
+											}
+											className="h-10 min-w-0 rounded-medium px-2 text-xs sm:h-8"
+										>
+											下移
+										</Button>
+									</Tooltip>
 									<SectionDeleteButton
 										iconOnly
 										confirmTitle="确定要删除这个分支选项吗？"
@@ -657,7 +694,7 @@ const GotoActionFields = memo<GotoActionFieldsProps>(function GotoActionFields({
 					}
 					className="h-10 text-xs sm:h-8 sm:w-32"
 				/>
-				<p className="text-xs leading-5 text-foreground-500">
+				<p className={TYPOGRAPHY_STYLES.caption}>
 					使用左侧显示的对话编号，范围1～{finishTarget}，
 					{finishTarget}表示结束当前对话包。
 				</p>
@@ -687,7 +724,7 @@ const EndActionFields = memo<EndActionFieldsProps>(function EndActionFields({
 					}
 					className="h-10 text-xs sm:h-8 sm:w-32"
 				/>
-				<p className="text-xs leading-5 text-foreground-500">
+				<p className={TYPOGRAPHY_STYLES.caption}>
 					结束当前对话包。普通对话保持0即可，只有需要读取ExitCode的调用会使用这个值。
 				</p>
 			</div>
@@ -812,13 +849,12 @@ const SoundActionFields = memo<SoundActionFieldsProps>(
 							size="sm"
 							onPress={() => setIsPickerOpen(true)}
 							className="h-10 shrink-0 rounded-medium px-3 sm:h-8"
-							title="浏览资产"
 						>
 							浏览资产
 						</Button>
 					</div>
 					{availableAssets.length === 0 && (
-						<p className="text-xs text-foreground-500">
+						<p className={TYPOGRAPHY_STYLES.caption}>
 							{folder}下暂无音频，请前往「资产」页上传.wav文件。
 						</p>
 					)}

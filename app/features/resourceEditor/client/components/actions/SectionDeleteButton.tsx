@@ -57,30 +57,33 @@ export const SectionDeleteButton = memo<IProps>(function SectionDeleteButton({
 		</Button>
 	);
 
-	if (confirmTitle === undefined) {
-		return iconOnly ? (
-			<Tooltip content={iconLabel}>{button}</Tooltip>
-		) : (
+	const control =
+		confirmTitle === undefined ? (
 			button
+		) : (
+			<ConfirmPopover
+				trigger={button}
+				title={confirmTitle}
+				description={
+					<>
+						{confirmDescription !== undefined && (
+							<>
+								{confirmDescription}
+								<br />
+							</>
+						)}
+						此操作不可撤销。
+					</>
+				}
+				onConfirm={onPress}
+			/>
 		);
-	}
 
-	return (
-		<ConfirmPopover
-			trigger={button}
-			title={confirmTitle}
-			description={
-				<>
-					{confirmDescription !== undefined && (
-						<>
-							{confirmDescription}
-							<br />
-						</>
-					)}
-					此操作不可撤销。
-				</>
-			}
-			onConfirm={onPress}
-		/>
+	return iconOnly ? (
+		<Tooltip content={iconLabel}>
+			<span className="inline-flex">{control}</span>
+		</Tooltip>
+	) : (
+		control
 	);
 });

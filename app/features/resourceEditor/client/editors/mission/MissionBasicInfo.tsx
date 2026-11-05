@@ -1,8 +1,11 @@
+import { cn } from '@heroui/theme';
 import { memo, useMemo } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
 import Input from '@/design/ui/components/input';
 import Textarea from '@/design/ui/components/textarea';
+import Tooltip from '@/design/ui/components/tooltip';
 
 import type { Character } from '@/domain/resourcePack/contracts/character';
 import type {
@@ -66,38 +69,41 @@ export const MissionBasicInfo = memo<MissionBasicInfoProps>(
 								className="min-w-0 flex-1"
 								placeholder="自动或手动设置显示标题"
 							/>
-							<Button
-								variant="flat"
-								color="primary"
-								size="sm"
-								onPress={() => {
-									const cond = (mission.finishConditions ||
-										[])[0];
-									if (
-										!cond ||
-										cond.conditionType !== 'ServeInWork'
-									)
-										return;
-									const targetLabel = cond.label;
-									const char = characters.find(
-										(c) => c.label === targetLabel
-									);
-									const charName =
-										char?.name || targetLabel || '目标角色';
-									const food = allFoods.find(
-										(f) => f.id === cond.amount
-									);
-									const foodName = food?.name || '料理';
-									onUpdate({
-										title: `请${charName}品尝一下「${foodName}」吧！`,
-										description: `从${charName}那儿得到了新料理的灵感，做出来以后请她尝一尝吧！`,
-									});
-								}}
-								className="h-10 shrink-0 sm:h-10"
-								title="根据第一个完成条件生成标题和描述"
-							>
-								同步标题与描述
-							</Button>
+							<Tooltip content="根据第一个完成条件生成标题和描述">
+								<Button
+									variant="flat"
+									color="primary"
+									size="sm"
+									onPress={() => {
+										const cond =
+											(mission.finishConditions || [])[0];
+										if (
+											!cond ||
+											cond.conditionType !== 'ServeInWork'
+										)
+											return;
+										const targetLabel = cond.label;
+										const char = characters.find(
+											(c) => c.label === targetLabel
+										);
+										const charName =
+											char?.name ||
+											targetLabel ||
+											'目标角色';
+										const food = allFoods.find(
+											(f) => f.id === cond.amount
+										);
+										const foodName = food?.name || '料理';
+										onUpdate({
+											title: `请${charName}品尝一下「${foodName}」吧！`,
+											description: `从${charName}那儿得到了新料理的灵感，做出来以后请她尝一尝吧！`,
+										});
+									}}
+									className="h-10 shrink-0 sm:h-10"
+								>
+									同步标题与描述
+								</Button>
+							</Tooltip>
 						</div>
 					</EditorField>
 
@@ -197,7 +203,12 @@ export const MissionBasicInfo = memo<MissionBasicInfoProps>(
 								}
 							/>
 							{hasBillRepayment && (
-								<p className="text-xs leading-relaxed text-warning-700 dark:text-warning-600">
+								<p
+									className={cn(
+										TYPOGRAPHY_STYLES.compactBody,
+										'text-warning-700 dark:text-warning-600'
+									)}
+								>
 									存在BillRepayment条件时，Receiver必须为空字符串。
 								</p>
 							)}
@@ -239,7 +250,7 @@ export const MissionBasicInfo = memo<MissionBasicInfoProps>(
 							</EditorField>
 
 							<EditorField label="任务时限（Mission Time Limit）">
-								<div className="flex flex-col gap-3 rounded-large border border-divider bg-content1/50 p-4">
+								<div className="flex flex-col gap-3 rounded-medium border border-divider bg-content1/50 p-4">
 									<div className="flex flex-col gap-1">
 										<Label size="sm">
 											触发类型（Trigger Type）

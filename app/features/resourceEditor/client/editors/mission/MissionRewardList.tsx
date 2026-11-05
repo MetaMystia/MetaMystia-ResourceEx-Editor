@@ -1,7 +1,10 @@
+import { cn } from '@heroui/theme';
 import { memo, useCallback, useMemo, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
 import Input from '@/design/ui/components/input';
+import Tooltip from '@/design/ui/components/tooltip';
 
 import { IZAKAYAS } from '@/domain/data/izakayas';
 import type {
@@ -14,14 +17,15 @@ import { SectionAddButton } from '@/features/resourceEditor/client/components/ac
 import { SectionDeleteButton } from '@/features/resourceEditor/client/components/actions/SectionDeleteButton';
 import { TrashIcon } from '@/features/resourceEditor/client/components/actions/TrashIcon';
 import { Label } from '@/features/resourceEditor/client/components/fields/Label';
-import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import { EditorSection } from '@/features/resourceEditor/client/components/layout/EditorSection';
+import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import { PRODUCT_TYPE_LABELS } from '@/features/resourceEditor/client/components/select/productTypeOptions';
 import {
 	type ISelectOption,
 	Select,
 } from '@/features/resourceEditor/client/components/select/Select';
 import { WarningNotice } from '@/features/resourceEditor/client/components/status/WarningNotice';
+import { useFocusOnItemAppend } from '@/features/resourceEditor/client/hooks/useFocusOnItemAppend';
 
 import {
 	createMissionReward,
@@ -201,7 +205,7 @@ const REWARD_TYPES: { type: RewardType; label: string }[] = [
 		type: 'RemoveKourindouMerchandise',
 		label: '【未实现】尝试移除香霖堂的货物',
 	},
-	{ type: 'FinishFakeMission', label: '【未实现】完成伪造任务' },
+	{ type: 'FinishFakeMission', label: '发送任务完成信号' },
 	{ type: 'ForceCompleteMission', label: '【未实现】强制完成计划中的任务' },
 	{ type: 'RefreshRandomSpawnNpc', label: '【未实现】刷新随机生成的NPC' },
 	{ type: 'AddLockedRecipe', label: '【未实现】添加固定食谱' },
@@ -264,6 +268,7 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 			];
 			onUpdate(newRewards);
 		}, [rewards, onUpdate]);
+		const rewardListRef = useFocusOnItemAppend(rewards.length);
 
 		const removeReward = useCallback(
 			(index: number) => {
@@ -297,6 +302,11 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 			[onUpdate, rewards]
 		);
 
+		const isRewardIzakayaSelected = (
+			reward: MissionReward,
+			izakayaId: number
+		) => (reward.rewardIntArray || []).includes(izakayaId);
+
 		const toggleRewardIzakaya = useCallback(
 			(index: number, reward: MissionReward, izakayaId: number) => {
 				const current = reward.rewardIntArray || [];
@@ -317,11 +327,12 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 					</SectionAddButton>
 				}
 			>
-				<div className="flex flex-col gap-3">
+				<div ref={rewardListRef} className="flex flex-col gap-3">
 					{(rewards || []).map((reward, index) => (
 						<div
 							key={index}
-							className="flex min-w-0 flex-col gap-3 rounded-large border border-divider bg-content1/50 p-4"
+							data-editor-appended-item
+							className="flex min-w-0 flex-col gap-3 rounded-medium border border-divider bg-content1/50 p-4"
 						>
 							<div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
 								<Select<RewardType>
@@ -329,6 +340,25 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 									baseClassName="min-w-0 flex-1"
 									value={reward.rewardType}
 									onChange={(v) => replaceReward(index, v)}
+									getChangeConfirmation={(
+										nextType,
+										currentType
+									) =>
+										nextType !== currentType &&
+										JSON.stringify(reward) !==
+											JSON.stringify(
+												createMissionReward(
+													reward.rewardType
+												)
+											)
+											? {
+													confirmLabel: '切换类型',
+													description:
+														'切换奖励类型会清除当前奖励中已填写的配置。',
+													title: '确定要切换奖励类型吗？',
+												}
+											: null
+									}
 									items={REWARD_TYPES.map((t) => ({
 										value: t.type,
 										label: `${t.label}（${t.type}）`,
@@ -344,7 +374,7 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 							</div>
 
 							{reward.rewardType === 'GiveItem' && (
-								<div className="flex flex-col gap-3 rounded-large border border-divider bg-content2/30 p-3">
+								<div className="flex flex-col gap-3 rounded-medium border border-divider bg-content2/30 p-3">
 									<div className="flex flex-col gap-1">
 										<Label size="sm">
 											物品类型（Object Type）
@@ -357,6 +387,24 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 													objectType: v,
 													rewardIntArray: [],
 												})
+											}
+											getChangeConfirmation={(
+												nextType,
+												currentType
+											) =>
+												nextType !== currentType &&
+												Boolean(
+													reward.rewardIntArray
+														?.length
+												)
+													? {
+															confirmLabel:
+																'切换类型',
+															description:
+																'切换物品类型会清空当前奖励中的物品列表。',
+															title: '确定要切换物品类型吗？',
+														}
+													: null
 											}
 											items={(
 												[
@@ -444,39 +492,47 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 													return (
 														<span
 															key={i}
-															className="flex min-w-0 items-center gap-1 rounded-small bg-primary/15 py-1 pl-2 pr-1 text-primary-700 dark:text-primary"
+															className={cn(
+																TYPOGRAPHY_STYLES.compactInteractiveLabel,
+																'flex min-w-0 items-center gap-1 rounded-small bg-primary/15 py-1 pl-2 pr-1 text-primary-700 dark:text-primary'
+															)}
 														>
-															<span className="truncate">
+															<span
+																title={name}
+																className="truncate"
+															>
 																{name}
 															</span>
-															<Button
-																isIconOnly
-																size="sm"
-																variant="light"
-																color="danger"
-																aria-label={`移除${name}`}
-																className="h-6 w-6 min-w-6"
-																onPress={() => {
-																	const newArray =
-																		[
-																			...(reward.rewardIntArray ||
-																				[]),
-																		];
-																	newArray.splice(
-																		i,
-																		1
-																	);
-																	updateReward(
-																		index,
-																		{
-																			rewardIntArray:
-																				newArray,
-																		}
-																	);
-																}}
-															>
-																<TrashIcon className="h-3 w-3" />
-															</Button>
+															<Tooltip content="移除物品">
+																<Button
+																	isIconOnly
+																	size="sm"
+																	variant="light"
+																	color="danger"
+																	aria-label="移除物品"
+																	className="h-6 w-6 min-w-6"
+																	onPress={() => {
+																		const newArray =
+																			[
+																				...(reward.rewardIntArray ||
+																					[]),
+																			];
+																		newArray.splice(
+																			i,
+																			1
+																		);
+																		updateReward(
+																			index,
+																			{
+																				rewardIntArray:
+																					newArray,
+																			}
+																		);
+																	}}
+																>
+																	<TrashIcon className="h-3 w-3" />
+																</Button>
+															</Tooltip>
 														</span>
 													);
 												}
@@ -557,51 +613,75 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 										<div className="flex flex-wrap gap-2 rounded-large border border-divider bg-content2/30 p-3 sm:p-4">
 											{IZAKAYAS.filter(
 												(izakaya) => izakaya.id >= 0
-											).map((izakaya) => (
-												<Button
-													key={izakaya.id}
-													color={
-														(
-															reward.rewardIntArray ||
-															[]
-														).includes(izakaya.id)
-															? 'primary'
-															: 'default'
-													}
-													variant={
-														(
-															reward.rewardIntArray ||
-															[]
-														).includes(izakaya.id)
-															? 'flat'
-															: 'bordered'
-													}
-													aria-pressed={(
-														reward.rewardIntArray ||
-														[]
-													).includes(izakaya.id)}
-													className="h-10 rounded-medium px-3 text-xs sm:h-8"
-													onPress={() =>
-														toggleRewardIzakaya(
-															index,
-															reward,
-															izakaya.id
-														)
-													}
-												>
-													<span className="mr-1.5 text-foreground-500">
-														（{izakaya.id}）
-													</span>
-													{izakaya.name}
-												</Button>
-											))}
+											).map((izakaya) => {
+												const isSelected =
+													isRewardIzakayaSelected(
+														reward,
+														izakaya.id
+													);
+												return (
+													<Button
+														key={izakaya.id}
+														color={
+															isSelected
+																? 'primary'
+																: 'default'
+														}
+														variant={
+															isSelected
+																? 'flat'
+																: 'bordered'
+														}
+														aria-pressed={
+															isSelected
+														}
+														className="h-10 rounded-medium px-3 text-xs sm:h-8"
+														onPress={() =>
+															toggleRewardIzakaya(
+																index,
+																reward,
+																izakaya.id
+															)
+														}
+													>
+														<span className="mr-1.5 text-foreground-500">
+															（{izakaya.id}）
+														</span>
+														{izakaya.name}
+													</Button>
+												);
+											})}
 										</div>
 									</div>
 								</div>
 							)}
 
+							{reward.rewardType === 'FinishFakeMission' && (
+								<div className="flex flex-col gap-3">
+									<div className="flex flex-col gap-1">
+										<Label size="sm">
+											信号标识（Reward ID）
+										</Label>
+										<Input
+											aria-label="发送的信号标识"
+											value={reward.rewardId ?? ''}
+											onChange={(e) =>
+												updateReward(index, {
+													rewardId: e.target.value,
+												})
+											}
+											placeholder="与目标任务外部信号条件的标识一致"
+										/>
+									</div>
+									<WarningNotice>
+										通知已开始的任务：同名外部信号条件已满足。这里填写条件的信号标识，不是任务标识。
+									</WarningNotice>
+								</div>
+							)}
+
 							{reward.rewardType !== 'UpgradeKizunaLevel' &&
 								reward.rewardType !== 'GiveItem' &&
+								reward.rewardType !== 'FinishFakeMission' &&
 								reward.rewardType !==
 									'EnableSGuestSpawnInTargetIzakayaById' && (
 									<WarningNotice>

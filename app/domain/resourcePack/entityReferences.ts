@@ -5,7 +5,8 @@ import type { EventNodeTrigger } from './contracts/event';
 import type { MissionCondition, MissionReward } from './contracts/mission';
 import type { ResourceEx } from './contracts/resourceEx';
 
-export type TItemReferenceKind = 'Beverage' | 'Food' | 'Ingredient' | 'Recipe';
+export type TItemReferenceKind =
+	'Beverage' | 'Food' | 'Ingredient' | 'Item' | 'Recipe';
 
 export type TLabelReferenceKind = 'DialogPackage' | 'Event' | 'Mission';
 
@@ -49,7 +50,8 @@ function remapConditionItem(
 	}
 	if (
 		kind === 'Food' &&
-		condition.conditionType === 'ServeInWork' &&
+		(condition.conditionType === 'ServeInWork' ||
+			condition.conditionType === 'SellInWork') &&
 		condition.amount === fromId
 	) {
 		condition.amount = toId;
@@ -103,6 +105,12 @@ export function remapResourcePackItemReferences(
 	if (fromId === toId) return resourcePack;
 	const next = cloneJsonObject(resourcePack);
 
+	(next.gifts ?? []).forEach((gift) => {
+		if (gift.productType === kind && gift.productId === fromId) {
+			gift.productId = toId;
+		}
+	});
+
 	next.recipes.forEach((recipe) => {
 		if (kind === 'Food') {
 			recipe.foodId = remapNumber(recipe.foodId, fromId, toId);
@@ -149,6 +157,9 @@ export function remapResourcePackCharacterReferences(
 ): ResourceEx {
 	const { fromId, fromLabel, fromType, toId, toLabel, toType } = remap;
 	const next = cloneJsonObject(resourcePack);
+	next.spells.forEach((spell) => {
+		spell.id = remapNumber(spell.id, fromId, toId);
+	});
 
 	next.dialogPackages.forEach((dialogPackage) =>
 		dialogPackage.dialogList.forEach((dialog) => {
@@ -270,6 +281,13 @@ export function remapResourcePackLabelReferences(
 		});
 	});
 	if (kind === 'DialogPackage') {
+		(next.gifts ?? []).forEach((gift) => {
+			gift.dialogPackageName = remapString(
+				gift.dialogPackageName,
+				fromLabel,
+				toLabel
+			);
+		});
 		next.merchants.forEach((merchant) => {
 			remapLabelArray(
 				merchant.welcomeDialogPackageNames,
@@ -300,6 +318,18 @@ export function remapResourcePackLabelReferences(
 		});
 	}
 	if (kind === 'Event') {
+		next.missionNodes.forEach((mission) =>
+			mission.finishConditions.forEach((condition) => {
+				if (
+					condition.conditionType !==
+					'CompleteSpecifiedFollowingEvents'
+				)
+					return;
+				condition.events?.forEach((event) => {
+					event.label = remapString(event.label, fromLabel, toLabel);
+				});
+			})
+		);
 		next.missionNodes.forEach((mission) =>
 			remapLabelArray(mission.postEvents, fromLabel, toLabel)
 		);

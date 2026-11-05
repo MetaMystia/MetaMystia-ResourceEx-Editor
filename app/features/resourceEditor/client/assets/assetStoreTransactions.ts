@@ -104,6 +104,33 @@ function areFoldersEqual(left: readonly string[], right: readonly string[]) {
 	);
 }
 
+export function areAssetSnapshotsEqual(
+	currentFiles: ReadonlyMap<string, Blob>,
+	currentFolders: readonly string[],
+	nextFiles: ReadonlyMap<string, Blob>,
+	nextFolders: readonly string[]
+) {
+	if (currentFiles.size !== nextFiles.size) return false;
+	for (const [path, blob] of currentFiles) {
+		if (nextFiles.get(path) !== blob) return false;
+	}
+	return areFoldersEqual(
+		normalizeAssetFolders(currentFolders),
+		normalizeAssetFolders(nextFolders)
+	);
+}
+
+export function getAssetSnapshotReplacementError(
+	files: ReadonlyMap<string, Blob>,
+	folders: readonly string[]
+) {
+	for (const folder of folders) {
+		const error = getAssetFolderCreationError(files, folder);
+		if (error) return error;
+	}
+	return getAssetUpdateError(new Map(), folders, files);
+}
+
 export function normalizeAssetFolders(folders: readonly string[]) {
 	const normalized = new Set<string>(['assets/']);
 	folders.forEach((folder) => {

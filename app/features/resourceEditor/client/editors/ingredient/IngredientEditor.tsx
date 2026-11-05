@@ -1,5 +1,7 @@
+import { cn } from '@heroui/theme';
 import { memo, useCallback, useId, useMemo } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Input from '@/design/ui/components/input';
 import Switch from '@/design/ui/components/switch';
 import Textarea from '@/design/ui/components/textarea';
@@ -20,8 +22,8 @@ import { Select } from '@/features/resourceEditor/client/components/select/Selec
 import { ErrorBadge } from '@/features/resourceEditor/client/components/status/ErrorBadge';
 import { TagsField } from '@/features/resourceEditor/client/components/tags/TagsField';
 import { SpriteUploader } from '@/features/resourceEditor/client/components/uploads/SpriteUploader';
-import { parseIntegerInput } from '@/features/resourceEditor/client/editorValueAllocation';
 import { IdRangeBadge } from '@/features/resourceEditor/client/editors/info/IdRangeBadge';
+import { parseIntegerInput } from '@/features/resourceEditor/client/editorValueAllocation';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
 interface IngredientEditorProps {
@@ -169,7 +171,12 @@ export const IngredientEditor = memo<IngredientEditorProps>(
 								htmlFor={idPrefix}
 								wrapperClassName="min-h-6"
 								tip={
-									<div className="max-w-xs space-y-1 text-xs leading-relaxed">
+									<div
+										className={cn(
+											TYPOGRAPHY_STYLES.compactBody,
+											'max-w-xs space-y-1'
+										)}
+									>
 										<p>
 											此字段为
 											<span className="font-semibold">

@@ -1,6 +1,7 @@
 import { cn } from '@heroui/theme';
 import { type ReactNode } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Placeholder from '@/design/ui/components/placeholder';
 
 interface IProps {
@@ -20,13 +21,18 @@ export function EmptyState({
 		<Placeholder
 			className={cn(
 				variant === 'box' &&
-					'min-h-32 rounded-large border border-dashed border-divider bg-content1/15 p-6 sm:p-8',
+					'min-h-32 rounded-medium border border-dashed border-divider bg-content1/15 p-6 sm:p-8',
 				className
 			)}
 		>
-			<p className="text-sm font-semibold text-foreground-700">{title}</p>
+			<p className={TYPOGRAPHY_STYLES.emptyTitle}>{title}</p>
 			{description !== undefined && (
-				<p className="max-w-prose text-xs font-normal leading-relaxed text-foreground-500">
+				<p
+					className={cn(
+						TYPOGRAPHY_STYLES.emptyDescription,
+						'max-w-prose'
+					)}
+				>
 					{description}
 				</p>
 			)}

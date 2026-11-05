@@ -1,4 +1,7 @@
+import { cn } from '@heroui/theme';
 import { memo } from 'react';
+
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 
 import type { MissionNode } from '@/domain/resourcePack/contracts/mission';
 
@@ -58,10 +61,15 @@ export const MissionList = memo<MissionListProps>(function MissionList({
 							)}
 						</EditorCollectionItemTitle>
 						<EditorCollectionItemMeta>
-							<span className="mr-2 rounded-medium bg-primary/15 px-2 py-0.5 font-sans font-semibold text-primary">
+							<span
+								className={cn(
+									TYPOGRAPHY_STYLES.badgeLabel,
+									'mr-2 rounded-small bg-primary/15 px-2 py-0.5 text-primary'
+								)}
+							>
 								{mission.missionType}
 							</span>
-							<span className="break-all">{mission.label}</span>
+							<span>{mission.label}</span>
 						</EditorCollectionItemMeta>
 					</EditorCollectionItem>
 				);

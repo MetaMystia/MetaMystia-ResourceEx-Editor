@@ -68,7 +68,7 @@ export const AssetPickerDialog = memo<AssetPickerDialogProps>(
 				isOpen={open}
 				onClose={onClose}
 				size="4xl"
-				classNames={{ content: 'min-h-[60vh]' }}
+				classNames={{ content: 'min-h-[50dvh]' }}
 			>
 				<div className="flex flex-col gap-0">
 					<AssetFileManager

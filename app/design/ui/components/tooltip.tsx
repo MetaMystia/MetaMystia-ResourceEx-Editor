@@ -10,6 +10,7 @@ import { type ComponentProps, memo, useMemo } from 'react';
 
 import { useDesignPreferences } from '@/design/preferences/DesignPreferencesContext';
 import { createRatingVariants } from '@/design/theme/styles/rating/createRatingVariants';
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import { useMotionProps } from '@/design/ui/hooks/useMotionProps';
 import { useReducedMotion } from '@/design/ui/hooks/useReducedMotion';
 
@@ -53,7 +54,8 @@ export default memo<IProps>(function Tooltip({
 			classNames={{
 				...classNames,
 				content: cn(
-					'max-w-xs whitespace-pre-line break-all',
+					TYPOGRAPHY_STYLES.overlayBody,
+					'max-w-xs whitespace-pre-line',
 					styleBlur,
 					classNames?.content
 				),

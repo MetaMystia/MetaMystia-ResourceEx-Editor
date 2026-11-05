@@ -1,7 +1,9 @@
 import { cn } from '@heroui/theme';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
+import Tooltip from '@/design/ui/components/tooltip';
 
 import type { DialogPackage } from '@/domain/resourcePack/contracts/dialogue';
 
@@ -16,6 +18,7 @@ import { EditorCollectionPanel } from '@/features/resourceEditor/client/componen
 import { ErrorBadge } from '@/features/resourceEditor/client/components/status/ErrorBadge';
 import { WarningBadge } from '@/features/resourceEditor/client/components/status/WarningBadge';
 import { usePackLabelPrefix } from '@/features/resourceEditor/client/hooks/useLabelPrefixValidation';
+import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -33,6 +36,11 @@ interface TreeNode {
 // ─── Constants ───────────────────────────────────────────
 
 const CONFORMING_KEY = '__conforming__';
+const DIALOG_TREE_STICKY_TOP_CLASS_NAMES = [
+	'top-24 lg:top-0',
+	'top-[8.25rem] lg:top-9',
+	'top-[10.5rem] lg:top-[4.5rem]',
+] as const;
 const OTHER_KEY = '__other__';
 
 // ─── Tree helpers ────────────────────────────────────────
@@ -139,12 +147,14 @@ function GroupHeader({
 	expanded,
 	onToggle,
 	isTopLevel,
+	stickyDepth,
 }: {
 	label: string;
 	count: number;
 	expanded: boolean;
 	onToggle: () => void;
 	isTopLevel?: boolean;
+	stickyDepth?: number;
 }) {
 	return (
 		<Button
@@ -154,9 +164,14 @@ function GroupHeader({
 			aria-expanded={expanded}
 			className={cn(
 				'h-auto min-h-10 w-full justify-start rounded-medium px-2 py-1.5 text-left sm:min-h-8',
+				stickyDepth !== undefined &&
+					'z-20 h-9 min-h-9 bg-content1/95 backdrop-blur',
+				stickyDepth !== undefined &&
+					DIALOG_TREE_STICKY_TOP_CLASS_NAMES[stickyDepth],
+				stickyDepth !== undefined && 'sticky',
 				isTopLevel
-					? 'text-sm font-semibold text-foreground-700'
-					: 'text-xs font-medium text-foreground-600'
+					? TYPOGRAPHY_STYLES.subsectionTitle
+					: TYPOGRAPHY_STYLES.compactLabel
 			)}
 		>
 			<ChevronRight
@@ -165,8 +180,10 @@ function GroupHeader({
 					expanded && 'rotate-90'
 				)}
 			/>
-			<span className="truncate">{label}</span>
-			<span className="ml-auto shrink-0 text-xs text-foreground-500">
+			<span title={label} className="truncate">
+				{label}
+			</span>
+			<span className={cn(TYPOGRAPHY_STYLES.caption, 'ml-auto shrink-0')}>
 				{count}
 			</span>
 		</Button>
@@ -188,6 +205,12 @@ function DialogTreeItem({
 	onSelect: () => void;
 	onRemove: () => void;
 }) {
+	const { resourcePack } = useResourceEditor();
+	const giftTitles = (resourcePack.gifts ?? []).flatMap((gift, index) =>
+		gift.dialogPackageName === item.pkg.name
+			? [`${index + 1}. ${gift.title || '未命名礼物'}`]
+			: []
+	);
 	return (
 		<EditorCollectionItem
 			isInvalid={isDuplicate}
@@ -197,6 +220,11 @@ function DialogTreeItem({
 				<SectionDeleteButton
 					iconOnly
 					confirmTitle="确定要删除这个对话包吗？"
+					confirmDescription={
+						giftTitles.length > 0
+							? `以下礼物仍绑定此对话：${giftTitles.join('、')}。删除后请修改对应礼物。`
+							: undefined
+					}
 					onPress={onRemove}
 				>
 					删除对话包
@@ -204,9 +232,20 @@ function DialogTreeItem({
 			}
 		>
 			<EditorCollectionItemTitle>
-				<span className="min-w-0 truncate" title={item.pkg.name}>
-					{item.displayName}
-				</span>
+				{item.displayName === item.pkg.name ? (
+					<span title={item.displayName} className="min-w-0 truncate">
+						{item.displayName}
+					</span>
+				) : (
+					<Tooltip content={item.pkg.name}>
+						<span
+							title={item.displayName}
+							className="min-w-0 truncate"
+						>
+							{item.displayName}
+						</span>
+					</Tooltip>
+				)}
 				{isDuplicate && <ErrorBadge>命名重复</ErrorBadge>}
 				{hasPrefixWarning && <WarningBadge>前缀不规范</WarningBadge>}
 			</EditorCollectionItemTitle>
@@ -252,12 +291,26 @@ function TreeGroup({
 				const count = countTreeItems(childNode);
 
 				return (
-					<div key={key}>
+					<div key={key} className="flex flex-col gap-1">
 						<GroupHeader
 							label={key}
 							count={count}
 							expanded={isExpanded}
-							onToggle={() => onToggleGroup(path)}
+							stickyDepth={Math.min(depth + 1, 2)}
+							onToggle={() => {
+								onToggleGroup(path);
+
+								const firstItem = childNode.items[0];
+
+								if (
+									!isExpanded &&
+									depth > 0 &&
+									firstItem &&
+									selectedIndex === null
+								) {
+									onSelect(firstItem.index);
+								}
+							}}
 						/>
 						{isExpanded && (
 							<TreeGroup
@@ -335,7 +388,7 @@ export const DialogPackageList = memo<DialogPackageListProps>(
 
 			const newPaths: string[] = [];
 			for (const path of currentPaths) {
-				if (!knownPathsRef.current.has(path)) {
+				if (!knownPathsRef.current.has(path) && !path.includes('/')) {
 					newPaths.push(path);
 				}
 			}
@@ -434,6 +487,7 @@ export const DialogPackageList = memo<DialogPackageListProps>(
 
 		return (
 			<EditorCollectionPanel
+				allowsStickyContent
 				title="对话包列表"
 				addLabel="新建对话包"
 				emptyTitle="暂无对话包"
@@ -445,7 +499,7 @@ export const DialogPackageList = memo<DialogPackageListProps>(
 						<>
 							{/* 符合命名规范的分组树 */}
 							{hasConforming && (
-								<div>
+								<div className="flex flex-col gap-1">
 									<GroupHeader
 										label={packLabelPrefix}
 										count={countTreeItems(conforming)}
@@ -456,6 +510,7 @@ export const DialogPackageList = memo<DialogPackageListProps>(
 											toggleGroup(CONFORMING_KEY)
 										}
 										isTopLevel
+										stickyDepth={0}
 									/>
 									{expandedGroups.has(CONFORMING_KEY) && (
 										<TreeGroup
@@ -478,7 +533,7 @@ export const DialogPackageList = memo<DialogPackageListProps>(
 
 							{/* 不符合命名规范的条目 */}
 							{hasNonConforming && (
-								<div>
+								<div className="flex flex-col gap-1">
 									{hasConforming && (
 										<div className="my-1 border-t border-divider" />
 									)}
@@ -488,6 +543,7 @@ export const DialogPackageList = memo<DialogPackageListProps>(
 										expanded={expandedGroups.has(OTHER_KEY)}
 										onToggle={() => toggleGroup(OTHER_KEY)}
 										isTopLevel
+										stickyDepth={0}
 									/>
 									{expandedGroups.has(OTHER_KEY) && (
 										<div className="ml-3 flex min-w-0 flex-col gap-1 border-l border-divider pl-2">

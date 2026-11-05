@@ -20,6 +20,7 @@ function snapshotToArchiveInput(
 ): ICreateWorkspaceArchiveInput {
 	return {
 		displayName,
+		editorState: snapshot.editorState,
 		files: snapshot.files,
 		folders: snapshot.folders,
 		hasLicenseFile: snapshot.hasLicenseFile,

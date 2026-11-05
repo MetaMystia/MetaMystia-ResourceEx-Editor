@@ -1,17 +1,24 @@
 'use client';
 
+import { cn } from '@heroui/theme';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
 import Card from '@/design/ui/components/card';
+import Heading from '@/design/ui/components/heading';
 import Input from '@/design/ui/components/input';
 
 import { CoordinatedModal } from '@/features/overlays/client';
+import { WorkspaceComparePicker } from '@/features/resourceComparison/client/components/WorkspaceComparePicker';
 import { ConfirmDialog } from '@/features/resourceEditor/client/components/confirm/ConfirmDialog';
 import { SuccessBadge } from '@/features/resourceEditor/client/components/status/SuccessBadge';
 import { WarningBadge } from '@/features/resourceEditor/client/components/status/WarningBadge';
-import type { IWorkspaceSummary } from '@/features/resourceEditor/client/workspaces/contracts';
+import type {
+	IWorkspaceSummary,
+	TWorkspaceImportResolution,
+} from '@/features/resourceEditor/client/workspaces/contracts';
 import { useResourceWorkspaces } from '@/features/resourceEditor/client/workspaces/useResourceWorkspaces';
 
 const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
@@ -20,7 +27,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
 	timeZone: 'Asia/Shanghai',
 });
 const CATALOG_STATUS_CARD_CLASS_NAME =
-	'mt-8 min-h-40 items-center justify-center border border-dashed border-divider bg-content1/35 px-5 py-10 text-center';
+	'mt-8 min-h-40 items-center justify-center rounded-large border border-dashed border-divider bg-content1/35 px-5 py-10 text-center';
 
 interface INotice {
 	description: string;
@@ -114,6 +121,7 @@ export function WorkspaceManagerScreen() {
 			error?: string;
 			isLeaseConflict?: boolean;
 			isSuccess: boolean;
+			resolution?: TWorkspaceImportResolution;
 			workspaceId?: string;
 		}>,
 		action: string,
@@ -131,7 +139,12 @@ export function WorkspaceManagerScreen() {
 				});
 				return;
 			}
-			if (result.workspaceId && isEditorOpenExpected) openEditor();
+			if (
+				result.workspaceId &&
+				(isEditorOpenExpected || result.resolution === 'open')
+			) {
+				openEditor();
+			}
 		} catch (error) {
 			setNotice({
 				description:
@@ -195,14 +208,24 @@ export function WorkspaceManagerScreen() {
 			<div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
 				<header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
 					<div className="space-y-2">
-						<h1 className="text-2xl font-bold sm:text-3xl">
-							资源包管理
-						</h1>
-						<p className="max-w-2xl text-sm leading-6 text-foreground-500">
+						<Heading variant="screen">资源包管理</Heading>
+						<p
+							className={cn(
+								TYPOGRAPHY_STYLES.subtleDescription,
+								'max-w-2xl'
+							)}
+						>
 							资源包保存在当前浏览器中；重要版本仍建议及时导出。
 						</p>
 					</div>
 					<div className="grid grid-cols-2 gap-2 sm:flex">
+						<Button
+							variant="flat"
+							className="col-span-2 sm:col-span-1"
+							onPress={() => router.push('/compare')}
+						>
+							版本对比
+						</Button>
 						<Button
 							variant="flat"
 							isDisabled={isWorkspaceOperationPending}
@@ -233,12 +256,22 @@ export function WorkspaceManagerScreen() {
 					(isTemporaryStorage || storageError !== null) && (
 						<div className="mt-6 flex flex-col gap-3 rounded-large border border-warning/40 bg-warning/10 p-4 sm:flex-row sm:items-center sm:justify-between">
 							<div>
-								<p className="font-medium text-warning-700 dark:text-warning">
+								<p
+									className={cn(
+										TYPOGRAPHY_STYLES.subsectionTitle,
+										'text-warning-700 dark:text-warning'
+									)}
+								>
 									{isTemporaryStorage
 										? '临时编辑'
 										: '本地存储异常'}
 								</p>
-								<p className="mt-1 text-sm text-foreground-600">
+								<p
+									className={cn(
+										TYPOGRAPHY_STYLES.description,
+										'mt-1'
+									)}
+								>
 									{isTemporaryStorage
 										? storageError
 											? `本地存储不可用，当前内容仅临时保留，刷新页面会丢失。原因：${storageError}`
@@ -269,7 +302,7 @@ export function WorkspaceManagerScreen() {
 						shadow="none"
 						className={CATALOG_STATUS_CARD_CLASS_NAME}
 					>
-						<p className="text-sm text-foreground-500">
+						<p className={TYPOGRAPHY_STYLES.subtleDescription}>
 							正在读取本地资源包…
 						</p>
 					</Card>
@@ -278,8 +311,15 @@ export function WorkspaceManagerScreen() {
 						shadow="none"
 						className={CATALOG_STATUS_CARD_CLASS_NAME}
 					>
-						<h2 className="text-lg font-semibold">还没有资源包</h2>
-						<p className="mt-2 text-sm text-foreground-500">
+						<Heading as="h2" variant="card">
+							还没有资源包
+						</Heading>
+						<p
+							className={cn(
+								TYPOGRAPHY_STYLES.subtleDescription,
+								'mt-2'
+							)}
+						>
 							新建空白资源包，或者导入已有资源包开始编辑
 						</p>
 					</Card>
@@ -306,14 +346,19 @@ export function WorkspaceManagerScreen() {
 								<Card
 									key={workspace.id}
 									shadow="none"
-									className="border border-divider bg-content1/55 p-5 backdrop-blur"
+									className="rounded-large border border-divider bg-content1/55 p-5 backdrop-blur"
 								>
 									<div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 										<div className="min-w-0">
-											<h2 className="break-words text-lg font-semibold leading-7">
+											<Heading as="h2" variant="card">
 												{workspace.displayName}
-											</h2>
-											<p className="mt-1 text-xs text-foreground-400">
+											</Heading>
+											<p
+												className={cn(
+													TYPOGRAPHY_STYLES.caption,
+													'mt-1'
+												)}
+											>
 												{`最后编辑：${dateTimeFormatter.format(workspace.updatedAt)}`}
 											</p>
 										</div>
@@ -354,37 +399,89 @@ export function WorkspaceManagerScreen() {
 											)}
 										</div>
 									</div>
-									<div className="mt-4 grid grid-cols-2 gap-3 rounded-medium bg-content2/45 p-3 text-sm">
+									<div
+										className={cn(
+											TYPOGRAPHY_STYLES.body,
+											'mt-4 grid grid-cols-2 gap-3 rounded-medium bg-content2/45 p-3'
+										)}
+									>
 										<div className="col-span-2 min-w-0">
-											<span className="block text-xs text-foreground-400">
+											<span
+												className={cn(
+													TYPOGRAPHY_STYLES.caption,
+													'block'
+												)}
+											>
 												资源包名称（Name）
 											</span>
-											<span className="mt-1 block break-words font-medium text-foreground-700">
+											<span
+												className={cn(
+													TYPOGRAPHY_STYLES.emphasizedText,
+													'mt-1 block break-words'
+												)}
+											>
 												{workspace.resourcePackName ||
 													'未设置'}
 											</span>
 										</div>
 										<div className="min-w-0">
-											<span className="block text-xs text-foreground-400">
+											<span
+												className={cn(
+													TYPOGRAPHY_STYLES.caption,
+													'block'
+												)}
+											>
 												资源包标识符（Label）
 											</span>
-											<span className="mt-1 block truncate font-medium text-foreground-700">
+											<span
+												title={
+													workspace.label || '未设置'
+												}
+												className={cn(
+													TYPOGRAPHY_STYLES.emphasizedText,
+													'mt-1 block truncate'
+												)}
+											>
 												{workspace.label || '未设置'}
 											</span>
 										</div>
 										<div className="min-w-0">
-											<span className="block text-xs text-foreground-400">
+											<span
+												className={cn(
+													TYPOGRAPHY_STYLES.caption,
+													'block'
+												)}
+											>
 												版本
 											</span>
-											<span className="mt-1 block truncate font-medium text-foreground-700">
+											<span
+												title={
+													workspace.version ||
+													'未设置'
+												}
+												className={cn(
+													TYPOGRAPHY_STYLES.emphasizedText,
+													'mt-1 block truncate'
+												)}
+											>
 												{workspace.version || '未设置'}
 											</span>
 										</div>
 										<div className="col-span-2 min-w-0 border-t border-divider pt-3">
-											<span className="block text-xs text-foreground-400">
+											<span
+												className={cn(
+													TYPOGRAPHY_STYLES.caption,
+													'block'
+												)}
+											>
 												工作区UUID
 											</span>
-											<span className="mt-1 block break-all font-mono text-xs text-foreground-600">
+											<span
+												className={cn(
+													TYPOGRAPHY_STYLES.metadata,
+													'mt-1 block'
+												)}
+											>
 												{workspace.id}
 											</span>
 										</div>
@@ -409,7 +506,13 @@ export function WorkspaceManagerScreen() {
 										>
 											打开资源包
 										</Button>
-										<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+										<div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+											<WorkspaceComparePicker
+												isDisabled={
+													isWorkspaceOperationPending
+												}
+												rightWorkspace={workspace}
+											/>
 											<Button
 												fullWidth
 												variant="flat"
@@ -500,8 +603,10 @@ export function WorkspaceManagerScreen() {
 				size="md"
 			>
 				<div className="space-y-4">
-					<h2 className="text-lg font-semibold">重命名工作区</h2>
-					<p className="text-sm leading-6 text-foreground-500">
+					<Heading as="h2" variant="dialog">
+						重命名工作区
+					</Heading>
+					<p className={TYPOGRAPHY_STYLES.subtleDescription}>
 						只修改用于本地识别的工作区名称，不会修改资源包内部名称（Name）。
 					</p>
 					<Input

@@ -154,6 +154,7 @@ export default memo<MissionEditorProps>(function MissionEditor({
 			/>
 
 			<MissionConditionList
+				allEvents={allEvents}
 				mission={mission}
 				characterOptions={characterOptions}
 				allBeverages={allBeverages}

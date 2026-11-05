@@ -18,6 +18,7 @@ const herouiComponents = [
 				dependency !== '@heroui/theme'
 		)
 		.map((dependency) => dependency.replace('@heroui/', '')),
+	'spinner', // For `@heroui/button` loading states.
 	'toggle', // For `@heroui/switch`.
 ];
 

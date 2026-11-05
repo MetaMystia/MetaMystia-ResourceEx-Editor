@@ -1,5 +1,7 @@
+import { cn } from '@heroui/theme';
 import { memo, useCallback, useId, useMemo } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Input from '@/design/ui/components/input';
 
 import { COOKER_TYPE_NAMES, COOKER_TYPES } from '@/domain/data/cookerTypes';
@@ -21,8 +23,9 @@ import {
 } from '@/features/resourceEditor/client/components/select/Select';
 import { ErrorBadge } from '@/features/resourceEditor/client/components/status/ErrorBadge';
 import { WarningNotice } from '@/features/resourceEditor/client/components/status/WarningNotice';
-import { parseIntegerInput } from '@/features/resourceEditor/client/editorValueAllocation';
 import { IdRangeBadge } from '@/features/resourceEditor/client/editors/info/IdRangeBadge';
+import { parseIntegerInput } from '@/features/resourceEditor/client/editorValueAllocation';
+import { useFocusOnItemAppend } from '@/features/resourceEditor/client/hooks/useFocusOnItemAppend';
 
 interface RecipeEditorProps {
 	recipe: Recipe | null;
@@ -48,6 +51,9 @@ export const RecipeEditor = memo<RecipeEditorProps>(function RecipeEditor({
 	const idFoodId = useId();
 	const idCookTime = useId();
 	const idCookerType = useId();
+	const ingredientListRef = useFocusOnItemAppend(
+		recipe?.ingredients.length ?? 0
+	);
 
 	const isIdTooSmall = recipe && recipe.id < 9000;
 
@@ -216,13 +222,19 @@ export const RecipeEditor = memo<RecipeEditorProps>(function RecipeEditor({
 				{recipe.ingredients.length >= 5 && (
 					<WarningNotice>已达到最多5个食材的上限。</WarningNotice>
 				)}
-				<div className="flex flex-col gap-3">
+				<div ref={ingredientListRef} className="flex flex-col gap-3">
 					{recipe.ingredients.map((ingredientId, index) => (
 						<div
 							key={index}
-							className="flex items-center gap-3 rounded-large border border-divider bg-content1/50 p-3"
+							data-editor-appended-item
+							className="flex items-center gap-3 rounded-medium border border-divider bg-content1/50 p-3"
 						>
-							<span className="w-8 text-center text-sm font-medium text-foreground-500">
+							<span
+								className={cn(
+									TYPOGRAPHY_STYLES.navigationTitle,
+									'w-8 text-center'
+								)}
+							>
 								#{index + 1}
 							</span>
 							<Select<number>
@@ -238,7 +250,7 @@ export const RecipeEditor = memo<RecipeEditorProps>(function RecipeEditor({
 								iconOnly
 								className="sm:h-10 sm:w-10 sm:rounded-medium"
 								onPress={() => removeIngredient(index)}
-								aria-label={`删除食材#${index + 1}`}
+								aria-label="删除食材"
 							/>
 						</div>
 					))}

@@ -14,18 +14,24 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
 import Dropdown, {
 	DropdownItem,
 	DropdownMenu,
 	DropdownTrigger,
 } from '@/design/ui/components/dropdown';
+import Heading from '@/design/ui/components/heading';
 import PressElement from '@/design/ui/components/pressElement';
 import { useReducedMotion } from '@/design/ui/hooks/useReducedMotion';
 
 import { openAnnouncementModal } from '@/features/announcements/client/AnnouncementModal';
 import { ConfirmDialog } from '@/features/resourceEditor/client/components/confirm/ConfirmDialog';
 import { ExportValidationDialog } from '@/features/resourceEditor/client/components/export/ExportValidationDialog';
+import { ErrorBadge } from '@/features/resourceEditor/client/components/status/ErrorBadge';
+import { SuccessBadge } from '@/features/resourceEditor/client/components/status/SuccessBadge';
+import { WarningBadge } from '@/features/resourceEditor/client/components/status/WarningBadge';
+import { subscribeEditorNavigationNotice } from '@/features/resourceEditor/client/navigation/editorNavigationIntent';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 import {
 	type IResourcePackValidationIssue,
@@ -51,8 +57,11 @@ const NAV_GROUPS = [
 		label: '角色',
 		items: [
 			{ href: '/character', label: '稀客' },
+			{ href: '/spell', label: '符卡' },
+			{ href: '/buff', label: 'Buff' },
 			{ href: '/dialogue', label: '对话' },
 			{ href: '/merchant', label: '商人' },
+			{ href: '/gift', label: '礼物邮箱' },
 		],
 	},
 	{
@@ -66,10 +75,19 @@ const NAV_GROUPS = [
 		],
 	},
 	{
-		label: '节点',
+		label: '场景与节点',
 		items: [
+			{ href: '/map', label: '白天地图' },
 			{ href: '/mission', label: '任务节点' },
 			{ href: '/event', label: '事件节点' },
+			{ href: '/node-graph', label: '节点图' },
+		],
+	},
+	{
+		label: '资产',
+		items: [
+			{ href: '/asset', label: '资产管理' },
+			{ href: '/asset-bundle', label: 'AssetBundle' },
 		],
 	},
 ] as const satisfies readonly INavGroup[];
@@ -77,14 +95,11 @@ const NAV_GROUPS = [
 const MOBILE_NAV_GROUPS: readonly INavGroup[] = [
 	{ label: '资源包', items: [{ href: '/info', label: '基础信息' }] },
 	...NAV_GROUPS,
-	{ label: '资产', items: [{ href: '/asset', label: '资产管理' }] },
 ] as const;
 
 const MOBILE_NAV_ITEMS = MOBILE_NAV_GROUPS.flatMap((group) => group.items);
 
 const GITHUB_URL = 'https://github.com/MetaMystia/MetaMystia-ResourceEx-Editor';
-const MOBILE_SECTION_TITLE_CLASS_NAME =
-	'px-1 text-small font-medium text-foreground-500 dark:text-foreground-400';
 const MOBILE_CARD_BASE_CLASS_NAME =
 	'rounded-small border bg-content1/45 shadow-[0_1px_0_rgba(0,0,0,0.025)] transition-[background-color,border-color,box-shadow] motion-reduce:transition-none dark:bg-default-50/10 dark:shadow-none';
 const MOBILE_CARD_ACTIVE_CLASS_NAME =
@@ -111,7 +126,7 @@ const NavDropdown = memo<INavDropdownProps>(function NavDropdown({
 
 	return (
 		<Dropdown>
-			<DropdownTrigger>
+			<DropdownTrigger showArrow>
 				<Button
 					variant={isActive ? 'flat' : 'light'}
 					color={isActive ? 'primary' : 'default'}
@@ -146,9 +161,47 @@ interface INotice {
 	description: string;
 }
 
+type TStatusBadgeTone = 'error' | 'success' | 'warning';
+
+interface IWorkspaceStatusBadgesProps {
+	badgeClassName?: string;
+	className?: string;
+	exportLabel: string;
+	isExported: boolean;
+	localSaveLabel: string;
+	localSaveTone: TStatusBadgeTone;
+}
+
+function WorkspaceStatusBadges({
+	badgeClassName = 'whitespace-nowrap px-2 py-1 text-xs',
+	className,
+	exportLabel,
+	isExported,
+	localSaveLabel,
+	localSaveTone,
+}: IWorkspaceStatusBadgesProps) {
+	const LocalSaveBadge =
+		localSaveTone === 'error'
+			? ErrorBadge
+			: localSaveTone === 'warning'
+				? WarningBadge
+				: SuccessBadge;
+	const ExportBadge = isExported ? SuccessBadge : WarningBadge;
+
+	return (
+		<span className={cn('flex flex-wrap items-center gap-1.5', className)}>
+			<LocalSaveBadge className={badgeClassName}>
+				{localSaveLabel}
+			</LocalSaveBadge>
+			<ExportBadge className={badgeClassName}>{exportLabel}</ExportBadge>
+		</span>
+	);
+}
+
 export const AppNavbar = memo(function AppNavbar() {
 	const pathname = usePathname();
 	const router = useRouter();
+	const isComparisonRoute = pathname === '/compare';
 	const isReducedMotion = useReducedMotion();
 	const activeExportTriggerRef = useRef<HTMLButtonElement | null>(null);
 	const desktopExportTriggerRef = useRef<HTMLButtonElement>(null);
@@ -158,8 +211,8 @@ export const AppNavbar = memo(function AppNavbar() {
 	const {
 		activeWorkspaceId,
 		assets: { urls: assetUrls },
+		exportStatus,
 		exportArchive,
-		hasUnexportedChanges,
 		isExporting,
 		localSaveError,
 		localSaveStatus,
@@ -185,9 +238,17 @@ export const AppNavbar = memo(function AppNavbar() {
 		issues: IResourcePackValidationIssue[];
 		revision: number;
 	} | null>(null);
+	useEffect(
+		() =>
+			subscribeEditorNavigationNotice((nextNotice) =>
+				setNotice(nextNotice)
+			),
+		[]
+	);
 	const hasActiveWorkspace =
 		activeWorkspace !== null &&
 		activeWorkspace.workspace.id === activeWorkspaceId;
+	const hasEditorNavigation = hasActiveWorkspace && !isComparisonRoute;
 	const isFileOperationPending =
 		isExporting ||
 		isRetryingStorage ||
@@ -266,10 +327,14 @@ export const AppNavbar = memo(function AppNavbar() {
 		async (file: File) => {
 			const result = await importWorkspace(file);
 			if (!result.isSuccess) {
+				if (result.isLeaseConflict) return;
 				showOperationError('导入资源包', result.error);
 				return;
 			}
-			if (result.workspaceId) router.push('/');
+			if (result.resolution === 'cancel') return;
+			if (result.workspaceId) {
+				router.push(result.resolution === 'open' ? '/info' : '/');
+			}
 		},
 		[importWorkspace, router, showOperationError]
 	);
@@ -309,7 +374,8 @@ export const AppNavbar = memo(function AppNavbar() {
 			const expectedRevision = revision;
 			const issues = await validateResourcePackForExport(
 				resourcePack,
-				Object.keys(assetUrls)
+				Object.keys(assetUrls),
+				assetUrls
 			);
 			if (issues.length > 0) {
 				isWaitingForValidation = true;
@@ -402,21 +468,104 @@ export const AppNavbar = memo(function AppNavbar() {
 	const openGitHub = useCallback(() => {
 		window.open(GITHUB_URL, '_blank', 'noopener,noreferrer');
 	}, []);
-	const visibleMobileNavGroups = hasActiveWorkspace ? MOBILE_NAV_GROUPS : [];
+	const visibleMobileNavGroups = hasEditorNavigation ? MOBILE_NAV_GROUPS : [];
 	const hasActiveMobileRoute = MOBILE_NAV_ITEMS.some(
 		(item) => item.href === pathname
 	);
-	const localSaveLabel =
-		storageMode === 'memory' || localSaveStatus === 'memory-only'
-			? '仅临时保存'
-			: localSaveStatus === 'saving'
-				? '正在保存到本机'
-				: localSaveStatus === 'error' || storageError !== null
-					? '本地保存失败'
-					: '已保存到本机';
 	const isTemporaryStorage =
 		storageMode === 'memory' || localSaveStatus === 'memory-only';
+	const localSaveLabel = isTemporaryStorage
+		? '仅临时保存'
+		: localSaveStatus === 'saving'
+			? '正在保存到本机'
+			: localSaveStatus === 'error' || storageError !== null
+				? '本地保存失败'
+				: '已保存到本机';
+	const exportStatusLabel =
+		exportStatus === 'modified'
+			? '有未导出的更改'
+			: exportStatus === 'unexported'
+				? '当前内容尚未导出'
+				: '当前版本已导出';
+	const localSaveTone: TStatusBadgeTone = isTemporaryStorage
+		? 'warning'
+		: localSaveStatus === 'saving'
+			? 'warning'
+			: localSaveStatus === 'error' || storageError !== null
+				? 'error'
+				: 'success';
+	const resourcePackVersion = resourcePack.packInfo.version || '未设置';
+	const resourcePackVersionLabel = resourcePack.packInfo.version
+		? `v${resourcePack.packInfo.version}`
+		: '版本未设置';
+	const compactLocalSaveLabel = isTemporaryStorage
+		? '临时保存'
+		: localSaveStatus === 'saving'
+			? '保存中'
+			: localSaveStatus === 'error' || storageError !== null
+				? '保存失败'
+				: '已保存';
+	const compactExportStatusLabel =
+		exportStatus === 'modified'
+			? '有修改'
+			: exportStatus === 'unexported'
+				? '尚未导出'
+				: '已导出';
 	const storageWarning = storageError ?? localSaveError;
+	const mobileWorkspaceSummaryCard = hasEditorNavigation ? (
+		<>
+			<Button
+				fullWidth
+				variant="light"
+				className={cn(
+					MOBILE_CARD_CONTENT_CLASS_NAME,
+					MOBILE_CARD_BASE_CLASS_NAME,
+					MOBILE_CARD_INACTIVE_CLASS_NAME,
+					'py-3'
+				)}
+				onPress={() => handleNavigate('/')}
+			>
+				<span className="flex w-full min-w-0 flex-col gap-2">
+					<span className="flex min-w-0 items-baseline justify-between gap-3">
+						<span
+							title={activeWorkspace.workspace.displayName}
+							className={cn(
+								TYPOGRAPHY_STYLES.emphasizedText,
+								'min-w-0 truncate'
+							)}
+						>
+							{activeWorkspace.workspace.displayName}
+						</span>
+						<span
+							className={cn(
+								TYPOGRAPHY_STYLES.metadata,
+								'shrink-0'
+							)}
+						>
+							{resourcePackVersionLabel}
+						</span>
+					</span>
+					<WorkspaceStatusBadges
+						badgeClassName="whitespace-nowrap"
+						exportLabel={compactExportStatusLabel}
+						isExported={exportStatus === 'exported'}
+						localSaveLabel={compactLocalSaveLabel}
+						localSaveTone={localSaveTone}
+					/>
+				</span>
+			</Button>
+			{localSaveError && (
+				<p
+					className={cn(
+						TYPOGRAPHY_STYLES.compactBody,
+						'px-1 text-warning-700 dark:text-warning'
+					)}
+				>
+					{localSaveError}
+				</p>
+			)}
+		</>
+	) : null;
 
 	return (
 		<>
@@ -469,7 +618,7 @@ export const AppNavbar = memo(function AppNavbar() {
 							</Link>
 						</PressElement>
 					</NavbarBrand>
-					{hasActiveWorkspace && (
+					{hasEditorNavigation && (
 						<nav className="hidden shrink-0 items-center gap-1 xl:flex">
 							<NavbarItem>
 								<Button
@@ -490,44 +639,12 @@ export const AppNavbar = memo(function AppNavbar() {
 							{NAV_GROUPS.map((group) => (
 								<NavDropdown key={group.label} {...group} />
 							))}
-							<NavbarItem>
-								<Button
-									as={Link}
-									href="/asset"
-									variant={
-										pathname === '/asset' ? 'flat' : 'light'
-									}
-									color={
-										pathname === '/asset'
-											? 'primary'
-											: 'default'
-									}
-								>
-									资产
-								</Button>
-							</NavbarItem>
 						</nav>
 					)}
 				</NavbarContent>
 
 				<NavbarContent justify="end" className="hidden gap-1 xl:flex">
-					{hasActiveWorkspace && (
-						<Link
-							href="/"
-							className="mr-1 hidden max-w-44 text-right text-[11px] leading-4 text-foreground-500 2xl:block"
-						>
-							<span className="block truncate font-medium text-foreground-700">
-								{activeWorkspace.workspace.displayName}
-							</span>
-							<span className="block">{localSaveLabel}</span>
-							<span className="block">
-								{hasUnexportedChanges
-									? '有未导出的更改'
-									: '当前版本已导出'}
-							</span>
-						</Link>
-					)}
-					{pathname !== '/' && (
+					{pathname !== '/' && !isComparisonRoute && (
 						<>
 							{hasActiveWorkspace &&
 								(isTemporaryStorage ||
@@ -576,7 +693,7 @@ export const AppNavbar = memo(function AppNavbar() {
 					)}
 					<NavbarItem className="ml-2">
 						<Dropdown>
-							<DropdownTrigger>
+							<DropdownTrigger showArrow>
 								<Button variant="light">更多</Button>
 							</DropdownTrigger>
 							<DropdownMenu
@@ -628,12 +745,21 @@ export const AppNavbar = memo(function AppNavbar() {
 					id={MOBILE_MENU_ID}
 					className="mobile-navbar-menu-scroll max-h-[calc(var(--safe-h-dvh)_-_var(--navbar-height))] gap-3.5 overflow-y-auto overflow-x-hidden px-6 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-4 sm:px-8"
 				>
+					{mobileWorkspaceSummaryCard && (
+						<NavbarMenuItem className="w-full">
+							{mobileWorkspaceSummaryCard}
+						</NavbarMenuItem>
+					)}
 					{visibleMobileNavGroups.map((group, groupIndex) => (
 						<NavbarMenuItem key={group.label} className="w-full">
 							<section className="space-y-2">
-								<h2 className={MOBILE_SECTION_TITLE_CLASS_NAME}>
+								<Heading
+									as="h2"
+									variant="navigation"
+									className="px-1"
+								>
 									{group.label}
-								</h2>
+								</Heading>
 								<div className="grid grid-cols-2 gap-2">
 									{group.items.map((item, itemIndex) => {
 										const isCurrent =
@@ -670,7 +796,12 @@ export const AppNavbar = memo(function AppNavbar() {
 													handleNavigate(item.href)
 												}
 											>
-												<span className="min-w-0 truncate text-small font-medium">
+												<span
+													className={cn(
+														TYPOGRAPHY_STYLES.interactiveLabel,
+														'min-w-0 truncate'
+													)}
+												>
 													{item.label}
 												</span>
 											</Button>
@@ -680,31 +811,16 @@ export const AppNavbar = memo(function AppNavbar() {
 							</section>
 						</NavbarMenuItem>
 					))}
-					{pathname !== '/' && (
+					{pathname !== '/' && !isComparisonRoute && (
 						<NavbarMenuItem className="w-full">
 							<section className="space-y-2">
-								<h2 className={MOBILE_SECTION_TITLE_CLASS_NAME}>
+								<Heading
+									as="h2"
+									variant="navigation"
+									className="px-1"
+								>
 									资源包操作
-								</h2>
-								{hasActiveWorkspace && (
-									<p className="px-1 text-xs leading-5 text-foreground-500">
-										<span className="block truncate font-medium text-foreground-700">
-											{
-												activeWorkspace.workspace
-													.displayName
-											}
-										</span>
-										{localSaveLabel}·
-										{hasUnexportedChanges
-											? '有未导出的更改'
-											: '当前版本已导出'}
-										{localSaveError && (
-											<span className="block text-warning-700 dark:text-warning">
-												{localSaveError}
-											</span>
-										)}
-									</p>
-								)}
+								</Heading>
 								<div className="grid grid-cols-2 gap-2">
 									<Button
 										{...(!hasActiveWorkspace
@@ -723,7 +839,12 @@ export const AppNavbar = memo(function AppNavbar() {
 											void handleCreateBlank();
 										}}
 									>
-										<span className="min-w-0 truncate text-small font-medium">
+										<span
+											className={cn(
+												TYPOGRAPHY_STYLES.interactiveLabel,
+												'min-w-0 truncate'
+											)}
+										>
 											新建资源包
 										</span>
 									</Button>
@@ -742,7 +863,12 @@ export const AppNavbar = memo(function AppNavbar() {
 												void handleRetryStorage()
 											}
 										>
-											<span className="min-w-0 truncate text-small font-medium">
+											<span
+												className={cn(
+													TYPOGRAPHY_STYLES.interactiveLabel,
+													'min-w-0 truncate'
+												)}
+											>
 												重试本地存储
 											</span>
 										</Button>
@@ -761,7 +887,12 @@ export const AppNavbar = memo(function AppNavbar() {
 											fileInputRef.current?.click();
 										}}
 									>
-										<span className="min-w-0 truncate text-small font-medium">
+										<span
+											className={cn(
+												TYPOGRAPHY_STYLES.interactiveLabel,
+												'min-w-0 truncate'
+											)}
+										>
 											导入资源包
 										</span>
 									</Button>
@@ -786,7 +917,12 @@ export const AppNavbar = memo(function AppNavbar() {
 											void handleExport();
 										}}
 									>
-										<span className="min-w-0 truncate text-small font-medium">
+										<span
+											className={cn(
+												TYPOGRAPHY_STYLES.interactiveLabel,
+												'min-w-0 truncate'
+											)}
+										>
 											导出资源包
 										</span>
 									</Button>
@@ -794,11 +930,48 @@ export const AppNavbar = memo(function AppNavbar() {
 							</section>
 						</NavbarMenuItem>
 					)}
+					{isComparisonRoute && (
+						<NavbarMenuItem className="w-full">
+							<section className="space-y-2">
+								<Heading
+									as="h2"
+									variant="navigation"
+									className="px-1"
+								>
+									版本对比
+								</Heading>
+								<Button
+									ref={mobileMenuFirstItemRef}
+									fullWidth
+									variant="light"
+									className={cn(
+										MOBILE_CARD_CONTENT_CLASS_NAME,
+										MOBILE_CARD_BASE_CLASS_NAME,
+										MOBILE_CARD_INACTIVE_CLASS_NAME
+									)}
+									onPress={() => handleNavigate('/')}
+								>
+									<span
+										className={cn(
+											TYPOGRAPHY_STYLES.interactiveLabel,
+											'min-w-0 truncate'
+										)}
+									>
+										返回资源包管理
+									</span>
+								</Button>
+							</section>
+						</NavbarMenuItem>
+					)}
 					<NavbarMenuItem className="w-full">
 						<section className="space-y-2">
-							<h2 className={MOBILE_SECTION_TITLE_CLASS_NAME}>
+							<Heading
+								as="h2"
+								variant="navigation"
+								className="px-1"
+							>
 								更多
-							</h2>
+							</Heading>
 							<div className="grid grid-cols-2 gap-2">
 								<Button
 									{...(!hasActiveWorkspace && pathname === '/'
@@ -816,7 +989,12 @@ export const AppNavbar = memo(function AppNavbar() {
 										openAnnouncementModal();
 									}}
 								>
-									<span className="min-w-0 truncate text-small font-medium">
+									<span
+										className={cn(
+											TYPOGRAPHY_STYLES.interactiveLabel,
+											'min-w-0 truncate'
+										)}
+									>
 										公告
 									</span>
 								</Button>
@@ -833,7 +1011,12 @@ export const AppNavbar = memo(function AppNavbar() {
 										openGitHub();
 									}}
 								>
-									<span className="min-w-0 truncate text-small font-medium">
+									<span
+										className={cn(
+											TYPOGRAPHY_STYLES.interactiveLabel,
+											'min-w-0 truncate'
+										)}
+									>
 										本项目代码仓库
 									</span>
 								</Button>
@@ -842,13 +1025,57 @@ export const AppNavbar = memo(function AppNavbar() {
 					</NavbarMenuItem>
 				</NavbarMenu>
 			</HeroUINavbar>
+			{pathname !== '/' && hasEditorNavigation && (
+				<div className="hidden border-b border-divider bg-content1/40 shadow-sm backdrop-blur xl:block">
+					<div className="mx-auto flex min-h-10 w-full max-w-7xl items-center gap-3 px-6 3xl:max-w-screen-2xl 4xl:max-w-screen-3xl">
+						<Link
+							href="/"
+							aria-label="返回资源包管理页"
+							className={cn(
+								TYPOGRAPHY_STYLES.caption,
+								'flex min-w-0 items-baseline gap-2 rounded-small transition-colors hover:text-foreground-700'
+							)}
+						>
+							<span className="shrink-0">当前资源包</span>
+							<span
+								title={activeWorkspace.workspace.displayName}
+								className={cn(
+									TYPOGRAPHY_STYLES.emphasizedText,
+									'truncate'
+								)}
+							>
+								{activeWorkspace.workspace.displayName}
+							</span>
+						</Link>
+						<span className="h-4 w-px shrink-0 bg-divider" />
+						<span
+							className={cn(
+								TYPOGRAPHY_STYLES.metadata,
+								'shrink-0'
+							)}
+						>
+							版本：{resourcePackVersion}
+						</span>
+						<WorkspaceStatusBadges
+							className="ml-auto shrink-0"
+							exportLabel={exportStatusLabel}
+							isExported={exportStatus === 'exported'}
+							localSaveLabel={localSaveLabel}
+							localSaveTone={localSaveTone}
+						/>
+					</div>
+				</div>
+			)}
 			{pathname !== '/' &&
-				hasActiveWorkspace &&
+				hasEditorNavigation &&
 				(isTemporaryStorage || storageError !== null) &&
 				storageWarning && (
 					<div
 						role="alert"
-						className="flex flex-col gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-sm text-warning-800 sm:flex-row sm:items-center sm:justify-between dark:text-warning"
+						className={cn(
+							TYPOGRAPHY_STYLES.body,
+							'flex flex-col gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-warning-800 sm:flex-row sm:items-center sm:justify-between dark:text-warning'
+						)}
 					>
 						<span>
 							{isTemporaryStorage
@@ -889,11 +1116,7 @@ export const AppNavbar = memo(function AppNavbar() {
 				confirmLabel="知道了"
 				onConfirm={() => setNotice(null)}
 			/>
-			<WorkspaceDuplicateDialog
-				onResolved={(_workspaceId, resolution) => {
-					router.push(resolution === 'open' ? '/info' : '/');
-				}}
-			/>
+			<WorkspaceDuplicateDialog />
 			<WorkspaceLeaseConflictDialog />
 			<WorkspaceLeaseLossDialog />
 		</>

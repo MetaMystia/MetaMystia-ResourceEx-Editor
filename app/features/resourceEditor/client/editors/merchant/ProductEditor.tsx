@@ -2,10 +2,6 @@ import { memo, useCallback, useMemo } from 'react';
 
 import Input from '@/design/ui/components/input';
 
-import { BEVERAGE_NAMES } from '@/domain/data/beverages';
-import { FOOD_NAMES } from '@/domain/data/foods';
-import { INGREDIENT_NAMES } from '@/domain/data/ingredients';
-import { RECIPE_NAMES } from '@/domain/data/recipes';
 import type {
 	Beverage,
 	Food,
@@ -18,6 +14,7 @@ import type {
 } from '@/domain/resourcePack/contracts/merchant';
 
 import { Label } from '@/features/resourceEditor/client/components/fields/Label';
+import { getProductIdOptions } from '@/features/resourceEditor/client/components/select/productIdOptions';
 import { PRODUCT_TYPE_OPTIONS } from '@/features/resourceEditor/client/components/select/productTypeOptions';
 import {
 	Select,
@@ -51,71 +48,22 @@ export const ProductEditor = memo<ProductEditorProps>(function ProductEditor({
 }) {
 	const isSupported = SUPPORTED_TYPES.includes(product.productType);
 
-	const idOptions = useMemo(() => {
-		switch (product.productType) {
-			case 'Food': {
-				const gameItems = FOOD_NAMES.map((f) => ({
-					id: f.id,
-					name: f.name,
-					source: '原版',
-				}));
-				const extItems = extFoods.map((f) => ({
-					id: f.id,
-					name: f.name,
-					source: '扩展',
-				}));
-				return [...gameItems, ...extItems];
-			}
-			case 'Ingredient': {
-				const gameItems = INGREDIENT_NAMES.map((i) => ({
-					id: i.id,
-					name: i.name,
-					source: '原版',
-				}));
-				const extItems = extIngredients.map((i) => ({
-					id: i.id,
-					name: i.name,
-					source: '扩展',
-				}));
-				return [...gameItems, ...extItems];
-			}
-			case 'Beverage': {
-				const gameItems = BEVERAGE_NAMES.map((b) => ({
-					id: b.id,
-					name: b.name,
-					source: '原版',
-				}));
-				const extItems = extBeverages.map((b) => ({
-					id: b.id,
-					name: b.name,
-					source: '扩展',
-				}));
-				return [...gameItems, ...extItems];
-			}
-			case 'Recipe': {
-				const gameItems = RECIPE_NAMES.map((r) => ({
-					id: r.id,
-					name: r.name,
-					source: '原版',
-				}));
-				const extItems = extRecipes.map((r) => {
-					const foodName =
-						extFoods.find((f) => f.id === r.foodId)?.name ||
-						`食谱#${r.id}`;
-					return { id: r.id, name: `${foodName}`, source: '扩展' };
-				});
-				return [...gameItems, ...extItems];
-			}
-			default:
-				return [];
-		}
-	}, [
-		product.productType,
-		extFoods,
-		extIngredients,
-		extBeverages,
-		extRecipes,
-	]);
+	const idOptions = useMemo(
+		() =>
+			getProductIdOptions(product.productType, {
+				beverages: extBeverages,
+				foods: extFoods,
+				ingredients: extIngredients,
+				recipes: extRecipes,
+			}),
+		[
+			product.productType,
+			extFoods,
+			extIngredients,
+			extBeverages,
+			extRecipes,
+		]
+	);
 
 	const typeItems = useMemo<SelectItemSpec<ProductType>[]>(() => {
 		return PRODUCT_TYPE_OPTIONS.map((type) => ({
@@ -149,7 +97,7 @@ export const ProductEditor = memo<ProductEditorProps>(function ProductEditor({
 	);
 
 	return (
-		<div className="flex min-w-0 flex-col gap-3 rounded-large border border-divider bg-content2/30 p-3">
+		<div className="flex min-w-0 flex-col gap-3 rounded-medium border border-divider bg-content2/30 p-3">
 			<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
 				{/* Product Type */}
 				<div className="flex flex-col gap-1">
@@ -157,6 +105,19 @@ export const ProductEditor = memo<ProductEditorProps>(function ProductEditor({
 					<Select<ProductType>
 						value={product.productType}
 						onChange={handleTypeChange}
+						getChangeConfirmation={(nextType, currentType) =>
+							nextType !== currentType &&
+							(product.productId !== 0 ||
+								product.productAmount !== 1 ||
+								product.productLabel.trim().length > 0)
+								? {
+										confirmLabel: '切换类型',
+										description:
+											'切换商品类型会清空当前已选择的商品及关联配置。',
+										title: '确定要切换商品类型吗？',
+									}
+								: null
+						}
 						placeholder="请选择商品类型"
 						items={typeItems}
 					/>

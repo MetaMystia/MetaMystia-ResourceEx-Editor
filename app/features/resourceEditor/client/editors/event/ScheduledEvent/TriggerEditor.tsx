@@ -123,7 +123,7 @@ export const TriggerEditor = memo<TriggerEditorProps>(function TriggerEditor({
 	}, [allCharacters]);
 
 	return (
-		<div className="flex min-w-0 flex-col gap-3 rounded-large border border-divider bg-content1/50 p-4">
+		<div className="flex min-w-0 flex-col gap-3 rounded-medium border border-divider bg-content1/50 p-4">
 			<div className="flex flex-col gap-1">
 				<Label size="sm">触发类型（Trigger Type）</Label>
 				<Select<string>
@@ -143,6 +143,26 @@ export const TriggerEditor = memo<TriggerEditorProps>(function TriggerEditor({
 							newTrigger.triggerId = trigger.triggerId;
 						}
 						onChange(newTrigger);
+					}}
+					getChangeConfirmation={(nextType, currentType) => {
+						if (nextType === currentType || !trigger) return null;
+						const keepsTriggerId =
+							nextType === 'KizunaCheckPoint' ||
+							nextType === 'OnTalkWithCharacter';
+						const losesConfiguredData = Boolean(
+							trigger.time ||
+							trigger.labels?.length ||
+							trigger.executeOrder !== undefined ||
+							(!keepsTriggerId && trigger.triggerId)
+						);
+						return losesConfiguredData
+							? {
+									confirmLabel: '切换类型',
+									description:
+										'切换触发类型会清除当前类型下已配置的触发参数。',
+									title: '确定要切换触发类型吗？',
+								}
+							: null;
 					}}
 					items={TRIGGER_TYPES.map((t) => ({
 						value: t.value,

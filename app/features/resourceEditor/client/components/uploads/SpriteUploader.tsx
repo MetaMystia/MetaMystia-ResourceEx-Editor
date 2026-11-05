@@ -3,6 +3,7 @@
 import { cn } from '@heroui/theme';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
 
 import type { IAssetMutationResult } from '@/features/resourceEditor/client/assets/contracts';
@@ -193,7 +194,7 @@ export const SpriteUploader = memo<IProps>(function SpriteUploader({
 							setIsDragging(false);
 						}}
 						className={cn(
-							'bg-checkerboard relative flex h-32 w-32 shrink-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-large border-2 border-dashed transition-colors motion-reduce:transition-none',
+							'bg-checkerboard relative flex h-32 w-32 shrink-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-medium border-2 border-dashed transition-colors motion-reduce:transition-none',
 							isDragging
 								? 'border-primary bg-primary/10'
 								: spriteUrl
@@ -209,7 +210,7 @@ export const SpriteUploader = memo<IProps>(function SpriteUploader({
 								draggable={false}
 							/>
 						) : (
-							<p className="text-xs font-medium text-foreground-600">
+							<p className={TYPOGRAPHY_STYLES.compactLabel}>
 								暂无贴图
 							</p>
 						)}
@@ -236,10 +237,10 @@ export const SpriteUploader = memo<IProps>(function SpriteUploader({
 					{error && <WarningNotice>{error}</WarningNotice>}
 				</div>
 				<div className="flex min-w-0 flex-col justify-end gap-1 pb-1">
-					<p className="text-xs font-medium text-foreground-600">
+					<p className={TYPOGRAPHY_STYLES.compactLabel}>
 						{`贴图建议尺寸：${recommendedSize.width}×${recommendedSize.height}像素`}
 					</p>
-					<p className="break-all text-xs leading-relaxed text-foreground-500">
+					<p className={TYPOGRAPHY_STYLES.metadata}>
 						资产路径：{spritePath}
 					</p>
 				</div>

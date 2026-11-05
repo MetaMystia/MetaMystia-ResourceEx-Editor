@@ -1,5 +1,7 @@
+import { cn } from '@heroui/theme';
 import { memo, useCallback, useId, useMemo, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Input from '@/design/ui/components/input';
 
 import type { Character } from '@/domain/resourcePack/contracts/character';
@@ -17,11 +19,11 @@ import type {
 
 import { SectionDeleteButton } from '@/features/resourceEditor/client/components/actions/SectionDeleteButton';
 import { Label } from '@/features/resourceEditor/client/components/fields/Label';
-import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import { EditorDetailEmptyState } from '@/features/resourceEditor/client/components/layout/EditorDetailEmptyState';
 import { EditorDetailHeader } from '@/features/resourceEditor/client/components/layout/EditorDetailHeader';
 import { EditorDetailPanel } from '@/features/resourceEditor/client/components/layout/EditorDetailPanel';
 import { EditorSection } from '@/features/resourceEditor/client/components/layout/EditorSection';
+import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import {
 	Select,
 	type SelectItem as SelectItemSpec,
@@ -293,7 +295,13 @@ const DialogPackageArrayField = memo<DialogPackageArrayFieldProps>(
 								key={idx}
 								className="flex min-w-0 items-center justify-between rounded-medium border border-divider bg-content1/50 px-3 py-2"
 							>
-								<span className="truncate font-mono text-sm">
+								<span
+									title={name}
+									className={cn(
+										TYPOGRAPHY_STYLES.codeBody,
+										'truncate'
+									)}
+								>
 									{name}
 								</span>
 								<SectionDeleteButton

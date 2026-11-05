@@ -22,6 +22,26 @@ export const OVERLAY_DEFINITION_MAP = {
 		exitDelayMs: MODAL_DEFAULT_EXIT_DELAY_MS,
 		priority: 'task',
 	},
+	'comparison.command': {
+		exitDelayMs: MODAL_DEFAULT_EXIT_DELAY_MS,
+		priority: 'task',
+	},
+	'comparison.command.confirm': {
+		exitDelayMs: MODAL_DEFAULT_EXIT_DELAY_MS,
+		priority: 'task',
+	},
+	'comparison.left-source': {
+		exitDelayMs: MODAL_DEFAULT_EXIT_DELAY_MS,
+		priority: 'task',
+	},
+	'comparison.quick-source': {
+		exitDelayMs: MODAL_DEFAULT_EXIT_DELAY_MS,
+		priority: 'task',
+	},
+	'comparison.right-source': {
+		exitDelayMs: MODAL_DEFAULT_EXIT_DELAY_MS,
+		priority: 'task',
+	},
 	'navbar.export-validation': {
 		exitDelayMs: MODAL_DEFAULT_EXIT_DELAY_MS,
 		priority: 'task',

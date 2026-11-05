@@ -2,16 +2,34 @@
 
 import {
 	type DropdownProps,
+	type DropdownTriggerProps,
 	Dropdown as HeroUIDropdown,
+	DropdownTrigger as HeroUIDropdownTrigger,
 } from '@heroui/dropdown';
+import { ChevronDownIcon } from '@heroui/shared-icons';
 import { cn } from '@heroui/theme';
-import { type JSX, memo } from 'react';
+import {
+	cloneElement,
+	isValidElement,
+	type JSX,
+	memo,
+	type ReactNode,
+} from 'react';
 
 import { useDesignPreferences } from '@/design/preferences/DesignPreferencesContext';
 import { useMotionProps } from '@/design/ui/hooks/useMotionProps';
 import { useReducedMotion } from '@/design/ui/hooks/useReducedMotion';
 
 interface IProps extends DropdownProps {}
+
+interface IDropdownTriggerProps extends DropdownTriggerProps {
+	showArrow?: boolean;
+}
+
+interface IDropdownTriggerChildProps {
+	className?: string;
+	endContent?: ReactNode;
+}
 
 export default memo<IProps>(function Dropdown({
 	classNames,
@@ -48,17 +66,43 @@ export default memo<IProps>(function Dropdown({
 	);
 }) as { (props: IProps): JSX.Element; displayName: string };
 
-export type { IProps as IDropdownProps };
+function DropdownTrigger({
+	children,
+	showArrow,
+	...props
+}: IDropdownTriggerProps) {
+	const child = isValidElement<IDropdownTriggerChildProps>(children)
+		? children
+		: null;
+	const triggerChild =
+		showArrow && child
+			? cloneElement(child, {
+					className: cn(child.props.className, 'group'),
+					endContent: (
+						<span className="inline-flex items-center gap-1">
+							{child.props.endContent}
+							<ChevronDownIcon
+								aria-hidden="true"
+								className="size-4 shrink-0 transition-transform group-aria-expanded:rotate-180 motion-reduce:transition-none"
+							/>
+						</span>
+					),
+				})
+			: children;
 
-export {
-	DropdownItem,
-	DropdownMenu,
-	DropdownSection,
-	DropdownTrigger,
-} from '@heroui/dropdown';
+	return (
+		<HeroUIDropdownTrigger {...props}>{triggerChild}</HeroUIDropdownTrigger>
+	);
+}
+
+export type { IProps as IDropdownProps };
+export type { IDropdownTriggerProps };
+
+export { DropdownItem, DropdownMenu, DropdownSection } from '@heroui/dropdown';
 export type {
 	DropdownItemProps,
 	DropdownMenuProps,
 	DropdownSectionProps,
-	DropdownTriggerProps,
 } from '@heroui/dropdown';
+
+export { DropdownTrigger };

@@ -4,6 +4,7 @@ import { InfoIcon } from '@heroui/shared-icons';
 import { cn } from '@heroui/theme';
 import { memo, type ReactNode } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
 import Popover, {
 	PopoverContent,
@@ -37,7 +38,12 @@ export const InfoTip = memo<IProps>(function InfoTip({ children, className }) {
 					</PopoverTrigger>
 				</span>
 			</Tooltip>
-			<PopoverContent className="max-w-xs whitespace-pre-line break-all">
+			<PopoverContent
+				className={cn(
+					TYPOGRAPHY_STYLES.overlayBody,
+					'max-w-xs whitespace-pre-line'
+				)}
+			>
 				{children}
 			</PopoverContent>
 		</Popover>

@@ -1,16 +1,20 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import type { Food } from '@/domain/resourcePack/contracts/items';
 import { remapResourcePackItemReferences } from '@/domain/resourcePack/entityReferences';
 
-import { EditorWorkspace } from '@/features/resourceEditor/client/components/layout/EditorWorkspace';
+import {
+	EditorWorkspace,
+	useEditorSelection,
+} from '@/features/resourceEditor/client/components/layout/EditorWorkspace';
 import {
 	findNextAvailableInteger,
 	findNextAvailableSuffixedValue,
 	getEntityIdAllocationStart,
 } from '@/features/resourceEditor/client/editorValueAllocation';
+import { useEditorEntityNavigationIntent } from '@/features/resourceEditor/client/navigation/editorNavigationIntent';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
 import { FoodEditor } from './FoodEditor';
@@ -18,7 +22,14 @@ import { FoodList } from './FoodList';
 
 export function FoodEditorScreen() {
 	const { resourcePack: data, updateResourcePack } = useResourceEditor();
-	const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+	const { detailKey, replaceSelection, selectedIndex, setSelectedIndex } =
+		useEditorSelection();
+	useEditorEntityNavigationIntent({
+		entityKind: 'food',
+		getStableKey: (food) => food.id,
+		items: data.foods ?? [],
+		onSelect: setSelectedIndex,
+	});
 
 	const addFood = useCallback(() => {
 		const foods = data.foods ?? [];
@@ -49,12 +60,12 @@ export function FoodEditorScreen() {
 			const newFoods = (data.foods || []).filter((_, i) => i !== index);
 			updateResourcePack(() => ({ ...data, foods: newFoods }));
 			if (selectedIndex === index) {
-				setSelectedIndex(newFoods.length > 0 ? 0 : null);
+				replaceSelection(newFoods.length > 0 ? 0 : null);
 			} else if (selectedIndex !== null && selectedIndex > index) {
 				setSelectedIndex(selectedIndex - 1);
 			}
 		},
-		[data, selectedIndex, updateResourcePack]
+		[data, replaceSelection, selectedIndex, updateResourcePack]
 	);
 
 	const updateFood = useCallback(
@@ -92,7 +103,7 @@ export function FoodEditorScreen() {
 	);
 
 	return (
-		<EditorWorkspace>
+		<EditorWorkspace detailKey={detailKey}>
 			<FoodList
 				foods={data.foods || []}
 				selectedIndex={selectedIndex}

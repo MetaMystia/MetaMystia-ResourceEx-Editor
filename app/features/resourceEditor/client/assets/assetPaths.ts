@@ -1,11 +1,12 @@
-import { isImageAssetPath } from '@/domain/resourcePack/assetTypes';
+import {
+	getAssetKind,
+	type TAssetKind,
+} from '@/domain/resourcePack/assetTypes';
 
 import type { IAssetPathOperation } from './contracts';
 
-export type AssetEntryKind = 'folder' | 'image' | 'audio' | 'file';
-
 export interface AssetEntry {
-	kind: AssetEntryKind;
+	kind: TAssetKind;
 	name: string;
 	path: string;
 	url?: string;
@@ -68,24 +69,6 @@ export function getAssetParentFolder(path: string, root = 'assets/'): string {
 	return parent.startsWith(normalizedRoot) ? parent : normalizedRoot;
 }
 
-export function getAssetKind(path: string, url?: string): AssetEntryKind {
-	if (path.endsWith('/')) return 'folder';
-	const lower = path.toLowerCase();
-	if (isImageAssetPath(path)) {
-		return 'image';
-	}
-	if (
-		lower.endsWith('.wav') ||
-		lower.endsWith('.mp3') ||
-		lower.endsWith('.ogg') ||
-		lower.endsWith('.flac')
-	) {
-		return 'audio';
-	}
-	if (url?.startsWith('blob:')) return 'file';
-	return 'file';
-}
-
 export function listAssetFolder(
 	assetUrls: Record<string, string>,
 	currentFolder: string,
@@ -110,7 +93,7 @@ export function listAssetFolder(
 		} else {
 			const url = assetUrls[path];
 			files.push({
-				kind: getAssetKind(path, url),
+				kind: getAssetKind(path),
 				name: rest,
 				path,
 				...(url ? { url } : {}),

@@ -1,10 +1,13 @@
 'use client';
 
+import { cn } from '@heroui/theme';
 import { type ReactNode } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Input from '@/design/ui/components/input';
 
 import { SectionDeleteButton } from '@/features/resourceEditor/client/components/actions/SectionDeleteButton';
+import { useFocusOnItemAppend } from '@/features/resourceEditor/client/hooks/useFocusOnItemAppend';
 
 interface IProps<T = string> {
 	items: T[];
@@ -27,12 +30,18 @@ export function ArrayFieldEditor<T = string>({
 	placeholder = '',
 	renderItem,
 }: IProps<T>) {
+	const containerRef = useFocusOnItemAppend(items.length);
+
 	const defaultRenderItem = (
 		item: T,
 		index: number,
 		onChange: (value: T) => void
 	) => (
-		<div key={index} className="flex items-center gap-2">
+		<div
+			key={index}
+			data-editor-appended-item
+			className="flex items-center gap-2"
+		>
 			<Input
 				value={item as string}
 				onValueChange={(value) => onChange(value as T)}
@@ -41,6 +50,7 @@ export function ArrayFieldEditor<T = string>({
 			<SectionDeleteButton
 				iconOnly
 				className="h-10 w-10 shrink-0 sm:h-10 sm:w-10"
+				confirmTitle="确定要删除这位作者吗？"
 				onPress={() => onRemove(index)}
 			>
 				删除作者
@@ -49,7 +59,7 @@ export function ArrayFieldEditor<T = string>({
 	);
 
 	return (
-		<div className="flex flex-col gap-2">
+		<div ref={containerRef} className="flex flex-col gap-2">
 			{items.map((item, index) =>
 				renderItem
 					? renderItem(item, index, (value) => onUpdate(index, value))
@@ -58,7 +68,12 @@ export function ArrayFieldEditor<T = string>({
 						)
 			)}
 			{items.length === 0 && (
-				<div className="rounded-medium border border-dashed border-divider p-4 text-center text-xs text-foreground-500">
+				<div
+					className={cn(
+						TYPOGRAPHY_STYLES.emptyDescription,
+						'rounded-medium border border-dashed border-divider p-4 text-center'
+					)}
+				>
 					{emptyMessage}
 				</div>
 			)}

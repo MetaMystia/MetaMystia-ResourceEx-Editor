@@ -1,7 +1,9 @@
 import { cn } from '@heroui/theme';
 import { useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
+import Heading from '@/design/ui/components/heading';
 import Input from '@/design/ui/components/input';
 
 import type { CharacterPortrait } from '@/domain/resourcePack/contracts/character';
@@ -10,9 +12,10 @@ import { SectionAddButton } from '@/features/resourceEditor/client/components/ac
 import { SectionDeleteButton } from '@/features/resourceEditor/client/components/actions/SectionDeleteButton';
 import { Label } from '@/features/resourceEditor/client/components/fields/Label';
 import { ChevronRight } from '@/features/resourceEditor/client/components/icons/ChevronRight';
-import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import { EditorSection } from '@/features/resourceEditor/client/components/layout/EditorSection';
+import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import { PortraitUploader } from '@/features/resourceEditor/client/components/uploads/PortraitUploader';
+import { useFocusOnItemAppend } from '@/features/resourceEditor/client/hooks/useFocusOnItemAppend';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
 interface PortraitsProps {
@@ -34,7 +37,8 @@ export function Portraits({
 	onRemove,
 	onSetDefault,
 }: PortraitsProps) {
-	const [isExpanded, setIsExpanded] = useState(true);
+	const [isExpanded, setIsExpanded] = useState(false);
+	const portraitsRef = useFocusOnItemAppend(portraits.length);
 	const { updateAsset } = useResourceEditor();
 
 	const isPidDuplicate = (pid: number, currentIndex: number) => {
@@ -58,7 +62,10 @@ export function Portraits({
 					variant="light"
 					size="sm"
 					aria-expanded={isExpanded}
-					className="-ml-2 h-10 px-2 text-base font-semibold text-foreground-700 sm:h-8"
+					className={cn(
+						TYPOGRAPHY_STYLES.sectionTitle,
+						'-ml-2 h-10 px-2 sm:h-8'
+					)}
 					startContent={
 						<ChevronRight
 							className={cn(
@@ -73,24 +80,30 @@ export function Portraits({
 				</Button>
 			}
 			actions={
-				<SectionAddButton onPress={onAdd}>
+				<SectionAddButton
+					onPress={() => {
+						setIsExpanded(true);
+						onAdd();
+					}}
+				>
 					添加立绘配置
 				</SectionAddButton>
 			}
 		>
-			<p className="text-sm leading-6 text-foreground-600">
+			<p className={TYPOGRAPHY_STYLES.description}>
 				为角色配置不同的立绘表情，可用于对话系统和小碎骨笔记本图鉴。
 			</p>
 			{isExpanded && (
-				<div className="grid grid-cols-1 gap-3">
+				<div ref={portraitsRef} className="grid grid-cols-1 gap-3">
 					{portraits.map((portrait, i) => {
 						const duplicatePid = isPidDuplicate(portrait.pid, i);
 
 						return (
 							<article
 								key={i}
+								data-editor-appended-item
 								className={cn(
-									'flex min-w-0 flex-col gap-4 rounded-large border bg-content1/50 p-4',
+									'flex min-w-0 flex-col gap-4 rounded-medium border bg-content1/50 p-4',
 									duplicatePid
 										? 'border-danger/50 bg-danger/10'
 										: 'border-divider'
@@ -98,10 +111,16 @@ export function Portraits({
 							>
 								<div className="flex min-w-0 items-center justify-between gap-3 border-b border-divider pb-3">
 									<div className="min-w-0">
-										<h4 className="text-sm font-semibold text-foreground-700">
+										<Heading as="h4" variant="subsection">
 											立绘配置{i + 1}
-										</h4>
-										<p className="mt-1 truncate font-mono text-xs text-foreground-500">
+										</Heading>
+										<p
+											title={portrait.path}
+											className={cn(
+												TYPOGRAPHY_STYLES.metadata,
+												'mt-1 truncate'
+											)}
+										>
 											{portrait.path}
 										</p>
 									</div>
@@ -132,7 +151,12 @@ export function Portraits({
 													PID
 												</Label>
 												{duplicatePid && (
-													<span className="text-xs font-semibold text-danger">
+													<span
+														className={cn(
+															TYPOGRAPHY_STYLES.badgeLabel,
+															'text-danger'
+														)}
+													>
 														PID重复
 													</span>
 												)}

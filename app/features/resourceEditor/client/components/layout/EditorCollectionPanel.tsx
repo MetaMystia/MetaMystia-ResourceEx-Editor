@@ -11,6 +11,7 @@ import { EmptyState } from './EmptyState';
 
 interface IProps {
 	addLabel: string;
+	allowsStickyContent?: boolean;
 	children: ReactNode;
 	className?: string;
 	emptyDescription?: ReactNode;
@@ -23,6 +24,7 @@ interface IProps {
 export const EditorCollectionPanel = memo<IProps>(
 	function EditorCollectionPanel({
 		addLabel,
+		allowsStickyContent,
 		children,
 		className,
 		emptyDescription,
@@ -79,6 +81,9 @@ export const EditorCollectionPanel = memo<IProps>(
 
 		return (
 			<EditorCollapsiblePanel
+				{...(allowsStickyContent === undefined
+					? {}
+					: { allowsStickyContent })}
 				actions={
 					<SectionAddButton
 						onPress={() => {

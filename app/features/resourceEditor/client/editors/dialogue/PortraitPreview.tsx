@@ -1,4 +1,7 @@
+import { cn } from '@heroui/theme';
 import { memo, useEffect, useState } from 'react';
+
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 
 import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 
@@ -34,9 +37,14 @@ export const PortraitPreview = memo<PortraitPreviewProps>(
 
 		return (
 			<div className="group flex flex-col gap-2">
-				<div className="bg-checkerboard relative h-80 w-full overflow-hidden rounded-large border border-divider">
+				<div className="bg-checkerboard relative h-80 w-full overflow-hidden rounded-medium border border-divider">
 					{isLoadError ? (
-						<div className="flex h-full w-full items-center justify-center bg-danger/10 p-4 text-center text-sm font-medium text-danger-700 dark:text-danger">
+						<div
+							className={cn(
+								TYPOGRAPHY_STYLES.emphasizedText,
+								'flex h-full w-full items-center justify-center bg-danger/10 p-4 text-center text-danger-700 dark:text-danger'
+							)}
+						>
 							图片加载失败
 						</div>
 					) : (
@@ -50,7 +58,7 @@ export const PortraitPreview = memo<PortraitPreviewProps>(
 					)}
 				</div>
 				<div className="rounded-medium bg-content2/50 px-2 py-1 text-center">
-					<div className="text-xs font-medium text-foreground-600">
+					<div className={TYPOGRAPHY_STYLES.compactLabel}>
 						（{characterId}）{charName}&nbsp;&nbsp;（{pid}）
 						{portraitName}
 					</div>

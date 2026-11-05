@@ -10,6 +10,7 @@ export const WORKSPACE_FILES_STORE_NAME = 'workspaceFiles';
 export const WORKSPACES_STORE_NAME = 'workspaces';
 
 export interface IStoredWorkspaceDocument {
+	editorState?: unknown;
 	folders: readonly string[];
 	hasLicenseFile: boolean;
 	license: string;

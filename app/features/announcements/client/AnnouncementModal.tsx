@@ -1,8 +1,11 @@
 'use client';
 
+import { cn } from '@heroui/theme';
 import { memo, useCallback, useEffect, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
+import Heading from '@/design/ui/components/heading';
 
 import {
 	ANNOUNCEMENT_SECTIONS,
@@ -66,27 +69,32 @@ export const AnnouncementModal = memo(function AnnouncementModal() {
 			<div className="flex flex-col gap-4">
 				<div className="border-b border-divider pb-3">
 					<div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-						<h2 className="text-xl font-bold">
+						<Heading as="h2" variant="dialog">
 							{ANNOUNCEMENT_TITLE}
-						</h2>
-						<p className="text-xs text-foreground-500">
+						</Heading>
+						<p className={TYPOGRAPHY_STYLES.caption}>
 							版本{ANNOUNCEMENT_VERSION}
 						</p>
 					</div>
-					<p className="mt-2 text-sm leading-6 text-foreground-600">
+					<p className={cn(TYPOGRAPHY_STYLES.description, 'mt-2')}>
 						{ANNOUNCEMENT_SUMMARY}
 					</p>
 				</div>
-				<div className="grid gap-3 sm:grid-cols-2">
+				<div className="flex flex-col gap-3">
 					{ANNOUNCEMENT_SECTIONS.map((section) => (
 						<section
 							key={section.title}
-							className="break-all rounded-large border border-divider bg-content1/40 p-4 text-justify sm:last:col-span-2"
+							className="rounded-medium border border-divider bg-content1/40 p-4 text-justify sm:last:col-span-2"
 						>
-							<h3 className="text-sm font-semibold text-foreground">
+							<Heading as="h3" variant="subsection">
 								{section.title}
-							</h3>
-							<ul className="mt-2 flex list-disc flex-col gap-2 pl-5 text-sm leading-6 text-foreground-600 marker:text-primary">
+							</Heading>
+							<ul
+								className={cn(
+									TYPOGRAPHY_STYLES.description,
+									'mt-2 flex list-disc flex-col gap-2 pl-5 marker:text-primary'
+								)}
+							>
 								{section.items.map((item) => (
 									<li key={item}>{item}</li>
 								))}

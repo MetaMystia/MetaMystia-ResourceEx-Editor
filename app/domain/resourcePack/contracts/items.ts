@@ -34,6 +34,14 @@ export interface Beverage {
 	modRoot?: string;
 }
 
+/** 顶层 `items` 声明的普通物品；编辑器模型尚未包含该数组。 */
+export interface IItemConfig {
+	id: number;
+	name: string;
+	description: string;
+	spritePath: string;
+}
+
 export interface PixelFullConfig {
 	name: string;
 	mainSprite: string[];

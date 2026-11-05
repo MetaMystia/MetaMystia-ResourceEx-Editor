@@ -11,6 +11,7 @@ import {
 } from 'react';
 
 import Button from '@/design/ui/components/button';
+import Tooltip from '@/design/ui/components/tooltip';
 import { useReducedMotion } from '@/design/ui/hooks/useReducedMotion';
 
 const SCROLL_THRESHOLD = 300;
@@ -118,6 +119,7 @@ export const BackToTop = memo(function BackToTop() {
 	const hasSavedPosition = savedPositionRef.current !== null;
 	const isReturnMode = hasSavedPosition && isAtTop;
 	const isShown = isVisible || hasSavedPosition;
+	const actionLabel = isReturnMode ? '返回之前位置' : '回到顶部';
 
 	return (
 		<div
@@ -129,22 +131,24 @@ export const BackToTop = memo(function BackToTop() {
 			)}
 			style={{ bottom: `calc(1.5rem + ${bottomChrome}px)` }}
 		>
-			<Button
-				isIconOnly
-				aria-label={isReturnMode ? '返回之前位置' : '回到顶部'}
-				variant="solid"
-				color="primary"
-				radius="full"
-				className="h-10 w-10 shadow-lg"
-				tabIndex={isShown ? undefined : -1}
-				onPress={handlePress}
-			>
-				{isReturnMode ? (
-					<ChevronDown className="h-[22px] w-[22px]" />
-				) : (
-					<ChevronUp className="h-[22px] w-[22px]" />
-				)}
-			</Button>
+			<Tooltip content={actionLabel}>
+				<Button
+					isIconOnly
+					aria-label={actionLabel}
+					variant="solid"
+					color="primary"
+					radius="full"
+					className="h-10 w-10 shadow-lg"
+					tabIndex={isShown ? undefined : -1}
+					onPress={handlePress}
+				>
+					{isReturnMode ? (
+						<ChevronDown className="h-[22px] w-[22px]" />
+					) : (
+						<ChevronUp className="h-[22px] w-[22px]" />
+					)}
+				</Button>
+			</Tooltip>
 		</div>
 	);
 });

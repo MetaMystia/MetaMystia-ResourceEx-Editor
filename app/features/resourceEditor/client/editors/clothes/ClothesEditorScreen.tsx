@@ -1,23 +1,45 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
+import {
+	createClothesPixelFullConfigName,
+	createDefaultClothesAssetPaths,
+	createDefaultClothesSpritePaths,
+	followClothesDefaults,
+} from '@/domain/resourcePack/clothesDefaults';
 import type { Clothes } from '@/domain/resourcePack/contracts/items';
+import { remapResourcePackItemReferences } from '@/domain/resourcePack/entityReferences';
 
-import { EditorWorkspace } from '@/features/resourceEditor/client/components/layout/EditorWorkspace';
+import {
+	EditorWorkspace,
+	useEditorSelection,
+} from '@/features/resourceEditor/client/components/layout/EditorWorkspace';
 import {
 	findNextAvailableInteger,
 	findNextAvailableSuffixedValue,
 	getEntityIdAllocationStart,
 } from '@/features/resourceEditor/client/editorValueAllocation';
+import { useEditorEntityNavigationIntent } from '@/features/resourceEditor/client/navigation/editorNavigationIntent';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
 import { ClothesEditor } from './ClothesEditor';
 import { ClothesList } from './ClothesList';
 
 export function ClothesEditorScreen() {
-	const { resourcePack: data, updateResourcePack } = useResourceEditor();
-	const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+	const {
+		moveAssets,
+		resourcePack: data,
+		updateResourcePack,
+	} = useResourceEditor();
+	const { detailKey, replaceSelection, selectedIndex, setSelectedIndex } =
+		useEditorSelection();
+	useEditorEntityNavigationIntent({
+		entityKind: 'clothes',
+		getStableKey: (clothes) => clothes.id,
+		items: data.clothes ?? [],
+		onSelect: setSelectedIndex,
+	});
 
 	const addClothes = useCallback(() => {
 		const clothes = data.clothes ?? [];
@@ -29,39 +51,18 @@ export function ClothesEditorScreen() {
 			clothes.map((item) => item.name),
 			'新衣服'
 		);
-		const packLabel = data.packInfo.label || 'ResourceExample';
 		const newClothes: Clothes = {
 			id: newId,
 			name: newName,
 			description: '',
-			spritePath: `assets/Clothes/${newId}/icon.png`,
-			portraitPath: `assets/Clothes/${newId}/portrait.png`,
+			...createDefaultClothesAssetPaths(newId),
 			pixelFullConfig: {
-				name: `_${packLabel}_Clothes_${newId}_${newName}`,
-				mainSprite: Array(12)
-					.fill('')
-					.map(
-						(_, i) =>
-							`assets/Clothes/${newId}/Sprite/Main_${Math.floor(i / 3)}, ${i % 3}.png`
-					),
-				eyeSprite: Array(24)
-					.fill('')
-					.map(
-						(_, i) =>
-							`assets/Clothes/${newId}/Sprite/Eyes_${Math.floor(i / 4)}, ${i % 4}.png`
-					),
-				hairSprite: Array(12)
-					.fill('')
-					.map(
-						(_, i) =>
-							`assets/Clothes/${newId}/Sprite/Hair_${Math.floor(i / 3)}, ${i % 3}.png`
-					),
-				backSprite: Array(12)
-					.fill('')
-					.map(
-						(_, i) =>
-							`assets/Clothes/${newId}/Sprite/Back_${Math.floor(i / 3)}, ${i % 3}.png`
-					),
+				name: createClothesPixelFullConfigName(
+					data.packInfo.label,
+					newId,
+					newName
+				),
+				...createDefaultClothesSpritePaths(newId),
 			},
 		};
 		const newClothesList = [...clothes, newClothes];
@@ -76,12 +77,12 @@ export function ClothesEditorScreen() {
 			);
 			updateResourcePack(() => ({ ...data, clothes: newClothesList }));
 			if (selectedIndex === index) {
-				setSelectedIndex(newClothesList.length > 0 ? 0 : null);
+				replaceSelection(newClothesList.length > 0 ? 0 : null);
 			} else if (selectedIndex !== null && selectedIndex > index) {
 				setSelectedIndex(selectedIndex - 1);
 			}
 		},
-		[data, selectedIndex, updateResourcePack]
+		[data, replaceSelection, selectedIndex, updateResourcePack]
 	);
 
 	const updateClothes = useCallback(
@@ -89,14 +90,33 @@ export function ClothesEditorScreen() {
 			if (index === null) {
 				return;
 			}
-			const newClothesList = [...(data.clothes || [])];
-			newClothesList[index] = {
-				...newClothesList[index],
-				...updates,
-			} as Clothes;
-			updateResourcePack(() => ({ ...data, clothes: newClothesList }));
+			let pathMoves: ReadonlyMap<string, string> = new Map();
+			updateResourcePack((current) => {
+				const previous = current.clothes[index];
+				if (!previous) return current;
+				const followed = followClothesDefaults(
+					previous,
+					{ ...previous, ...updates },
+					current.clothes.filter((_, i) => i !== index),
+					current.packInfo.label
+				);
+				pathMoves = followed.pathMoves;
+				const clothes = [...current.clothes];
+				clothes[index] = followed.clothes;
+				return remapResourcePackItemReferences(
+					{ ...current, clothes },
+					'Item',
+					previous.id,
+					followed.clothes.id
+				);
+			});
+			if (pathMoves.size > 0) {
+				moveAssets(
+					Array.from(pathMoves, ([from, to]) => ({ from, to }))
+				);
+			}
 		},
-		[data, updateResourcePack]
+		[moveAssets, updateResourcePack]
 	);
 
 	const selectedClothes = useMemo(
@@ -108,7 +128,7 @@ export function ClothesEditorScreen() {
 	);
 
 	return (
-		<EditorWorkspace>
+		<EditorWorkspace detailKey={detailKey}>
 			<ClothesList
 				clothes={data.clothes || []}
 				selectedIndex={selectedIndex}
@@ -118,6 +138,7 @@ export function ClothesEditorScreen() {
 			/>
 
 			<ClothesEditor
+				key={detailKey ?? 'empty'}
 				clothes={selectedClothes}
 				clothesIndex={selectedIndex}
 				onUpdate={(updates: Partial<Clothes>) => {

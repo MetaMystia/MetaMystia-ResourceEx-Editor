@@ -1,5 +1,7 @@
 import type { CSSProperties } from 'react';
 
+import Tooltip from '@/design/ui/components/tooltip';
+
 import { COOKER_TYPE_NAMES } from '@/domain/data/cookerTypes';
 import { INGREDIENT_NAMES } from '@/domain/data/ingredients';
 import type {
@@ -106,13 +108,14 @@ function AtlasIcon({
 	} satisfies CSSProperties;
 
 	return (
-		<span
-			aria-label={label}
-			role="img"
-			title={label}
-			className="image-rendering-pixelated inline-block shrink-0"
-			style={style}
-		/>
+		<Tooltip content={label}>
+			<span
+				aria-label={label}
+				role="img"
+				className="image-rendering-pixelated inline-block shrink-0"
+				style={style}
+			/>
+		</Tooltip>
 	);
 }
 
@@ -145,12 +148,13 @@ export function IngredientPreviewIcon({
 
 	if (spriteUrl) {
 		return (
-			<img
-				src={spriteUrl}
-				alt={name}
-				title={name}
-				className="image-rendering-pixelated h-8 w-8 shrink-0 object-contain"
-			/>
+			<Tooltip content={name}>
+				<img
+					src={spriteUrl}
+					alt={name}
+					className="image-rendering-pixelated h-8 w-8 shrink-0 object-contain"
+				/>
+			</Tooltip>
 		);
 	}
 
@@ -161,13 +165,14 @@ export function IngredientPreviewIcon({
 	}
 
 	return (
-		<span
-			aria-label={name}
-			role="img"
-			title={name}
-			className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-divider text-xs text-foreground/40"
-		>
-			?
-		</span>
+		<Tooltip content={name}>
+			<span
+				aria-label={name}
+				role="img"
+				className="flex h-8 w-8 shrink-0 items-center justify-center rounded-medium border border-divider text-xs text-foreground/40"
+			>
+				?
+			</span>
+		</Tooltip>
 	);
 }

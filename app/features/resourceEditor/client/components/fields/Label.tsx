@@ -1,6 +1,8 @@
 import { cn } from '@heroui/theme';
 import { memo } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
+
 import { InfoTip } from './InfoTip';
 
 interface IProps extends React.LabelHTMLAttributes<HTMLLabelElement> {
@@ -23,10 +25,9 @@ export const Label = memo<IProps>(function Label({
 		>
 			<label
 				className={cn(
-					'font-medium leading-5',
 					size === 'sm'
-						? 'text-xs text-foreground-600'
-						: 'text-sm text-foreground-700',
+						? TYPOGRAPHY_STYLES.compactLabel
+						: TYPOGRAPHY_STYLES.fieldLabel,
 					className
 				)}
 				{...props}

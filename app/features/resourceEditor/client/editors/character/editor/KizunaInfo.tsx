@@ -1,7 +1,9 @@
 import { cn } from '@heroui/theme';
 import { memo, useCallback, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
+import Heading from '@/design/ui/components/heading';
 import Switch from '@/design/ui/components/switch';
 
 import type { KizunaInfo } from '@/domain/resourcePack/contracts/character';
@@ -11,8 +13,8 @@ import type { EventNode } from '@/domain/resourcePack/contracts/event';
 import { ConfirmPopover } from '@/features/resourceEditor/client/components/confirm/ConfirmPopover';
 import { InfoTip } from '@/features/resourceEditor/client/components/fields/InfoTip';
 import { ChevronRight } from '@/features/resourceEditor/client/components/icons/ChevronRight';
-import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import { EditorSection } from '@/features/resourceEditor/client/components/layout/EditorSection';
+import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 
 import { DIALOG_FIELDS, EVENT_FIELDS, MAP_FIELD } from './kizuna/constants';
 import { DialogArrayField } from './kizuna/DialogArrayField';
@@ -74,7 +76,10 @@ export const KizunaInfoEditor = memo<KizunaInfoEditorProps>(
 							variant="light"
 							size="sm"
 							aria-expanded={isExpanded}
-							className="-ml-2 h-10 px-2 text-base font-semibold text-foreground-700 sm:h-8"
+							className={cn(
+								TYPOGRAPHY_STYLES.sectionTitle,
+								'-ml-2 h-10 px-2 sm:h-8'
+							)}
 							startContent={
 								<ChevronRight
 									className={cn(
@@ -94,7 +99,12 @@ export const KizunaInfoEditor = memo<KizunaInfoEditorProps>(
 				}
 				actions={
 					<div className="flex items-center gap-2">
-						<span className="whitespace-nowrap text-xs font-medium text-foreground-600">
+						<span
+							className={cn(
+								TYPOGRAPHY_STYLES.compactLabel,
+								'whitespace-nowrap'
+							)}
+						>
 							{kizuna ? '已启用羁绊配置' : '启用羁绊配置'}
 						</span>
 						{kizuna ? (
@@ -137,11 +147,11 @@ export const KizunaInfoEditor = memo<KizunaInfoEditorProps>(
 			>
 				{isExpanded && kizuna && (
 					<div className="animate-in fade-in slide-in-from-top-2 flex min-w-0 flex-col gap-4 duration-200 motion-reduce:animate-none">
-						<section className="flex min-w-0 flex-col gap-4 rounded-large border border-divider bg-content1/50 p-4 sm:p-5">
+						<section className="flex min-w-0 flex-col gap-4 rounded-medium border border-divider bg-content1/50 p-4 sm:p-5">
 							<div className="flex items-center gap-1">
-								<h4 className="text-sm font-semibold text-foreground-700">
+								<Heading as="h4" variant="subsection">
 									升级前置事件
-								</h4>
+								</Heading>
 								<InfoTip>
 									“升级前置事件”用于检测稀客的羁绊进度是否已满。ResourceEx会检测稀客等级并自动触发对应的事件节点。您需要在“事件节点编辑”中设计羁绊事件
 								</InfoTip>
@@ -161,11 +171,11 @@ export const KizunaInfoEditor = memo<KizunaInfoEditorProps>(
 							</div>
 						</section>
 
-						<section className="flex min-w-0 flex-col gap-4 rounded-large border border-divider bg-content1/50 p-4 sm:p-5">
+						<section className="flex min-w-0 flex-col gap-4 rounded-medium border border-divider bg-content1/50 p-4 sm:p-5">
 							<div className="flex items-center gap-1">
-								<h4 className="text-sm font-semibold text-foreground-700">
+								<Heading as="h4" variant="subsection">
 									对话包配置
-								</h4>
+								</Heading>
 								<InfoTip>
 									配置与稀客相关的对话包，这些对话包会在与稀客对话时触发
 								</InfoTip>
@@ -176,9 +186,9 @@ export const KizunaInfoEditor = memo<KizunaInfoEditorProps>(
 										key={group.title}
 										className="flex min-w-0 flex-col gap-4 rounded-medium border border-divider bg-content2/30 p-3 sm:p-4"
 									>
-										<h5 className="text-sm font-semibold text-foreground-700">
+										<Heading as="h5" variant="subsection">
 											{group.title}
-										</h5>
+										</Heading>
 										{group.fields.map((field) => (
 											<DialogArrayField
 												key={field.key}

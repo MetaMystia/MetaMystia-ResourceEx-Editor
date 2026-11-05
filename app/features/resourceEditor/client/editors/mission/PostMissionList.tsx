@@ -1,5 +1,7 @@
 import { memo, useCallback } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
+
 import type { MissionNode } from '@/domain/resourcePack/contracts/mission';
 
 import { SectionAddButton } from '@/features/resourceEditor/client/components/actions/SectionAddButton';
@@ -7,6 +9,7 @@ import { SectionDeleteButton } from '@/features/resourceEditor/client/components
 import { EditorSection } from '@/features/resourceEditor/client/components/layout/EditorSection';
 import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import { Select } from '@/features/resourceEditor/client/components/select/Select';
+import { useFocusOnItemAppend } from '@/features/resourceEditor/client/hooks/useFocusOnItemAppend';
 
 interface PostMissionListProps {
 	postMissions: string[] | undefined;
@@ -16,6 +19,9 @@ interface PostMissionListProps {
 
 export const PostMissionList = memo<PostMissionListProps>(
 	function PostMissionList({ postMissions, allMissions, onUpdate }) {
+		const postMissionListRef = useFocusOnItemAppend(
+			postMissions?.length ?? 0
+		);
 		const addPostMission = useCallback(() => {
 			const newPostMissions = [...(postMissions || []), ''];
 			onUpdate(newPostMissions);
@@ -52,14 +58,15 @@ export const PostMissionList = memo<PostMissionListProps>(
 					</SectionAddButton>
 				}
 			>
-				<div className="flex flex-col gap-3">
+				<div ref={postMissionListRef} className="flex flex-col gap-3">
 					{(postMissions || []).map((pm, index) => (
 						<div
 							key={index}
-							className="flex min-w-0 flex-col gap-3 rounded-large border border-divider bg-content1/40 p-3 sm:p-4"
+							data-editor-appended-item
+							className="flex min-w-0 flex-col gap-3 rounded-medium border border-divider bg-content1/40 p-3 sm:p-4"
 						>
 							<div className="flex flex-col gap-1">
-								<p className="text-xs font-medium text-foreground-600">
+								<p className={TYPOGRAPHY_STYLES.compactLabel}>
 									任务标签（Label）
 								</p>
 								<div className="flex min-w-0 items-center gap-3">
@@ -79,7 +86,7 @@ export const PostMissionList = memo<PostMissionListProps>(
 									<SectionDeleteButton
 										iconOnly
 										className="shrink-0 sm:h-10 sm:w-10"
-										aria-label={`删除后继任务${index + 1}`}
+										aria-label="删除后继任务"
 										onPress={() => removePostMission(index)}
 									/>
 								</div>

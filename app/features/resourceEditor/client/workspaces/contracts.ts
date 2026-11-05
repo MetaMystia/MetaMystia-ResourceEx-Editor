@@ -1,5 +1,7 @@
 import type { ResourceEx } from '@/domain/resourcePack/contracts/resourceEx';
 
+import { type IWorkspaceEditorState } from './workspaceEditorState';
+
 export type TWorkspaceImportMatchStrength = 'exact' | 'metadata';
 
 export type TWorkspaceLoadSource = 'checkpoint' | 'current';
@@ -13,11 +15,7 @@ export type TWorkspaceLifecycleStatus =
 	| 'recovering';
 
 export type TWorkspaceSaveStatus =
-	| 'error'
-	| 'idle'
-	| 'memory-only'
-	| 'saved'
-	| 'saving';
+	'error' | 'idle' | 'memory-only' | 'saved' | 'saving';
 
 export type TWorkspaceStorageMode = 'memory' | 'persistent';
 
@@ -32,6 +30,7 @@ export type TWorkspacePersistenceErrorCode =
 	| 'transaction-failed';
 
 export interface IWorkspaceDocument {
+	editorState: IWorkspaceEditorState;
 	folders: readonly string[];
 	hasLicenseFile: boolean;
 	license: string;
@@ -64,8 +63,12 @@ export interface IWorkspaceLoadedSnapshot {
 	workspace: IWorkspaceSummary;
 }
 
-export interface ICreateWorkspaceArchiveInput extends IWorkspaceDocument {
+export interface ICreateWorkspaceArchiveInput extends Omit<
+	IWorkspaceDocument,
+	'editorState'
+> {
 	displayName?: string;
+	editorState?: IWorkspaceEditorState;
 	files: ReadonlyMap<string, Blob>;
 	isCheckpointExported?: boolean;
 	sourceArchiveHash?: string;
@@ -95,6 +98,19 @@ export interface IWorkspaceOperationResult {
 	workspaceId?: string;
 }
 
+export interface IWorkspaceOpenOptions {
+	recoveryMode?: 'continue-current' | 'prompt';
+	signal?: AbortSignal;
+}
+
+export interface IWorkspaceImportResult extends IWorkspaceOperationResult {
+	resolution?: TWorkspaceImportResolution;
+}
+
+export interface IWorkspaceYieldResult extends IWorkspaceOperationResult {
+	loaded?: IWorkspaceLoadedSnapshot;
+}
+
 export interface IWorkspaceDuplicateIntent {
 	candidates: readonly IWorkspaceImportCandidate[];
 	displayName: string;
@@ -113,6 +129,11 @@ export interface IWorkspaceLeaseLoss {
 	workspace: IWorkspaceSummary;
 }
 
+export interface IWorkspaceLeaseLossResolution {
+	action: 'discard' | 'save-copy';
+	workspaceId?: string;
+}
+
 export type TWorkspaceImportResolution = 'cancel' | 'copy' | 'open' | 'replace';
 
 export interface IResourceWorkspaceContext {
@@ -122,6 +143,7 @@ export interface IResourceWorkspaceContext {
 	isRetryingStorage: boolean;
 	leaseConflict: IWorkspaceLeaseConflict | null;
 	leaseLoss: IWorkspaceLeaseLoss | null;
+	leaseLossResolution: IWorkspaceLeaseLossResolution | null;
 	lifecycleStatus: TWorkspaceLifecycleStatus;
 	pendingExportWorkspaceId: string | null;
 	recoveryWorkspace: IWorkspaceSummary | null;
@@ -129,9 +151,11 @@ export interface IResourceWorkspaceContext {
 	saveStatus: TWorkspaceSaveStatus;
 	storageError: string | null;
 	storageMode: TWorkspaceStorageMode;
+	workspaceCatalogGeneration: number;
 	workspaces: readonly IWorkspaceSummary[];
 	closeWorkspace(): Promise<IWorkspaceOperationResult>;
 	clearPendingWorkspaceExport(): void;
+	consumeLeaseLossResolution(): IWorkspaceLeaseLossResolution | null;
 	continueRecovery(): void;
 	createWorkspace(): Promise<IWorkspaceOperationResult>;
 	discardLeaseLossChanges(): Promise<IWorkspaceOperationResult>;
@@ -140,10 +164,13 @@ export interface IResourceWorkspaceContext {
 	dismissResolvedLeaseLoss(): void;
 	duplicateWorkspace(id: string): Promise<IWorkspaceOperationResult>;
 	flushActiveSave(): Promise<IWorkspaceOperationResult>;
-	importWorkspace(file: File): Promise<IWorkspaceOperationResult>;
+	importWorkspace(file: File): Promise<IWorkspaceImportResult>;
 	openLastWorkspace(): Promise<IWorkspaceOperationResult>;
 	openWorkspaceForExport(id: string): Promise<IWorkspaceOperationResult>;
-	openWorkspace(id: string): Promise<IWorkspaceOperationResult>;
+	openWorkspace(
+		id: string,
+		options?: IWorkspaceOpenOptions
+	): Promise<IWorkspaceOperationResult>;
 	promoteActiveCheckpoint(
 		revision: number
 	): Promise<IWorkspaceOperationResult>;
@@ -156,15 +183,22 @@ export interface IResourceWorkspaceContext {
 		id: string,
 		displayName: string
 	): Promise<IWorkspaceOperationResult>;
+	readWorkspaceSnapshot(
+		id: string,
+		source?: TWorkspaceLoadSource
+	): Promise<IWorkspaceLoadedSnapshot>;
 	resolveImport(
 		resolution: TWorkspaceImportResolution,
 		workspaceId?: string
-	): Promise<IWorkspaceOperationResult>;
+	): Promise<IWorkspaceImportResult>;
 	retryActiveSave(): void;
 	retryPersistentStorage(): Promise<IWorkspaceOperationResult>;
 	saveActiveSnapshot(snapshot: IWorkspaceSnapshot): void;
 	saveLeaseLossAsCopy(): Promise<IWorkspaceOperationResult>;
 	takeOverWorkspace(): Promise<IWorkspaceOperationResult>;
+	yieldActiveWorkspace(
+		expectedWorkspaceId: string
+	): Promise<IWorkspaceYieldResult>;
 }
 
 export interface IWorkspaceRepository {

@@ -1,8 +1,9 @@
 'use client';
 
 import { cn } from '@heroui/theme';
-import { memo, type PropsWithChildren, type ReactNode } from 'react';
+import { memo, type PropsWithChildren, type ReactNode, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
 
 interface IProps {
@@ -22,10 +23,14 @@ export const EditorCollectionItem = memo<PropsWithChildren<IProps>>(
 		isSelected,
 		onSelect,
 	}) {
+		const [isPressed, setIsPressed] = useState(false);
+
 		return (
 			<div
 				className={cn(
-					'group flex min-w-0 items-stretch overflow-hidden rounded-large border transition-colors motion-reduce:transition-none',
+					'group flex min-w-0 transform-gpu items-stretch overflow-hidden rounded-medium border transition-[background-color,border-color,filter,transform] motion-reduce:transition-colors',
+					isPressed &&
+						'scale-[0.98] brightness-90 motion-reduce:scale-100 motion-reduce:brightness-100',
 					isInvalid
 						? isSelected
 							? 'border-danger bg-danger/15'
@@ -41,8 +46,9 @@ export const EditorCollectionItem = memo<PropsWithChildren<IProps>>(
 				<Button
 					variant="light"
 					onPress={onSelect}
+					onPressChange={setIsPressed}
 					className={cn(
-						'h-auto min-h-20 min-w-0 flex-1 justify-start rounded-none px-4 py-3 text-left text-foreground data-[hover=true]:!backdrop-blur-none data-[pressed=true]:!backdrop-blur-none',
+						'h-auto min-h-20 min-w-0 flex-1 justify-start rounded-none px-4 py-3 text-left text-foreground data-[pressed=true]:!scale-100 data-[hover=true]:!backdrop-blur-none data-[pressed=true]:!backdrop-blur-none',
 						isSelected
 							? 'data-[hover=true]:!bg-transparent data-[pressed=true]:!bg-transparent'
 							: isInvalid
@@ -69,7 +75,8 @@ export function EditorCollectionItemTitle({
 	return (
 		<div
 			className={cn(
-				'flex min-w-0 flex-wrap items-start gap-2 text-base font-semibold leading-6 text-foreground',
+				TYPOGRAPHY_STYLES.itemTitle,
+				'flex min-w-0 flex-wrap items-start gap-2 text-clip whitespace-normal break-all',
 				className
 			)}
 		>
@@ -85,7 +92,8 @@ export function EditorCollectionItemMeta({
 	return (
 		<div
 			className={cn(
-				'mt-1 min-w-0 whitespace-normal break-all font-mono text-xs leading-5 text-foreground-500',
+				TYPOGRAPHY_STYLES.metadata,
+				'mt-1 min-w-0 whitespace-normal',
 				className
 			)}
 		>

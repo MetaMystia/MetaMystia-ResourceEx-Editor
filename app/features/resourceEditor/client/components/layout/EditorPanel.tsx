@@ -16,7 +16,7 @@ export const EditorPanel = memo<PropsWithChildren<IProps>>(
 				fullWidth
 				shadow="none"
 				className={cn(
-					'border border-divider bg-content1/40 p-4 shadow-sm backdrop-blur',
+					'rounded-large border border-divider bg-content1/40 p-4 shadow-sm backdrop-blur',
 					className
 				)}
 			>

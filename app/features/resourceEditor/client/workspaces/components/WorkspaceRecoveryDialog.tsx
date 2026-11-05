@@ -1,8 +1,11 @@
 'use client';
 
+import { cn } from '@heroui/theme';
 import { useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
+import Heading from '@/design/ui/components/heading';
 
 import { CoordinatedModal, pushOverlayChild } from '@/features/overlays/client';
 import { ConfirmDialog } from '@/features/resourceEditor/client/components/confirm/ConfirmDialog';
@@ -74,14 +77,21 @@ export function WorkspaceRecoveryDialog({ onContinue, onReturn }: IProps) {
 			>
 				<div className="space-y-4">
 					<div className="space-y-2">
-						<h2 className="text-xl font-semibold">
+						<Heading as="h2" variant="dialog">
 							发现未导出的本地修改
-						</h2>
-						<p className="text-sm leading-6 text-foreground-600">
+						</Heading>
+						<p className={TYPOGRAPHY_STYLES.description}>
 							{`“${recoveryWorkspace.displayName}”有导入或上次导出之后的本地修改。建议继续编辑；放弃后将恢复到上次导出或导入的版本。`}
 						</p>
 						{error && (
-							<p className="text-sm text-danger">{error}</p>
+							<p
+								className={cn(
+									TYPOGRAPHY_STYLES.body,
+									'text-danger'
+								)}
+							>
+								{error}
+							</p>
 						)}
 					</div>
 					<div className="flex flex-col-reverse gap-2 border-t border-divider pt-4 sm:flex-row sm:justify-end">

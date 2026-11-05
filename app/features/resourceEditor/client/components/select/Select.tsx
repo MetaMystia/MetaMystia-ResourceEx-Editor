@@ -6,7 +6,15 @@ import {
 	SelectSection,
 } from '@heroui/select';
 import { cn } from '@heroui/theme';
-import { type ReactNode, useCallback, useMemo } from 'react';
+import {
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from 'react';
+
+import { ConfirmPopover } from '@/features/resourceEditor/client/components/confirm/ConfirmPopover';
 
 export type TSelectValue = string | number;
 
@@ -24,11 +32,16 @@ export interface ISelectSection<V extends TSelectValue = TSelectValue> {
 }
 
 export type TSelectItem<V extends TSelectValue = TSelectValue> =
-	| ISelectOption<V>
-	| ISelectSection<V>;
+	ISelectOption<V> | ISelectSection<V>;
 
 export type SelectValue = TSelectValue;
 export type SelectItem<V extends TSelectValue = TSelectValue> = TSelectItem<V>;
+
+export interface ISelectChangeConfirmation {
+	confirmLabel?: string;
+	description: string;
+	title: string;
+}
 
 export interface ISelectProps<V extends TSelectValue = TSelectValue> {
 	value: V | undefined;
@@ -47,6 +60,15 @@ export interface ISelectProps<V extends TSelectValue = TSelectValue> {
 	isDisabled?: boolean;
 	id?: string;
 	menuMaxHeight?: number;
+	getChangeConfirmation?: (
+		nextValue: V,
+		currentValue: V | undefined
+	) => ISelectChangeConfirmation | null;
+}
+
+interface IPendingSelectChange<V extends TSelectValue> {
+	confirmation: ISelectChangeConfirmation;
+	value: V;
 }
 
 function isSection<V extends TSelectValue>(
@@ -67,6 +89,7 @@ export function Select<V extends TSelectValue = TSelectValue>({
 	baseClassName,
 	className,
 	classNameOverride,
+	getChangeConfirmation,
 	id,
 	isDisabled,
 	isInvalid,
@@ -77,6 +100,13 @@ export function Select<V extends TSelectValue = TSelectValue>({
 	size = 'md',
 	value,
 }: ISelectProps<V>) {
+	const [pendingChange, setPendingChange] =
+		useState<IPendingSelectChange<V> | null>(null);
+
+	useEffect(() => {
+		setPendingChange(null);
+	}, [value]);
+
 	const optionsByKey = useMemo(() => {
 		const options = new Map<string, ISelectOption<V>>();
 		for (const item of items) {
@@ -107,9 +137,16 @@ export function Select<V extends TSelectValue = TSelectValue>({
 			const selectedKey = keys.values().next().value;
 			if (selectedKey === undefined) return;
 			const option = optionsByKey.get(String(selectedKey));
-			if (option && !option.isDisabled) onChange(option.value);
+			if (!option || option.isDisabled || option.value === value) return;
+			const confirmation = getChangeConfirmation?.(option.value, value);
+			if (!confirmation) {
+				onChange(option.value);
+				return;
+			}
+
+			setPendingChange({ confirmation, value: option.value });
 		},
-		[onChange, optionsByKey]
+		[getChangeConfirmation, onChange, optionsByKey, value]
 	);
 
 	const selectedKey = value === undefined ? undefined : String(value);
@@ -125,7 +162,7 @@ export function Select<V extends TSelectValue = TSelectValue>({
 			className
 		);
 
-	return (
+	const selectControl = (
 		<HeroUISelect
 			{...(id === undefined ? {} : { id })}
 			aria-label={ariaLabel ?? placeholder}
@@ -138,11 +175,21 @@ export function Select<V extends TSelectValue = TSelectValue>({
 			isVirtualized={false}
 			{...(isDisabled === undefined ? {} : { isDisabled })}
 			{...(isInvalid === undefined ? {} : { isInvalid })}
+			listboxProps={{
+				itemClasses: {
+					description:
+						'overflow-visible whitespace-normal break-all text-clip',
+					title: 'overflow-visible whitespace-normal break-all text-clip',
+				},
+			}}
 			popoverProps={{ shouldCloseOnScroll: false }}
 			maxListboxHeight={menuMaxHeight}
 			showScrollIndicators
 			classNames={{
-				base: cn('w-full min-w-0', baseClassName),
+				base: cn(
+					'w-full min-w-0',
+					getChangeConfirmation ? undefined : baseClassName
+				),
 				trigger: triggerClassName,
 				value: 'truncate',
 				popoverContent: 'max-w-[min(420px,90vw)]',
@@ -176,5 +223,39 @@ export function Select<V extends TSelectValue = TSelectValue>({
 				)
 			)}
 		</HeroUISelect>
+	);
+
+	if (!getChangeConfirmation) return selectControl;
+
+	return (
+		<div className={cn('relative w-full min-w-0', baseClassName)}>
+			{selectControl}
+			{/* Anchor the controlled confirmation without nesting two interactive triggers. */}
+			<ConfirmPopover
+				trigger={
+					<button
+						type="button"
+						tabIndex={-1}
+						aria-hidden
+						className="pointer-events-none absolute right-4 top-1/2 h-px w-px -translate-y-1/2 opacity-0"
+					/>
+				}
+				isOpen={pendingChange !== null}
+				title={pendingChange?.confirmation.title ?? ''}
+				description={pendingChange?.confirmation.description}
+				confirmLabel={
+					pendingChange?.confirmation.confirmLabel ?? '确认更改'
+				}
+				color="warning"
+				onOpenChange={(isOpen) => {
+					if (!isOpen) setPendingChange(null);
+				}}
+				onConfirm={() => {
+					const nextChange = pendingChange;
+					setPendingChange(null);
+					if (nextChange) onChange(nextChange.value);
+				}}
+			/>
+		</div>
 	);
 }

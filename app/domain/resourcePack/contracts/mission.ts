@@ -79,6 +79,11 @@ export type ConditionType =
 	| 'CompleteSpecifiedFollowingEvents'
 	| 'SubmitByLevel';
 
+export interface IMissionEventCondition {
+	label: string;
+	text: string;
+}
+
 export interface MissionCondition {
 	conditionType: ConditionType;
 	amount?: number;
@@ -89,6 +94,8 @@ export interface MissionCondition {
 	productType?: string;
 	productId?: number;
 	productAmount?: number;
+	text?: string;
+	events?: IMissionEventCondition[];
 }
 
 export type ObjectType =

@@ -1,15 +1,19 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import type { Recipe } from '@/domain/resourcePack/contracts/items';
 import { remapResourcePackItemReferences } from '@/domain/resourcePack/entityReferences';
 
-import { EditorWorkspace } from '@/features/resourceEditor/client/components/layout/EditorWorkspace';
+import {
+	EditorWorkspace,
+	useEditorSelection,
+} from '@/features/resourceEditor/client/components/layout/EditorWorkspace';
 import {
 	findNextAvailableInteger,
 	getEntityIdAllocationStart,
 } from '@/features/resourceEditor/client/editorValueAllocation';
+import { useEditorEntityNavigationIntent } from '@/features/resourceEditor/client/navigation/editorNavigationIntent';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
 import { RecipeEditor } from './RecipeEditor';
@@ -17,7 +21,14 @@ import { RecipeList } from './RecipeList';
 
 export function RecipeEditorScreen() {
 	const { resourcePack: data, updateResourcePack } = useResourceEditor();
-	const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+	const { detailKey, replaceSelection, selectedIndex, setSelectedIndex } =
+		useEditorSelection();
+	useEditorEntityNavigationIntent({
+		entityKind: 'recipe',
+		getStableKey: (recipe) => recipe.id,
+		items: data.recipes ?? [],
+		onSelect: setSelectedIndex,
+	});
 
 	const customIngredients = useMemo(
 		() => data.ingredients.map((ing) => ({ id: ing.id, name: ing.name })),
@@ -56,12 +67,12 @@ export function RecipeEditorScreen() {
 			);
 			updateResourcePack(() => ({ ...data, recipes: newRecipes }));
 			if (selectedIndex === index) {
-				setSelectedIndex(newRecipes.length > 0 ? 0 : null);
+				replaceSelection(newRecipes.length > 0 ? 0 : null);
 			} else if (selectedIndex !== null && selectedIndex > index) {
 				setSelectedIndex(selectedIndex - 1);
 			}
 		},
-		[data, selectedIndex, updateResourcePack]
+		[data, replaceSelection, selectedIndex, updateResourcePack]
 	);
 
 	const updateRecipe = useCallback(
@@ -99,7 +110,7 @@ export function RecipeEditorScreen() {
 	);
 
 	return (
-		<EditorWorkspace>
+		<EditorWorkspace detailKey={detailKey}>
 			<RecipeList
 				recipes={data.recipes || []}
 				customIngredients={customIngredients}

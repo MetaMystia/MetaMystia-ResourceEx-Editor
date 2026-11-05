@@ -1,7 +1,9 @@
 'use client';
 
+import { cn } from '@heroui/theme';
 import { memo, type ReactElement, type ReactNode, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
 import Popover, {
 	PopoverContent,
@@ -57,9 +59,21 @@ export const ConfirmPopover = memo<IProps>(function ConfirmPopover({
 			<PopoverTrigger>{trigger}</PopoverTrigger>
 			<PopoverContent className="w-auto max-w-[calc(100vw-1rem)] p-3">
 				<div className="grid w-64 max-w-full gap-2">
-					<p className="text-sm font-medium leading-5">{title}</p>
+					<p
+						className={cn(
+							TYPOGRAPHY_STYLES.subsectionTitle,
+							'break-all'
+						)}
+					>
+						{title}
+					</p>
 					{description !== undefined && (
-						<p className="whitespace-pre-line text-xs leading-5 text-foreground-500">
+						<p
+							className={cn(
+								TYPOGRAPHY_STYLES.emptyDescription,
+								'whitespace-pre-line'
+							)}
+						>
 							{description}
 						</p>
 					)}

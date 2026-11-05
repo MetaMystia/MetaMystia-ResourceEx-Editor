@@ -1,5 +1,6 @@
 publicHoistPattern:
   - "*@heroui/*"
   - "@next/env"
+  - "@tanstack/react-virtual"
   - color2k
   - postcss-load-config

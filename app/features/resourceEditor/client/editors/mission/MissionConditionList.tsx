@@ -1,8 +1,9 @@
-import { memo, type ReactNode, useCallback } from 'react';
+import { memo, type ReactNode, useCallback, useId } from 'react';
 
 import Input from '@/design/ui/components/input';
 
 import { BEVERAGE_TAGS, FOOD_TAGS } from '@/domain/data/tags';
+import type { EventNode } from '@/domain/resourcePack/contracts/event';
 import type {
 	ConditionType,
 	MissionCondition,
@@ -15,9 +16,13 @@ import { Label } from '@/features/resourceEditor/client/components/fields/Label'
 import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import { EditorSection } from '@/features/resourceEditor/client/components/layout/EditorSection';
 import { PRODUCT_TYPE_OPTIONS } from '@/features/resourceEditor/client/components/select/productTypeOptions';
-import { Select } from '@/features/resourceEditor/client/components/select/Select';
+import {
+	type ISelectChangeConfirmation,
+	Select,
+} from '@/features/resourceEditor/client/components/select/Select';
 import { WarningNotice } from '@/features/resourceEditor/client/components/status/WarningNotice';
 import { TagsField } from '@/features/resourceEditor/client/components/tags/TagsField';
+import { useFocusOnItemAppend } from '@/features/resourceEditor/client/hooks/useFocusOnItemAppend';
 
 import {
 	createMissionCondition,
@@ -28,15 +33,15 @@ import {
 // 常量
 // -----------------------------------------------------------------------------
 
-const CONDITION_TYPES: { type: ConditionType; label: string }[] = [
+export const CONDITION_TYPES: { type: ConditionType; label: string }[] = [
 	{ type: 'BillRepayment', label: '还债' },
 	{ type: 'TalkWithCharacter', label: '和角色交谈' },
-	{ type: 'InspectInteractable', label: '【未实现】调查白天交互物品' },
+	{ type: 'InspectInteractable', label: '调查白天交互物品' },
 	{ type: 'SubmitItem', label: '交付目标物品' },
 	{ type: 'ServeInWork', label: '请角色品尝料理' },
 	{ type: 'SubmitByTag', label: '交付包含标签的对应物品' },
 	{ type: 'SubmitByTags', label: '交付包含多个标签的对应物品' },
-	{ type: 'SellInWork', label: '【未实现】在工作中售卖料理' },
+	{ type: 'SellInWork', label: '营业售卖记录' },
 	{ type: 'SubmitByIngredients', label: '交付包含食材的料理' },
 	{
 		type: 'CompleteSpecifiedFollowingTasks',
@@ -50,21 +55,19 @@ const CONDITION_TYPES: { type: ConditionType; label: string }[] = [
 		type: 'ReachTargetCharacterKisunaLevel',
 		label: '达到目标角色的指定羁绊等级',
 	},
-	{
-		type: 'FakeMission',
-		label: '【未实现】表示某种事情发生（不会自动完成，需要手动完成或者取消计划）',
-	},
+	{ type: 'FakeMission', label: '等待外部信号' },
 	{ type: 'SubmitByAnyOneTag', label: '交付包含其中任意一个标签的对应物品' },
-	{
-		type: 'CompleteSpecifiedFollowingEvents',
-		label: '【未实现】完成以下事件中的X（指定数量）个',
-	},
+	{ type: 'CompleteSpecifiedFollowingEvents', label: '完成指定数量的事件' },
 	{ type: 'SubmitByLevel', label: '【未实现】交付指定等级的对应物品' },
 ];
 
 const SUPPORTED_PRODUCT_TYPES = new Set(['Food', 'Ingredient', 'Beverage']);
 
 const SUPPORTED_CONDITION_TYPES = new Set<ConditionType>([
+	'InspectInteractable',
+	'SellInWork',
+	'FakeMission',
+	'CompleteSpecifiedFollowingEvents',
 	'SubmitItem',
 	'ServeInWork',
 	'SubmitByTag',
@@ -105,6 +108,10 @@ interface SelectFieldProps {
 	options: readonly SelectOption[];
 	placeholder?: string;
 	disabled?: boolean;
+	getChangeConfirmation?: (
+		nextValue: string,
+		currentValue: string | undefined
+	) => ISelectChangeConfirmation | null;
 	onChange: (value: string) => void;
 }
 
@@ -114,6 +121,7 @@ function SelectField({
 	options,
 	placeholder,
 	disabled,
+	getChangeConfirmation,
 	onChange,
 }: SelectFieldProps) {
 	return (
@@ -124,6 +132,7 @@ function SelectField({
 				{...(disabled ? { isDisabled: true } : {})}
 				value={value !== undefined ? String(value) : ''}
 				onChange={(v) => onChange(v)}
+				{...(getChangeConfirmation ? { getChangeConfirmation } : {})}
 				items={options.map((o) => ({
 					value: String(o.value),
 					label: o.label,
@@ -184,6 +193,7 @@ function patch(updates: Record<string, unknown>): Partial<MissionCondition> {
 // -----------------------------------------------------------------------------
 
 interface ConditionEditorContext {
+	allEvents: EventNode[];
 	allFoods: { id: number; name: string }[];
 	allIngredients: { id: number; name: string }[];
 	allBeverages: { id: number; name: string }[];
@@ -194,6 +204,173 @@ interface ConditionEditorProps {
 	condition: MissionCondition;
 	ctx: ConditionEditorContext;
 	onUpdate: (updates: Partial<MissionCondition>) => void;
+}
+
+function InspectInteractableEditor({
+	condition,
+	onUpdate,
+}: ConditionEditorProps) {
+	return (
+		<div className="flex flex-col gap-3">
+			<Field label="交互物标识（Label）">
+				<Input
+					aria-label="交互物标识"
+					value={condition.label ?? ''}
+					onChange={(e) => onUpdate({ label: e.target.value })}
+					placeholder="例如 LostBook_Clue"
+				/>
+			</Field>
+			<WarningNotice>
+				引用游戏中已有且可触发的白天交互物；填写标识不会创建或开启交互物。
+			</WarningNotice>
+		</div>
+	);
+}
+
+function SellInWorkEditor({ condition, ctx, onUpdate }: ConditionEditorProps) {
+	return (
+		<div className="flex flex-col gap-3">
+			<SelectField
+				label="记录销量的料理"
+				value={condition.amount ?? ''}
+				placeholder="请选择料理…"
+				options={toIdOptions(ctx.allFoods)}
+				onChange={(v) =>
+					onUpdate(
+						patch({ amount: v === '' ? undefined : Number(v) })
+					)
+				}
+			/>
+			<WarningNotice>
+				沿用原版营业销量记录：进入营业阶段即满足此条件，销量单独累计。此处不提供“卖满若干份”的目标。
+			</WarningNotice>
+		</div>
+	);
+}
+
+function FakeMissionEditor({ condition, onUpdate }: ConditionEditorProps) {
+	return (
+		<div className="flex flex-col gap-3">
+			<Field label="信号标识（Label）">
+				<Input
+					aria-label="信号标识"
+					value={condition.label ?? ''}
+					onChange={(e) => onUpdate({ label: e.target.value })}
+					placeholder="使用资源包前缀，例如 _Example_FoundClue"
+				/>
+			</Field>
+			<Field label="条件说明">
+				<Input
+					aria-label="条件说明"
+					value={condition.text ?? ''}
+					onChange={(e) => onUpdate({ text: e.target.value })}
+					placeholder="例如 找到线索"
+				/>
+			</Field>
+			<WarningNotice>
+				任务开始后，在另一个事件或任务的奖励中配置“发送任务完成信号”，填写相同标识即可满足本条件。信号不会补发给尚未开始的任务。
+			</WarningNotice>
+		</div>
+	);
+}
+
+function CompleteEventsEditor({
+	condition,
+	ctx,
+	onUpdate,
+}: ConditionEditorProps) {
+	const events = condition.events ?? [];
+	const optionsId = useId();
+	const eventListRef = useFocusOnItemAppend(events.length);
+	return (
+		<div className="flex flex-col gap-3">
+			<NumberField
+				label="需要完成的事件数"
+				min={1}
+				defaultValue={1}
+				value={condition.amount}
+				onChange={(amount) => onUpdate({ amount })}
+			/>
+			<WarningNotice>
+				统计下列事件的原版完成记录。这里只引用事件，不会自动启动事件。
+			</WarningNotice>
+			<datalist id={optionsId}>
+				{ctx.allEvents.map((event) => (
+					<option key={event.label} value={event.label}>
+						{event.debugLabel || event.label}
+					</option>
+				))}
+			</datalist>
+			<div ref={eventListRef} className="flex flex-col gap-3">
+				{events.map((event, index) => (
+					<div
+						key={index}
+						data-editor-appended-item
+						className="flex min-w-0 flex-col gap-3 rounded-medium border border-divider p-3"
+					>
+						<Field label={`事件 ${index + 1} 标识`}>
+							<Input
+								aria-label={`事件 ${index + 1} 标识`}
+								list={optionsId}
+								value={event.label}
+								onChange={(e) =>
+									onUpdate({
+										events: events.map((entry, i) =>
+											i === index
+												? {
+														...entry,
+														label: e.target.value,
+													}
+												: entry
+										),
+									})
+								}
+								placeholder="选择本包事件，或输入原版／依赖包事件标识"
+							/>
+						</Field>
+						<Field label={`事件 ${index + 1} 说明`}>
+							<Input
+								aria-label={`事件 ${index + 1} 说明`}
+								value={event.text}
+								onChange={(e) =>
+									onUpdate({
+										events: events.map((entry, i) =>
+											i === index
+												? {
+														...entry,
+														text: e.target.value,
+													}
+												: entry
+										),
+									})
+								}
+								placeholder="显示在任务条件中的文字"
+							/>
+						</Field>
+						<SectionDeleteButton
+							aria-label={`删除条件事件 ${index + 1}`}
+							onPress={() =>
+								onUpdate({
+									events: events.filter(
+										(_, i) => i !== index
+									),
+								})
+							}
+						>
+							删除事件
+						</SectionDeleteButton>
+					</div>
+				))}
+			</div>
+			<SectionAddButton
+				onPress={() =>
+					onUpdate({ events: [...events, { label: '', text: '' }] })
+				}
+			>
+				添加条件事件
+			</SectionAddButton>
+		</div>
+	);
 }
 
 function SubmitItemEditor({ condition, ctx, onUpdate }: ConditionEditorProps) {
@@ -310,6 +487,16 @@ function SubmitByTagEditor({ condition, onUpdate }: ConditionEditorProps) {
 				onChange={(v) =>
 					onUpdate({ sellableType: v as 'Food' | 'Beverage', tag: 0 })
 				}
+				getChangeConfirmation={(nextType, currentType) =>
+					nextType !== currentType && Boolean(condition.tag)
+						? {
+								confirmLabel: '切换类型',
+								description:
+									'切换可交付类型会清除当前选择的标签。',
+								title: '确定要切换可交付类型吗？',
+							}
+						: null
+				}
 			/>
 			<SelectField
 				label="标签（Tag）"
@@ -344,6 +531,16 @@ function SubmitByTagsEditor({ condition, onUpdate }: ConditionEditorProps) {
 						sellableType: v as 'Food' | 'Beverage',
 						tags: [],
 					})
+				}
+				getChangeConfirmation={(nextType, currentType) =>
+					nextType !== currentType && Boolean(condition.tags?.length)
+						? {
+								confirmLabel: '切换类型',
+								description:
+									'切换可交付类型会清除当前选择的标签。',
+								title: '确定要切换可交付类型吗？',
+							}
+						: null
 				}
 			/>
 			<TagsField
@@ -445,6 +642,10 @@ function TalkWithCharacterEditor({
 const CONDITION_EDITORS: Partial<
 	Record<ConditionType, (props: ConditionEditorProps) => ReactNode>
 > = {
+	InspectInteractable: InspectInteractableEditor,
+	SellInWork: SellInWorkEditor,
+	FakeMission: FakeMissionEditor,
+	CompleteSpecifiedFollowingEvents: CompleteEventsEditor,
 	SubmitItem: SubmitItemEditor,
 	ServeInWork: ServeInWorkEditor,
 	SubmitByTag: SubmitByTagEditor,
@@ -463,6 +664,7 @@ const CONDITION_EDITORS: Partial<
 interface ConditionItemProps {
 	condition: MissionCondition;
 	ctx: ConditionEditorContext;
+	hasReceiver: boolean;
 	onUpdate: (updates: Partial<MissionCondition>) => void;
 	onRemove: () => void;
 }
@@ -470,6 +672,7 @@ interface ConditionItemProps {
 function ConditionItem({
 	condition,
 	ctx,
+	hasReceiver,
 	onUpdate,
 	onRemove,
 }: ConditionItemProps) {
@@ -477,7 +680,10 @@ function ConditionItem({
 	const isSupported = SUPPORTED_CONDITION_TYPES.has(condition.conditionType);
 
 	return (
-		<div className="flex min-w-0 flex-col gap-3 rounded-large border border-divider bg-content1/50 p-4">
+		<div
+			data-editor-appended-item
+			className="flex min-w-0 flex-col gap-3 rounded-medium border border-divider bg-content1/50 p-4"
+		>
 			<div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
 				<Select<ConditionType>
 					ariaLabel="完成条件类型"
@@ -486,6 +692,25 @@ function ConditionItem({
 					onChange={(v) =>
 						onUpdate(createMissionCondition(v as ConditionType))
 					}
+					getChangeConfirmation={(nextType, currentType) => {
+						if (nextType === currentType) return null;
+						const hasConfiguredCondition =
+							JSON.stringify(condition) !==
+							JSON.stringify(
+								createMissionCondition(condition.conditionType)
+							);
+						const willClearReceiver =
+							nextType === 'BillRepayment' && hasReceiver;
+						if (!hasConfiguredCondition && !willClearReceiver)
+							return null;
+						return {
+							confirmLabel: '切换类型',
+							description: willClearReceiver
+								? '切换后会清除当前条件配置和任务接取人。'
+								: '切换后会清除当前条件中已填写的配置。',
+							title: '确定要切换完成条件类型吗？',
+						};
+					}}
 					items={CONDITION_TYPES.map((t) => ({
 						value: t.type,
 						label: `${t.label}（${t.type}）`,
@@ -517,6 +742,7 @@ function ConditionItem({
 // -----------------------------------------------------------------------------
 
 interface MissionConditionListProps {
+	allEvents: EventNode[];
 	mission: MissionNode;
 	characterOptions: { value: string; label: string }[];
 	allFoods: { id: number; name: string }[];
@@ -527,6 +753,7 @@ interface MissionConditionListProps {
 
 export const MissionConditionList = memo<MissionConditionListProps>(
 	function MissionConditionList({
+		allEvents,
 		mission,
 		characterOptions,
 		allFoods,
@@ -535,6 +762,7 @@ export const MissionConditionList = memo<MissionConditionListProps>(
 		onUpdate,
 	}) {
 		const conditions = mission.finishConditions ?? [];
+		const conditionListRef = useFocusOnItemAppend(conditions.length);
 		const updateConditions = useCallback(
 			(nextConditions: MissionCondition[]) => {
 				const hasBillRepayment = nextConditions.some(
@@ -591,6 +819,7 @@ export const MissionConditionList = memo<MissionConditionListProps>(
 		);
 
 		const ctx: ConditionEditorContext = {
+			allEvents,
 			allFoods,
 			allIngredients,
 			allBeverages,
@@ -606,12 +835,13 @@ export const MissionConditionList = memo<MissionConditionListProps>(
 					</SectionAddButton>
 				}
 			>
-				<div className="flex flex-col gap-3">
+				<div ref={conditionListRef} className="flex flex-col gap-3">
 					{conditions.map((condition, index) => (
 						<ConditionItem
 							key={index}
 							condition={condition}
 							ctx={ctx}
+							hasReceiver={mission.reciever.trim().length > 0}
 							onUpdate={(updates) =>
 								updateCondition(index, updates)
 							}

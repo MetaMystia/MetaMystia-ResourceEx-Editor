@@ -1,10 +1,14 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import type { MerchantConfig } from '@/domain/resourcePack/contracts/merchant';
 
-import { EditorWorkspace } from '@/features/resourceEditor/client/components/layout/EditorWorkspace';
+import {
+	EditorWorkspace,
+	useEditorSelection,
+} from '@/features/resourceEditor/client/components/layout/EditorWorkspace';
+import { useEditorEntityNavigationIntent } from '@/features/resourceEditor/client/navigation/editorNavigationIntent';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
 
 import { MerchantEditor } from './MerchantEditor';
@@ -22,9 +26,16 @@ const DEFAULT_MERCHANT: MerchantConfig = {
 
 export function MerchantEditorScreen() {
 	const { resourcePack: data, updateResourcePack } = useResourceEditor();
-	const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+	const { detailKey, replaceSelection, selectedIndex, setSelectedIndex } =
+		useEditorSelection();
 
 	const merchants = useMemo(() => data.merchants || [], [data.merchants]);
+	useEditorEntityNavigationIntent({
+		entityKind: 'merchant',
+		getStableKey: (merchant) => merchant.key,
+		items: merchants,
+		onSelect: setSelectedIndex,
+	});
 
 	const addMerchant = useCallback(() => {
 		const newMerchants = [...merchants, { ...DEFAULT_MERCHANT }];
@@ -37,12 +48,12 @@ export function MerchantEditorScreen() {
 			const newMerchants = merchants.filter((_, i) => i !== index);
 			updateResourcePack(() => ({ ...data, merchants: newMerchants }));
 			if (selectedIndex === index) {
-				setSelectedIndex(newMerchants.length > 0 ? 0 : null);
+				replaceSelection(newMerchants.length > 0 ? 0 : null);
 			} else if (selectedIndex !== null && selectedIndex > index) {
 				setSelectedIndex(selectedIndex - 1);
 			}
 		},
-		[data, merchants, selectedIndex, updateResourcePack]
+		[data, merchants, replaceSelection, selectedIndex, updateResourcePack]
 	);
 
 	const updateMerchant = useCallback(
@@ -73,7 +84,7 @@ export function MerchantEditorScreen() {
 	const extRecipes = useMemo(() => data.recipes || [], [data.recipes]);
 
 	return (
-		<EditorWorkspace>
+		<EditorWorkspace detailKey={detailKey}>
 			<MerchantList
 				merchants={merchants}
 				allCharacters={data.characters}

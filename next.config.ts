@@ -11,7 +11,12 @@ const nextConfig: NextConfig = {
 	eslint: { ignoreDuringBuilds: skipLint },
 	typescript: { ignoreBuildErrors: skipLint },
 
-	experimental: { webpackMemoryOptimizations: skipLint },
+	experimental: {
+		optimizePackageImports: ['framer-motion'],
+		parallelServerBuildTraces: true,
+		webpackBuildWorker: true,
+		webpackMemoryOptimizations: skipLint,
+	},
 
 	webpack(config) {
 		config.module.rules.push({ test: /\.pem$/, type: 'asset/source' });

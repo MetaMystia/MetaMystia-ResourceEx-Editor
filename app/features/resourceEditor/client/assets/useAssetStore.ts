@@ -4,10 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
 	addAssetFileParentFolders,
+	areAssetSnapshotsEqual,
 	copyAssetFolders,
 	copyAssetMaps,
 	createObjectUrlRegistry,
 	getAssetFolderCreationError,
+	getAssetSnapshotReplacementError,
 	getAssetUpdateError,
 	type IAssetMapsTransaction,
 	type IObjectUrlRegistry,
@@ -34,6 +36,14 @@ const EMPTY_ASSET_STATE: IAssetState = {
 	urls: {},
 };
 const ASSET_STORE_UNAVAILABLE_ERROR = '资产存储尚未就绪。';
+const ASSET_STORE_STALE_ERROR = '资产状态已变化，请重试。';
+
+interface IReplaceAssetSnapshotInput {
+	canCommit(): boolean;
+	expectedGeneration: number;
+	files: ReadonlyMap<string, Blob>;
+	folders: readonly string[];
+}
 
 function mapUrlsToRecord(urls: ReadonlyMap<string, string>) {
 	return Object.fromEntries(urls) as Record<string, string>;
@@ -94,7 +104,10 @@ export function useAssetStore(onMutation: () => void) {
 		(files: ReadonlyMap<string, Blob>, folders: readonly string[]) => {
 			const urlRegistry = readActiveUrlRegistry();
 			if (!urlRegistry) return;
-			const updateError = getAssetUpdateError(new Map(), folders, files);
+			const updateError = getAssetSnapshotReplacementError(
+				files,
+				folders
+			);
 			if (updateError) throw new Error(updateError);
 			const transaction = replaceAssetMaps(files, urlRegistry);
 			const previousUrls = urlsRef.current;
@@ -109,6 +122,84 @@ export function useAssetStore(onMutation: () => void) {
 				urls: mapUrlsToRecord(transaction.urls),
 			});
 			previousUrls.forEach(urlRegistry.revoke);
+		},
+		[readActiveUrlRegistry]
+	);
+
+	const replaceAssetSnapshot = useCallback(
+		(input: IReplaceAssetSnapshotInput): IAssetMutationResult => {
+			const urlRegistry = readActiveUrlRegistry();
+			if (!urlRegistry) {
+				return {
+					error: ASSET_STORE_UNAVAILABLE_ERROR,
+					isSuccess: false,
+				};
+			}
+			const canCommit = () => {
+				try {
+					return input.canCommit();
+				} catch {
+					return false;
+				}
+			};
+			if (
+				generationRef.current !== input.expectedGeneration ||
+				!canCommit()
+			) {
+				return { error: ASSET_STORE_STALE_ERROR, isSuccess: false };
+			}
+			const replacementError = getAssetSnapshotReplacementError(
+				input.files,
+				input.folders
+			);
+			if (replacementError) {
+				return { error: replacementError, isSuccess: false };
+			}
+			const nextFolders = normalizeAssetFolders(input.folders);
+			if (
+				areAssetSnapshotsEqual(
+					filesRef.current,
+					foldersRef.current,
+					input.files,
+					nextFolders
+				)
+			) {
+				return generationRef.current === input.expectedGeneration &&
+					canCommit()
+					? { isSuccess: true }
+					: { error: ASSET_STORE_STALE_ERROR, isSuccess: false };
+			}
+
+			let transaction: IAssetMapsTransaction;
+			try {
+				transaction = replaceAssetMaps(input.files, urlRegistry);
+			} catch (error) {
+				return {
+					error:
+						error instanceof Error ? error.message : String(error),
+					isSuccess: false,
+				};
+			}
+			if (
+				generationRef.current !== input.expectedGeneration ||
+				!canCommit()
+			) {
+				transaction.urls.forEach(urlRegistry.revoke);
+				return { error: ASSET_STORE_STALE_ERROR, isSuccess: false };
+			}
+
+			const previousUrls = urlsRef.current;
+			generationRef.current += 1;
+			filesRef.current = transaction.files;
+			foldersRef.current = nextFolders;
+			urlsRef.current = transaction.urls;
+			setAssetState({
+				folders: nextFolders,
+				generation: generationRef.current,
+				urls: mapUrlsToRecord(transaction.urls),
+			});
+			previousUrls.forEach(urlRegistry.revoke);
+			return { isSuccess: true };
 		},
 		[readActiveUrlRegistry]
 	);
@@ -347,6 +438,7 @@ export function useAssetStore(onMutation: () => void) {
 	const getAssetUrl = useCallback((path: string | undefined) => {
 		return path ? urlsRef.current.get(path) : undefined;
 	}, []);
+	const getAssetGeneration = useCallback(() => generationRef.current, []);
 	const isAssetGenerationCurrent = useCallback(
 		(expectedGeneration: number) =>
 			expectedGeneration === generationRef.current,
@@ -365,6 +457,7 @@ export function useAssetStore(onMutation: () => void) {
 		clearAssets,
 		copyAssets,
 		createAssetFolder,
+		getAssetGeneration,
 		getAssetSnapshot,
 		getAssetUrl,
 		isAssetGenerationCurrent,
@@ -373,6 +466,7 @@ export function useAssetStore(onMutation: () => void) {
 		removeAssets,
 		removeAssetFolders,
 		replaceAssets,
+		replaceAssetSnapshot,
 		updateAsset,
 		updateAssets,
 	};

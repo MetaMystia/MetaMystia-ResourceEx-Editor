@@ -1,9 +1,12 @@
 'use client';
 
+import { cn } from '@heroui/theme';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
+import Heading from '@/design/ui/components/heading';
 
 import { CoordinatedModal } from '@/features/overlays/client';
 import { useResourceWorkspaces } from '@/features/resourceEditor/client/workspaces/useResourceWorkspaces';
@@ -28,6 +31,7 @@ export function WorkspaceLeaseConflictDialog() {
 	}, [leaseConflict?.workspace.id]);
 
 	if (!leaseConflict) return null;
+	const isComparisonRoute = pathname === '/compare';
 	const isExportRequest =
 		pendingExportWorkspaceId === leaseConflict.workspace.id;
 
@@ -64,15 +68,24 @@ export function WorkspaceLeaseConflictDialog() {
 		>
 			<div className="space-y-4">
 				<div className="space-y-2">
-					<h2 className="text-lg font-semibold">
+					<Heading as="h2" variant="dialog">
 						资源包正在其他页面中编辑
-					</h2>
-					<p className="text-sm leading-6 text-foreground-600">
+					</Heading>
+					<p className={TYPOGRAPHY_STYLES.description}>
 						{isExportRequest
 							? `可以直接导出“${leaseConflict.workspace.displayName}”当前保存的内容，也可以接管后导出。接管后，其他页面将不能继续保存。`
 							: `“${leaseConflict.workspace.displayName}”正在其他页面中编辑。如需在当前页面修改，请先接管编辑权。接管后，其他页面将不能继续保存。`}
 					</p>
-					{error && <p className="text-sm text-danger">{error}</p>}
+					{error && (
+						<p
+							className={cn(
+								TYPOGRAPHY_STYLES.body,
+								'text-danger'
+							)}
+						>
+							{error}
+						</p>
+					)}
 				</div>
 				<div className="flex flex-wrap justify-end gap-2 border-t border-divider pt-4">
 					<Button
@@ -80,10 +93,10 @@ export function WorkspaceLeaseConflictDialog() {
 						isDisabled={pendingAction !== null}
 						onPress={() => {
 							dismissLeaseConflict();
-							router.push('/');
+							if (!isComparisonRoute) router.push('/');
 						}}
 					>
-						返回资源包列表
+						{isComparisonRoute ? '继续观察' : '返回资源包列表'}
 					</Button>
 					{isExportRequest && (
 						<Button

@@ -3,6 +3,7 @@
 import { cn } from '@heroui/theme';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
 
 import type { IAssetMutationResult } from '@/features/resourceEditor/client/assets/contracts';
@@ -142,12 +143,13 @@ export function PortraitUploader({
 			style={{ maxWidth: `${width}px` }}
 		>
 			<div className="flex min-w-0 flex-col gap-1">
-				<p className="text-xs font-medium text-foreground-600">
-					立绘预览
-				</p>
+				<p className={TYPOGRAPHY_STYLES.compactLabel}>立绘预览</p>
 				{warning && (
 					<p
-						className="break-words text-xs leading-5 text-warning-700 dark:text-warning-600"
+						className={cn(
+							TYPOGRAPHY_STYLES.caption,
+							'text-warning-700 dark:text-warning-600'
+						)}
 						role="status"
 					>
 						{warning}
@@ -167,7 +169,7 @@ export function PortraitUploader({
 			/>
 			<div
 				className={cn(
-					'bg-checkerboard relative flex w-full flex-col items-center justify-center overflow-hidden rounded-large border-2 border-dashed transition-colors hover:border-primary/50 motion-reduce:transition-none',
+					'bg-checkerboard relative flex w-full flex-col items-center justify-center overflow-hidden rounded-medium border-2 border-dashed transition-colors hover:border-primary/50 motion-reduce:transition-none',
 					warning ? 'border-warning/50' : 'border-divider'
 				)}
 				style={{ aspectRatio: `${width} / ${height}` }}
@@ -197,10 +199,10 @@ export function PortraitUploader({
 					</>
 				) : (
 					<div className="flex flex-col items-center gap-3 text-center">
-						<p className="text-sm font-medium text-foreground-600">
+						<p className={TYPOGRAPHY_STYLES.compactItemTitle}>
 							暂无立绘
 						</p>
-						<p className="text-xs text-foreground-500">
+						<p className={TYPOGRAPHY_STYLES.caption}>
 							{width}×{height}
 						</p>
 						<Button

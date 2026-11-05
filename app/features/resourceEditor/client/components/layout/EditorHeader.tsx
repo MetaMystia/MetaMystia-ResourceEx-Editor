@@ -1,7 +1,9 @@
 import { cn } from '@heroui/theme';
 import { memo, type ReactNode } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Card from '@/design/ui/components/card';
+import Heading from '@/design/ui/components/heading';
 
 interface IProps {
 	title: ReactNode;
@@ -22,16 +24,14 @@ export const EditorHeader = memo<IProps>(function EditorHeader({
 			fullWidth
 			shadow="none"
 			className={cn(
-				'flex flex-col gap-3 border border-divider bg-content1/40 p-4 shadow-sm backdrop-blur sm:p-6 md:flex-row md:items-center md:justify-between',
+				'flex flex-col gap-3 rounded-large border border-divider bg-content1/40 p-4 shadow-sm backdrop-blur md:flex-row md:items-center md:justify-between',
 				className
 			)}
 		>
 			<div className="min-w-0 space-y-1">
-				<h1 className="break-words text-2xl font-bold leading-8 text-foreground">
-					{title}
-				</h1>
+				<Heading variant="screen">{title}</Heading>
 				{description !== undefined && (
-					<p className="break-words text-sm leading-5 text-foreground-600">
+					<p className={TYPOGRAPHY_STYLES.description}>
 						{description}
 					</p>
 				)}

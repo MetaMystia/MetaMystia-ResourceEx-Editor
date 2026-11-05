@@ -1,3 +1,4 @@
+import { cn } from '@heroui/theme';
 import { memo, useCallback } from 'react';
 
 import type { Character } from '@/domain/resourcePack/contracts/character';
@@ -44,15 +45,15 @@ export const DialogItem = memo<DialogItemProps>(function DialogItem({
 	);
 
 	return (
-		<div className="relative flex min-w-0 flex-col gap-4 overflow-hidden rounded-large border border-divider bg-content1/50 p-4">
+		<div className="relative flex min-w-0 flex-col gap-4 overflow-hidden rounded-medium border border-divider bg-content1/50 p-4">
 			{/* Position indicator stripe */}
 			<div
-				className={`absolute top-0 h-full w-1 ${
+				className={cn(
+					'absolute top-0 h-full w-1',
 					dialog.position === 'Left'
 						? 'left-0 bg-primary'
 						: 'right-0 bg-secondary'
-				}`}
-				title={`位置：${dialog.position === 'Left' ? '左侧' : '右侧'}`}
+				)}
 			/>
 			<DialogItemHeader
 				index={index}

@@ -3,6 +3,11 @@ export type TOverlayId =
 	| 'asset.operation-confirm'
 	| 'asset.picker'
 	| 'asset.picker.operation-confirm'
+	| 'comparison.command'
+	| 'comparison.command.confirm'
+	| 'comparison.left-source'
+	| 'comparison.quick-source'
+	| 'comparison.right-source'
 	| 'navbar.export-validation'
 	| 'navbar.notice'
 	| 'resource.signature'
@@ -20,12 +25,7 @@ export type TOverlayId =
 export type TOverlayPriority = 'blocking' | 'passive' | 'task';
 
 export type TOverlayPresentationState =
-	| 'active'
-	| 'closed'
-	| 'closing'
-	| 'covered'
-	| 'opening'
-	| 'queued';
+	'active' | 'closed' | 'closing' | 'covered' | 'opening' | 'queued';
 
 export type TOverlayCloseReason = 'coordinator' | 'escape';
 

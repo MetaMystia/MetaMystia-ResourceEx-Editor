@@ -1,6 +1,8 @@
 import { cn } from '@heroui/theme';
 import { type ReactNode } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
+
 interface IProps {
 	children: ReactNode;
 	className?: string;
@@ -10,7 +12,8 @@ export function ErrorBadge({ children, className }: IProps) {
 	return (
 		<span
 			className={cn(
-				'rounded-small bg-danger px-1.5 py-0.5 text-[10px] font-medium text-danger-foreground',
+				TYPOGRAPHY_STYLES.microLabel,
+				'rounded-small bg-danger px-1.5 py-0.5 text-danger-foreground',
 				className
 			)}
 		>

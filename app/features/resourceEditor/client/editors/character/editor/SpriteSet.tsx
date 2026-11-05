@@ -1,6 +1,7 @@
 import { cn } from '@heroui/theme';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { TYPOGRAPHY_STYLES } from '@/design/theme/styles/typography';
 import Button from '@/design/ui/components/button';
 import Input from '@/design/ui/components/input';
 import Switch from '@/design/ui/components/switch';
@@ -11,8 +12,8 @@ import { ConfirmPopover } from '@/features/resourceEditor/client/components/conf
 import { InfoTip } from '@/features/resourceEditor/client/components/fields/InfoTip';
 import { Label } from '@/features/resourceEditor/client/components/fields/Label';
 import { ChevronRight } from '@/features/resourceEditor/client/components/icons/ChevronRight';
-import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import { EditorSection } from '@/features/resourceEditor/client/components/layout/EditorSection';
+import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
 import { WarningBadge } from '@/features/resourceEditor/client/components/status/WarningBadge';
 import { WarningNotice } from '@/features/resourceEditor/client/components/status/WarningNotice';
 import { useLabelPrefixValidation } from '@/features/resourceEditor/client/hooks/useLabelPrefixValidation';
@@ -171,7 +172,10 @@ export function SpriteSetEditor({
 						variant="light"
 						size="sm"
 						aria-expanded={isExpanded}
-						className="-ml-2 h-10 px-2 text-base font-semibold text-foreground-700 sm:h-8"
+						className={cn(
+							TYPOGRAPHY_STYLES.sectionTitle,
+							'-ml-2 h-10 px-2 sm:h-8'
+						)}
 						startContent={
 							<ChevronRight
 								className={cn(
@@ -191,7 +195,12 @@ export function SpriteSetEditor({
 			}
 			actions={
 				<div className="flex items-center gap-2">
-					<span className="whitespace-nowrap text-xs font-medium text-foreground-600">
+					<span
+						className={cn(
+							TYPOGRAPHY_STYLES.compactLabel,
+							'whitespace-nowrap'
+						)}
+					>
 						{spriteSet ? '已启用角色小人配置' : '启用角色小人配置'}
 					</span>
 					{spriteSet ? (
@@ -271,7 +280,7 @@ export function SpriteSetEditor({
 							{spriteSet.mainSprite.map((path, i) => (
 								<div
 									key={i}
-									className="group relative flex min-w-0 flex-col gap-2 rounded-large border border-divider bg-content1/50 p-2 transition-colors hover:bg-content1 motion-reduce:transition-none"
+									className="group relative flex min-w-0 flex-col gap-2 rounded-medium border border-divider bg-content1/50 p-2 transition-colors hover:bg-content1 motion-reduce:transition-none"
 								>
 									<label
 										className="bg-checkerboard relative aspect-square cursor-pointer overflow-hidden rounded-medium border border-divider hover:border-primary/50"
@@ -289,7 +298,12 @@ export function SpriteSetEditor({
 											}
 										}}
 									>
-										<span className="absolute left-1 top-1 z-10 rounded bg-background/80 px-1 text-xs text-foreground">
+										<span
+											className={cn(
+												TYPOGRAPHY_STYLES.microLabel,
+												'absolute left-1 top-1 z-10 rounded-small bg-background/80 px-1 text-foreground'
+											)}
+										>
 											{i}
 										</span>
 										{getAssetUrl(path) ? (
@@ -300,13 +314,21 @@ export function SpriteSetEditor({
 											/>
 										) : (
 											<div className="flex h-full w-full flex-col items-center justify-center text-foreground-500">
-												<span className="text-xs font-medium">
+												<span
+													className={
+														TYPOGRAPHY_STYLES.compactInteractiveLabel
+													}
+												>
 													上传
 												</span>
 											</div>
 										)}
 										<div className="absolute inset-0 flex items-center justify-center bg-background/75 opacity-0 transition-opacity group-hover:opacity-100 motion-reduce:transition-none">
-											<span className="text-xs font-semibold text-foreground">
+											<span
+												className={
+													TYPOGRAPHY_STYLES.compactTitle
+												}
+											>
 												更换
 											</span>
 										</div>
@@ -327,7 +349,13 @@ export function SpriteSetEditor({
 											}}
 										/>
 									</label>
-									<p className="truncate text-center text-xs text-foreground-500">
+									<p
+										title={path.split('/').pop()}
+										className={cn(
+											TYPOGRAPHY_STYLES.caption,
+											'truncate text-center'
+										)}
+									>
 										{path.split('/').pop()}
 									</p>
 								</div>
@@ -341,7 +369,7 @@ export function SpriteSetEditor({
 							{spriteSet.eyeSprite.map((path, i) => (
 								<div
 									key={i}
-									className="group relative flex min-w-0 flex-col gap-2 rounded-large border border-divider bg-content1/50 p-2 transition-colors hover:bg-content1 motion-reduce:transition-none"
+									className="group relative flex min-w-0 flex-col gap-2 rounded-medium border border-divider bg-content1/50 p-2 transition-colors hover:bg-content1 motion-reduce:transition-none"
 								>
 									<label
 										className="bg-checkerboard relative aspect-square cursor-pointer overflow-hidden rounded-medium border border-divider hover:border-primary/50"
@@ -359,7 +387,12 @@ export function SpriteSetEditor({
 											}
 										}}
 									>
-										<span className="absolute left-1 top-1 z-10 rounded bg-background/80 px-1 text-xs text-foreground">
+										<span
+											className={cn(
+												TYPOGRAPHY_STYLES.microLabel,
+												'absolute left-1 top-1 z-10 rounded-small bg-background/80 px-1 text-foreground'
+											)}
+										>
 											{i}
 										</span>
 										{getAssetUrl(path) ? (
@@ -370,13 +403,21 @@ export function SpriteSetEditor({
 											/>
 										) : (
 											<div className="flex h-full w-full flex-col items-center justify-center text-foreground-500">
-												<span className="text-xs font-medium">
+												<span
+													className={
+														TYPOGRAPHY_STYLES.compactInteractiveLabel
+													}
+												>
 													上传
 												</span>
 											</div>
 										)}
 										<div className="absolute inset-0 flex items-center justify-center bg-background/75 opacity-0 transition-opacity group-hover:opacity-100 motion-reduce:transition-none">
-											<span className="text-xs font-semibold text-foreground">
+											<span
+												className={
+													TYPOGRAPHY_STYLES.compactTitle
+												}
+											>
 												更换
 											</span>
 										</div>
@@ -397,7 +438,13 @@ export function SpriteSetEditor({
 											}}
 										/>
 									</label>
-									<p className="truncate text-center text-xs text-foreground-500">
+									<p
+										title={path.split('/').pop()}
+										className={cn(
+											TYPOGRAPHY_STYLES.caption,
+											'truncate text-center'
+										)}
+									>
 										{path.split('/').pop()}
 									</p>
 								</div>
