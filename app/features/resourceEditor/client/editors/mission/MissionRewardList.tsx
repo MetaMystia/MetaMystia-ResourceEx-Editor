@@ -6,6 +6,7 @@ import Button from '@/design/ui/components/button';
 import Input from '@/design/ui/components/input';
 import Tooltip from '@/design/ui/components/tooltip';
 
+import { IZAKAYAS } from '@/domain/data/izakayas';
 import type {
 	MissionReward,
 	ObjectType,
@@ -185,7 +186,7 @@ const REWARD_TYPES: { type: RewardType; label: string }[] = [
 	},
 	{
 		type: 'EnableSGuestSpawnInTargetIzakayaById',
-		label: '【未实现】设置稀客在指定雀食堂生成（通过雀食堂Id）',
+		label: '设置稀客在指定雀食堂生成（通过雀食堂Id）',
 	},
 	{
 		type: 'EnableSGuestSpawnInTargetIzakayaByMap',
@@ -299,6 +300,22 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 				onUpdate(newRewards);
 			},
 			[onUpdate, rewards]
+		);
+
+		const isRewardIzakayaSelected = (
+			reward: MissionReward,
+			izakayaId: number
+		) => (reward.rewardIntArray || []).includes(izakayaId);
+
+		const toggleRewardIzakaya = useCallback(
+			(index: number, reward: MissionReward, izakayaId: number) => {
+				const current = reward.rewardIntArray || [];
+				const rewardIntArray = current.includes(izakayaId)
+					? current.filter((id) => id !== izakayaId)
+					: [...current, izakayaId].sort((a, b) => a - b);
+				updateReward(index, { rewardIntArray });
+			},
+			[updateReward]
 		);
 
 		return (
@@ -564,6 +581,81 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 								</div>
 							)}
 
+							{reward.rewardType ===
+								'EnableSGuestSpawnInTargetIzakayaById' && (
+								<div className="flex flex-col gap-3">
+									<div className="flex flex-col gap-1">
+										<label className="text-xs font-medium opacity-70">
+											目标角色（Reward ID）
+										</label>
+										<Select<string>
+											ariaLabel="目标角色"
+											placeholder="请选择角色…"
+											value={reward.rewardId ?? ''}
+											onChange={(v) =>
+												updateReward(index, {
+													rewardId: v,
+													should: true,
+												})
+											}
+											items={characterOptions.map(
+												(opt) => ({
+													value: opt.value,
+													label: opt.label,
+												})
+											)}
+										/>
+									</div>
+									<div className="flex flex-col gap-2">
+										<label className="text-xs font-medium opacity-70">
+											允许刷新的雀食堂
+										</label>
+										<div className="flex flex-wrap gap-2 rounded-large border border-divider bg-content2/30 p-3 sm:p-4">
+											{IZAKAYAS.filter(
+												(izakaya) => izakaya.id >= 0
+											).map((izakaya) => {
+												const isSelected =
+													isRewardIzakayaSelected(
+														reward,
+														izakaya.id
+													);
+												return (
+													<Button
+														key={izakaya.id}
+														color={
+															isSelected
+																? 'primary'
+																: 'default'
+														}
+														variant={
+															isSelected
+																? 'flat'
+																: 'bordered'
+														}
+														aria-pressed={
+															isSelected
+														}
+														className="h-10 rounded-medium px-3 text-xs sm:h-8"
+														onPress={() =>
+															toggleRewardIzakaya(
+																index,
+																reward,
+																izakaya.id
+															)
+														}
+													>
+														<span className="mr-1.5 text-foreground-500">
+															（{izakaya.id}）
+														</span>
+														{izakaya.name}
+													</Button>
+												);
+											})}
+										</div>
+									</div>
+								</div>
+							)}
+
 							{reward.rewardType === 'FinishFakeMission' && (
 								<div className="flex flex-col gap-3">
 									<div className="flex flex-col gap-1">
@@ -588,8 +680,10 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 							)}
 
 							{reward.rewardType !== 'UpgradeKizunaLevel' &&
+								reward.rewardType !== 'GiveItem' &&
 								reward.rewardType !== 'FinishFakeMission' &&
-								reward.rewardType !== 'GiveItem' && (
+								reward.rewardType !==
+									'EnableSGuestSpawnInTargetIzakayaById' && (
 									<WarningNotice>
 										当前编辑器尚未支持配置此奖励类型的详细参数。
 									</WarningNotice>

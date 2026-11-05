@@ -1139,6 +1139,7 @@ function readMissionReward(value: unknown, path: string): MissionReward {
 		)
 	);
 	validateOptional(record, 'rewardIntArray', path, readNumberArray);
+	validateOptional(record, 'should', path, readBoolean, true);
 	return { ...record, rewardType };
 }
 
