@@ -22,6 +22,7 @@ import { useFocusOnItemInsert } from '@/features/resourceEditor/client/hooks/use
 import { useLabelPrefixValidation } from '@/features/resourceEditor/client/hooks/useLabelPrefixValidation';
 
 import { DialogItemWrapper } from './DialogItem';
+import { useCompositionDraft } from './useCompositionDraft';
 
 interface DialogEditorProps {
 	allPackages: DialogPackage[];
@@ -58,6 +59,12 @@ export const DialogEditor = memo<DialogEditorProps>(function DialogEditor({
 	} = useLabelPrefixValidation(dialogPackage?.name || '');
 	const showPrefixWarning =
 		hasPackLabel && dialogPackage && !isNamePrefixValid;
+	const nameDraftProps = useCompositionDraft(
+		dialogPackage?.name ?? '',
+		(name) => {
+			onUpdate({ name });
+		}
+	);
 
 	const isNameDuplicate = useCallback(
 		(name: string, index: number | null) => {
@@ -112,10 +119,7 @@ export const DialogEditor = memo<DialogEditorProps>(function DialogEditor({
 				<Input
 					id={id}
 					type="text"
-					value={dialogPackage.name}
-					onChange={(e) => {
-						onUpdate({ name: e.target.value });
-					}}
+					{...nameDraftProps}
 					isInvalid={isNameDuplicate(
 						dialogPackage.name,
 						packageIndex

@@ -12,6 +12,7 @@ import { Select } from '@/features/resourceEditor/client/components/select/Selec
 
 import { CharacterSelector } from './CharacterSelector';
 import { PortraitSelector } from './PortraitSelector';
+import { useCompositionDraft } from './useCompositionDraft';
 
 interface DialogFormFieldsProps {
 	dialog: Dialog;
@@ -24,6 +25,9 @@ export const DialogFormFields = memo<DialogFormFieldsProps>(
 		const idPos = useId();
 		const idText = useId();
 		const idType = useId();
+		const textDraftProps = useCompositionDraft(dialog.text, (text) => {
+			onUpdate({ text });
+		});
 
 		const handleCharacterChange = (
 			id: number,
@@ -106,10 +110,7 @@ export const DialogFormFields = memo<DialogFormFieldsProps>(
 					<Textarea
 						id={idText}
 						placeholder="在此输入对话文本…"
-						value={dialog.text}
-						onChange={(e) => {
-							onUpdate({ text: e.target.value });
-						}}
+						{...textDraftProps}
 						minRows={6}
 						className="min-w-0 flex-1"
 					/>
