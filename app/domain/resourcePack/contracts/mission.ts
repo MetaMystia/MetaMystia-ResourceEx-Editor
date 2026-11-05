@@ -1,4 +1,4 @@
-import type { EventData, EventNodeTrigger } from './event';
+import type { DayConfig, EventData, EventNodeTrigger } from './event';
 
 export type MissionType = 'Main' | 'Side' | 'Kitsuna';
 
@@ -114,6 +114,10 @@ export interface MissionReward {
 	rewardId?: string;
 	objectType?: ObjectType;
 	rewardIntArray?: number[];
+	/** `ScheduleNews` 的候选新闻标识，发布时随机取其一。 */
+	rewardIdArray?: string[];
+	/** `ScheduleNews` 的发布日；缺省为当天。 */
+	time?: DayConfig;
 	should?: boolean;
 }
 

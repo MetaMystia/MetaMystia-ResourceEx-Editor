@@ -32,6 +32,7 @@ const VALIDATION_CATEGORY_COLLECTIONS = {
 	AssetBundle: 'assetBundles',
 	事件节点: 'eventNodes',
 	任务节点: 'missionNodes',
+	新闻节点: 'newsNodes',
 	商人: 'merchants',
 	对话动作: 'dialogPackages',
 	对话包: 'dialogPackages',
@@ -68,6 +69,7 @@ const REFERENCE_OWNER_DESCRIPTORS = {
 	ingredient: { collection: 'ingredients', stableKey: 'id' },
 	merchant: { collection: 'merchants', stableKey: 'key' },
 	mission: { collection: 'missionNodes', stableKey: 'label' },
+	news: { collection: 'newsNodes', stableKey: 'label' },
 	recipe: { collection: 'recipes', stableKey: 'id' },
 } as const satisfies Record<
 	TResourcePackReferenceOwnerKind,
@@ -85,6 +87,7 @@ const COMPARISON_REFERENCE_KINDS = {
 	ingredient: 'ingredient',
 	item: 'item',
 	mission: 'mission',
+	news: 'news',
 	recipe: 'recipe',
 } as const satisfies Record<
 	TResourcePackReferenceKind,

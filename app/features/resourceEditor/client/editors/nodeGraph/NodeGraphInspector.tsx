@@ -8,6 +8,7 @@ import Button from '@/design/ui/components/button';
 
 import type { EventNode } from '@/domain/resourcePack/contracts/event';
 import type { MissionNode } from '@/domain/resourcePack/contracts/mission';
+import type { INewsNode } from '@/domain/resourcePack/contracts/news';
 import type { ResourceEx } from '@/domain/resourcePack/contracts/resourceEx';
 import {
 	type ISchedulerGraph,
@@ -19,16 +20,18 @@ import {
 import { EditorPanel } from '@/features/resourceEditor/client/components/layout/EditorPanel';
 import EventEditor from '@/features/resourceEditor/client/editors/event/EventEditor';
 import MissionEditor from '@/features/resourceEditor/client/editors/mission/MissionEditor';
+import NewsEditor from '@/features/resourceEditor/client/editors/news/NewsEditor';
 
 import { isNodeGraphEdgeRemovable } from './nodeGraphConnections';
 import {
 	NODE_GRAPH_EDGE_KINDS,
 	NODE_GRAPH_EDGE_STYLES,
 } from './nodeGraphFlowModel';
+import { NODE_GRAPH_NODE_KIND_LABELS } from './NodeGraphNodes';
 
 export type TNodeGraphListTarget =
 	| { entityKind: 'character'; stableKey: number }
-	| { entityKind: 'event' | 'mission'; stableKey: string };
+	| { entityKind: 'event' | 'mission' | 'news'; stableKey: string };
 
 interface IProps {
 	graph: ISchedulerGraph;
@@ -40,9 +43,11 @@ interface IProps {
 	onRemoveEdge(edgeId: string): void;
 	onRemoveEvent(index: number): void;
 	onRemoveMission(index: number): void;
+	onRemoveNews(index: number): void;
 	onSelect(id: string): void;
 	onUpdateEvent(index: number, updates: Partial<EventNode>): void;
 	onUpdateMission(index: number, updates: Partial<MissionNode>): void;
+	onUpdateNews(index: number, updates: Partial<INewsNode>): void;
 }
 
 function EdgeSample({ edgeKind }: { edgeKind: ISchedulerGraphEdge['kind'] }) {
@@ -97,6 +102,10 @@ function describeNode(
 	if (node.kind === 'mission') {
 		const mission = resourcePack.missionNodes[node.index ?? -1];
 		return mission?.title || mission?.debugLabel || node.label;
+	}
+	if (node.kind === 'news') {
+		const newsNode = resourcePack.newsNodes[node.index ?? -1];
+		return newsNode?.title || newsNode?.debugLabel || node.label;
 	}
 	return resourcePack.eventNodes[node.index ?? -1]?.debugLabel || node.label;
 }
@@ -165,7 +174,7 @@ function NodeGraphGuide() {
 	return (
 		<InspectorSection title="节点图">
 			<p className={TYPOGRAPHY_STYLES.compactDescription}>
-				选择节点后可在这里编辑，与“任务节点”“事件节点”页面使用同一份数据。
+				选择节点后可在这里编辑，与“任务节点”“事件节点”“新闻节点”页面使用同一份数据。
 			</p>
 			<p className={TYPOGRAPHY_STYLES.compactDescription}>
 				节点完成时先“结算”：发放奖励、安排后续事件；对话或 Timeline
@@ -173,6 +182,9 @@ function NodeGraphGuide() {
 			</p>
 			<p className={TYPOGRAPHY_STYLES.compactDescription}>
 				从出口拖到卡片即可连接：“结算时”连事件，“演出后”连任务；事件的“结算时”也可以拖到任务的“完成指定数量的事件”条件，羁绊入口的各等级可以拖到前置事件。拖到空白处会新建节点并连好。点击连线可以删除。
+			</p>
+			<p className={TYPOGRAPHY_STYLES.compactDescription}>
+				任意出口拖到新闻会在对应奖励中添加“计划新闻”，默认下一天发布；新闻在发布当天依次发放奖励和后置奖励，它的出口只能连新闻。“取消新闻”只能在奖励里设置。
 			</p>
 			<ul className="flex flex-col gap-1.5">
 				{NODE_GRAPH_EDGE_KINDS.map((edgeKind) => (
@@ -202,9 +214,11 @@ export const NodeGraphInspector = memo<IProps>(function NodeGraphInspector({
 	onRemoveEdge,
 	onRemoveEvent,
 	onRemoveMission,
+	onRemoveNews,
 	onSelect,
 	onUpdateEvent,
 	onUpdateMission,
+	onUpdateNews,
 }) {
 	if (selectedEdge) {
 		const isRemovable = isNodeGraphEdgeRemovable(selectedEdge);
@@ -305,7 +319,7 @@ export const NodeGraphInspector = memo<IProps>(function NodeGraphInspector({
 
 	if (selectedNode.origin !== 'local') {
 		const isMissing = selectedNode.origin === 'missing';
-		const kindLabel = selectedNode.kind === 'mission' ? '任务' : '事件';
+		const kindLabel = NODE_GRAPH_NODE_KIND_LABELS[selectedNode.kind];
 		return (
 			<>
 				<InspectorSection
@@ -350,9 +364,7 @@ export const NodeGraphInspector = memo<IProps>(function NodeGraphInspector({
 				})
 			}
 		>
-			{selectedNode.kind === 'mission'
-				? '在任务节点页打开'
-				: '在事件节点页打开'}
+			在{NODE_GRAPH_NODE_KIND_LABELS[selectedNode.kind]}节点页打开
 		</Button>
 	);
 	const connections = (
@@ -381,8 +393,30 @@ export const NodeGraphInspector = memo<IProps>(function NodeGraphInspector({
 					allMissions={resourcePack.missionNodes}
 					allEvents={resourcePack.eventNodes}
 					allDialogPackages={resourcePack.dialogPackages}
+					allNews={resourcePack.newsNodes}
 					onRemove={() => onRemoveMission(index)}
 					onUpdate={(updates) => onUpdateMission(index, updates)}
+				/>
+			</>
+		);
+	}
+
+	if (selectedNode.kind === 'news') {
+		const newsNode = resourcePack.newsNodes[index];
+		if (!newsNode) return <NodeGraphGuide />;
+		return (
+			<>
+				{connections}
+				<NewsEditor
+					newsNode={newsNode}
+					allNews={resourcePack.newsNodes}
+					beverages={resourcePack.beverages}
+					characters={resourcePack.characters}
+					foods={resourcePack.foods}
+					ingredients={resourcePack.ingredients}
+					recipes={resourcePack.recipes}
+					onRemove={() => onRemoveNews(index)}
+					onUpdate={(updates) => onUpdateNews(index, updates)}
 				/>
 			</>
 		);
@@ -399,6 +433,7 @@ export const NodeGraphInspector = memo<IProps>(function NodeGraphInspector({
 				allEvents={resourcePack.eventNodes}
 				allCharacters={resourcePack.characters}
 				allDialogPackages={resourcePack.dialogPackages}
+				allNews={resourcePack.newsNodes}
 				beverages={resourcePack.beverages}
 				foods={resourcePack.foods}
 				ingredients={resourcePack.ingredients}

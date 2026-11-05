@@ -6,6 +6,7 @@ import type { IGiftConfig } from './gift';
 import type { Beverage, Clothes, Food, Ingredient, Recipe } from './items';
 import type { MerchantConfig } from './merchant';
 import type { MissionNode } from './mission';
+import type { INewsNode } from './news';
 import type { PackInfo } from './resourceEx';
 import type { IAssetBundleConfig, IBuffConfig, ISpellConfig } from './spell';
 
@@ -29,6 +30,7 @@ export interface IResourcePackWire {
 	recipes?: Recipe[] | null;
 	missionNodes?: MissionNode[] | null;
 	eventNodes?: EventNode[] | null;
+	newsNodes?: INewsNode[] | null;
 	merchants?: MerchantConfig[] | null;
 	clothes?: Clothes[] | null;
 }

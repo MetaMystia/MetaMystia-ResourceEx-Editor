@@ -106,6 +106,7 @@ export type TComparisonReferenceKind =
 	| 'ingredient'
 	| 'item'
 	| 'mission'
+	| 'news'
 	| 'recipe';
 
 export interface IComparisonReferenceImpact {

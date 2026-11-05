@@ -1,7 +1,10 @@
 import { type Edge, MarkerType } from '@xyflow/react';
 
 import { SPECIAL_GUESTS } from '@/domain/data/specialGuest';
-import type { EventData } from '@/domain/resourcePack/contracts/event';
+import type {
+	DayConfig,
+	EventData,
+} from '@/domain/resourcePack/contracts/event';
 import type { MissionNode } from '@/domain/resourcePack/contracts/mission';
 import type { ResourceEx } from '@/domain/resourcePack/contracts/resourceEx';
 import {
@@ -23,6 +26,7 @@ import {
 	getNodeGraphKizunaHandleId,
 	type INodeGraphCondition,
 	NODE_GRAPH_INPUT_HANDLE_ID,
+	NODE_GRAPH_NODE_KIND_LABELS,
 	type TNodeGraphBadge,
 	type TNodeGraphFlowNode,
 } from './NodeGraphNodes';
@@ -57,14 +61,22 @@ export const NODE_GRAPH_EDGE_STYLES = {
 		dashArray: '2 4',
 		label: '发送外部信号',
 	},
+	scheduleNews: { color: 'hsl(var(--heroui-danger))', label: '安排新闻' },
+	dismissNews: {
+		color: 'hsl(var(--heroui-danger))',
+		dashArray: '8 4',
+		label: '取消新闻',
+	},
 } as const satisfies Record<TSchedulerGraphEdgeKind, INodeGraphEdgeStyle>;
 
-/** 图例顺序：先是两个阶段的主线连接，再是条件、信号和入口。 */
+/** 图例顺序：先是主线连接，再是条件、信号、取消和入口。 */
 export const NODE_GRAPH_EDGE_KINDS = [
 	'scheduleEvent',
 	'startMission',
+	'scheduleNews',
 	'waitEvent',
 	'fakeMissionSignal',
+	'dismissNews',
 	'kizunaEntry',
 ] as const satisfies readonly TSchedulerGraphEdgeKind[];
 
@@ -126,6 +138,16 @@ function describeEventData(eventData: EventData | undefined) {
 	}
 }
 
+/** 新闻发布日的简短说明，显示在“安排新闻”连线上。 */
+export function describeNewsTime(time: DayConfig | undefined) {
+	const isRandom = time?.dayCalcType === 'Random';
+	const days = isRandom
+		? `${time.dayRangeMin ?? 0}～${time.dayRangeMax ?? 0}`
+		: String(time?.day ?? 0);
+	if (time?.dayType === 'Absolute') return `第${days}天`;
+	return !isRandom && days === '0' ? '当天' : `${days}天后`;
+}
+
 function createCharacterNameResolver(resourcePack: ResourceEx) {
 	const namesByLabel = new Map<string, string>();
 	SPECIAL_GUESTS.forEach(({ label, name }) => namesByLabel.set(label, name));
@@ -180,7 +202,7 @@ export function createNodeGraphFlowModel(
 	graph.nodes.forEach((node) => {
 		if (node.origin !== 'local') {
 			nodes.push({
-				ariaLabel: `${node.origin === 'missing' ? '缺失' : '外部'}${node.kind === 'mission' ? '任务' : '事件'}：${node.label}`,
+				ariaLabel: `${node.origin === 'missing' ? '缺失' : '外部'}${NODE_GRAPH_NODE_KIND_LABELS[node.kind]}：${node.label}`,
 				data: {
 					label: node.label,
 					nodeKind: node.kind,
@@ -240,6 +262,25 @@ export function createNodeGraphFlowModel(
 			});
 			return;
 		}
+		if (node.kind === 'news') {
+			const newsNode = resourcePack.newsNodes[node.index ?? -1];
+			if (!newsNode) return;
+			const title = newsNode.title || newsNode.debugLabel || '未命名新闻';
+			nodes.push({
+				ariaLabel: `新闻：${title}`,
+				data: {
+					badges: getBadges(node),
+					description: newsNode.description.split('\n')[0] ?? '',
+					label: newsNode.label,
+					rewards: `奖励 ${newsNode.rewards?.length ?? 0} · 后置奖励 ${newsNode.postRewards?.length ?? 0}`,
+					title,
+				},
+				id: node.id,
+				position: { x: 0, y: 0 },
+				type: 'news',
+			});
+			return;
+		}
 		const eventNode = resourcePack.eventNodes[node.index ?? -1];
 		if (!eventNode) return;
 		const trigger = eventNode.scheduledEvent?.trigger;
@@ -271,12 +312,17 @@ export function createNodeGraphFlowModel(
 	const edges = graph.edges.map((edge): TNodeGraphFlowEdge => {
 		const style: INodeGraphEdgeStyle = NODE_GRAPH_EDGE_STYLES[edge.kind];
 		const isRemovable = isNodeGraphEdgeRemovable(edge);
+		const candidateCount = edge.newsCandidateCount ?? 0;
+		const label =
+			edge.kind === 'scheduleNews'
+				? `${describeNewsTime(edge.newsTime)}${candidateCount > 1 ? ` · ${candidateCount}选1` : ''}`
+				: edge.signal;
 		return {
 			data: {
 				isRemovable,
 				isSelected: false,
 				kind: edge.kind,
-				...(edge.signal === undefined ? {} : { label: edge.signal }),
+				...(label === undefined ? {} : { label }),
 			},
 			focusable: isRemovable,
 			id: edge.id,

@@ -78,6 +78,7 @@ export function MissionEditorScreen() {
 					allMissions={data.missionNodes || []}
 					allEvents={data.eventNodes || []}
 					allDialogPackages={data.dialogPackages || []}
+					allNews={data.newsNodes}
 					onRemove={() => removeMission(selectedIndex)}
 					onUpdate={(updates) =>
 						updateMission(selectedIndex, updates)

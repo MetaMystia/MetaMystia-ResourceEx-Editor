@@ -52,6 +52,7 @@ import type {
 	MissionNode,
 	MissionReward,
 } from './contracts/mission';
+import type { INewsNode } from './contracts/news';
 import type { PackInfo, ResourceEx } from './contracts/resourceEx';
 import type { IResourcePackWire } from './contracts/resourcePackWire';
 import type {
@@ -75,6 +76,7 @@ const COLLECTION_KEYS = [
 	'recipes',
 	'missionNodes',
 	'eventNodes',
+	'newsNodes',
 	'merchants',
 	'clothes',
 ] as const satisfies readonly (keyof IResourcePackWire)[];
@@ -1139,6 +1141,8 @@ function readMissionReward(value: unknown, path: string): MissionReward {
 		)
 	);
 	validateOptional(record, 'rewardIntArray', path, readNumberArray);
+	validateOptional(record, 'rewardIdArray', path, readStringArray);
+	validateOptional(record, 'time', path, readDayConfig);
 	validateOptional(record, 'should', path, readBoolean, true);
 	return { ...record, rewardType };
 }
@@ -1315,6 +1319,28 @@ function readEventNode(value: unknown, path: string): EventNode {
 		postEvents:
 			readOptionalValue(record, 'postEvents', path, readStringArray) ??
 			[],
+	};
+}
+
+function readNewsNode(value: unknown, path: string): INewsNode {
+	const record = readEntity(value, path);
+	const readRewards: TReader<MissionReward[]> = (items, childPath) =>
+		readArray(items, childPath, readMissionReward);
+	// Mod 把缺省或 null 的奖励按空数组处理。
+	const readOptionalRewards = (key: 'postRewards' | 'rewards') =>
+		record[key] === null
+			? []
+			: (readOptionalValue(record, key, path, readRewards) ?? []);
+	return {
+		...record,
+		label: readOptionalValue(record, 'label', path, readString) ?? '',
+		debugLabel:
+			readOptionalValue(record, 'debugLabel', path, readString) ?? '',
+		title: readOptionalValue(record, 'title', path, readString) ?? '',
+		description:
+			readOptionalValue(record, 'description', path, readString) ?? '',
+		rewards: readOptionalRewards('rewards'),
+		postRewards: readOptionalRewards('postRewards'),
 	};
 }
 
@@ -1734,6 +1760,9 @@ export function parseResourcePackWire(input: unknown): IResourcePackWire {
 		eventNodes: readCollection(record, 'eventNodes').map((value, index) =>
 			readEventNode(value, `eventNodes[${index}]`)
 		),
+		newsNodes: readCollection(record, 'newsNodes').map((value, index) =>
+			readNewsNode(value, `newsNodes[${index}]`)
+		),
 		merchants: readCollection(record, 'merchants').map((value, index) =>
 			readMerchantConfig(value, `merchants[${index}]`)
 		),
@@ -1869,5 +1898,6 @@ export function normalizeResourcePack(input: unknown): ResourceEx {
 		merchants: [...(wire.merchants ?? [])],
 		clothes: [...(wire.clothes ?? [])],
 		eventNodes: [...(wire.eventNodes ?? [])],
+		newsNodes: [...(wire.newsNodes ?? [])],
 	};
 }

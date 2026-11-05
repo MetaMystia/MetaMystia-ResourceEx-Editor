@@ -98,6 +98,7 @@ const MULTILINE_PATHS = new Set([
 	'foods.*.description',
 	'ingredients.*.description',
 	'missionNodes.*.description',
+	'newsNodes.*.description',
 	'packInfo.description',
 ]);
 
@@ -111,6 +112,8 @@ const STRING_PATHS = new Set([
 	'ingredients.*.name',
 	'missionNodes.*.debugLabel',
 	'missionNodes.*.title',
+	'newsNodes.*.debugLabel',
+	'newsNodes.*.title',
 	'packInfo.idSignature',
 	'packInfo.name',
 	'packInfo.version',

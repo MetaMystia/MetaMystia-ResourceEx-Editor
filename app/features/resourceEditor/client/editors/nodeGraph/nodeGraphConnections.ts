@@ -1,3 +1,4 @@
+import type { MissionReward } from '@/domain/resourcePack/contracts/mission';
 import type { ResourceEx } from '@/domain/resourcePack/contracts/resourceEx';
 import {
 	type ISchedulerGraph,
@@ -13,10 +14,15 @@ import {
 	appendEventNode,
 	updateEventNodeAt,
 } from '@/features/resourceEditor/client/editors/event/eventNodeEdits';
+import { createMissionReward } from '@/features/resourceEditor/client/editors/mission/missionEditorValues';
 import {
 	appendMissionNode,
 	updateMissionNodeAt,
 } from '@/features/resourceEditor/client/editors/mission/missionNodeEdits';
+import {
+	appendNewsNode,
+	updateNewsNodeAt,
+} from '@/features/resourceEditor/client/editors/news/newsNodeEdits';
 
 import {
 	NODE_GRAPH_INPUT_HANDLE_ID,
@@ -37,9 +43,23 @@ interface ILocalNodeRef {
 	kind: TSchedulerGraphNodeKind;
 }
 
+type TRewardField = 'postRewards' | 'rewards';
+
+/** 结算时执行 rewards，演出后执行 postRewards；新闻发布时两者依次执行。 */
+const REWARD_FIELD_BY_HANDLE_ID: Readonly<Record<string, TRewardField>> = {
+	afterPerformance: 'postRewards',
+	settle: 'rewards',
+};
+
 type TNodeGraphConnectionPlan =
 	| { label: string; owner: ILocalNodeRef; type: 'postEvent' }
 	| { label: string; owner: ILocalNodeRef; type: 'postMission' }
+	| {
+			field: TRewardField;
+			label: string;
+			owner: ILocalNodeRef;
+			type: 'scheduleNews';
+	  }
 	| {
 			conditionIndex: number;
 			label: string;
@@ -73,7 +93,10 @@ function findEntry(graph: ISchedulerGraph, id: string) {
 	return graph.entries.find((entry) => entry.id === id) ?? null;
 }
 
-/** 出口能新建并连接哪种节点：结算时安排事件、演出后开始任务、羁绊等级指定前置事件。 */
+/**
+ * 出口能新建并连接哪种节点：结算时安排事件、演出后开始任务、羁绊等级指定前置事件；
+ * 新闻的两个出口安排新闻。
+ */
 function getCreatableKind(
 	graph: ISchedulerGraph,
 	sourceId: string,
@@ -84,21 +107,69 @@ function getCreatableKind(
 			? null
 			: 'event';
 	}
-	if (!findLocalNode(graph, sourceId)) return null;
+	const source = findLocalNode(graph, sourceId);
+	if (!source) return null;
+	if (source.kind === 'news') {
+		return sourceHandleId !== null &&
+			Object.hasOwn(REWARD_FIELD_BY_HANDLE_ID, sourceHandleId)
+			? 'news'
+			: null;
+	}
 	if (sourceHandleId === 'settle') return 'event';
 	if (sourceHandleId === 'afterPerformance') return 'mission';
 	return null;
 }
 
+function readLocalNode(resourcePack: ResourceEx, owner: ILocalNodeRef) {
+	switch (owner.kind) {
+		case 'mission':
+			return resourcePack.missionNodes[owner.index];
+		case 'event':
+			return resourcePack.eventNodes[owner.index];
+		case 'news':
+			return resourcePack.newsNodes[owner.index];
+	}
+}
+
 function readList(resourcePack: ResourceEx, owner: ILocalNodeRef) {
-	const node =
-		owner.kind === 'mission'
-			? resourcePack.missionNodes[owner.index]
-			: resourcePack.eventNodes[owner.index];
+	const node = readLocalNode(resourcePack, owner);
 	return {
-		postEvents: node?.postEvents ?? [],
-		postMissions: node?.postMissionsAfterPerformance ?? [],
+		postEvents: node && 'postEvents' in node ? (node.postEvents ?? []) : [],
+		postMissions:
+			node && 'postMissionsAfterPerformance' in node
+				? (node.postMissionsAfterPerformance ?? [])
+				: [],
 	};
+}
+
+function readRewards(
+	resourcePack: ResourceEx,
+	owner: ILocalNodeRef,
+	field: TRewardField
+): MissionReward[] {
+	return readLocalNode(resourcePack, owner)?.[field] ?? [];
+}
+
+function writeRewards(
+	resourcePack: ResourceEx,
+	owner: ILocalNodeRef,
+	field: TRewardField,
+	rewards: MissionReward[]
+): ResourceEx {
+	switch (owner.kind) {
+		case 'mission':
+			return updateMissionNodeAt(resourcePack, owner.index, {
+				[field]: rewards,
+			});
+		case 'event':
+			return updateEventNodeAt(resourcePack, owner.index, {
+				[field]: rewards,
+			});
+		case 'news':
+			return updateNewsNodeAt(resourcePack, owner.index, {
+				[field]: rewards,
+			});
+	}
 }
 
 function planToTarget(
@@ -137,6 +208,32 @@ function planToTarget(
 	const lists = readList(resourcePack, owner);
 
 	if (targetHandleId === NODE_GRAPH_INPUT_HANDLE_ID) {
+		const rewardField =
+			sourceHandleId === null
+				? undefined
+				: REWARD_FIELD_BY_HANDLE_ID[sourceHandleId];
+		if (target.kind === 'news') {
+			if (!rewardField) return null;
+			const isScheduled = readRewards(
+				resourcePack,
+				owner,
+				rewardField
+			).some(
+				(reward) =>
+					reward.rewardType === 'ScheduleNews' &&
+					reward.rewardIdArray?.includes(target.label)
+			);
+			return isScheduled
+				? null
+				: {
+						field: rewardField,
+						label: target.label,
+						owner,
+						type: 'scheduleNews',
+					};
+		}
+		// 新闻节点没有 postEvents、postMissions，只能安排新闻。
+		if (source.kind === 'news') return null;
 		if (sourceHandleId === 'settle' && target.kind === 'event') {
 			return lists.postEvents.includes(target.label)
 				? null
@@ -212,10 +309,26 @@ export function applyNodeGraphConnection(
 								plan.label,
 							],
 						};
-			return plan.owner.kind === 'mission'
-				? updateMissionNodeAt(resourcePack, plan.owner.index, updates)
-				: updateEventNodeAt(resourcePack, plan.owner.index, updates);
+			if (plan.owner.kind === 'mission') {
+				return updateMissionNodeAt(
+					resourcePack,
+					plan.owner.index,
+					updates
+				);
+			}
+			// 新闻节点不会产生这两种连接。
+			return plan.owner.kind === 'event'
+				? updateEventNodeAt(resourcePack, plan.owner.index, updates)
+				: resourcePack;
 		}
+		case 'scheduleNews':
+			return writeRewards(resourcePack, plan.owner, plan.field, [
+				...readRewards(resourcePack, plan.owner, plan.field),
+				{
+					...createMissionReward('ScheduleNews'),
+					rewardIdArray: [plan.label],
+				},
+			]);
 		case 'waitEvent': {
 			const mission = resourcePack.missionNodes[plan.missionIndex];
 			if (!mission) return resourcePack;
@@ -292,11 +405,15 @@ export function createNodeGraphConnectedNode(
 	let nextResourcePack =
 		kind === 'mission'
 			? appendMissionNode(resourcePack)
-			: appendEventNode(resourcePack);
+			: kind === 'event'
+				? appendEventNode(resourcePack)
+				: appendNewsNode(resourcePack);
 	const index =
 		kind === 'mission'
 			? nextResourcePack.missionNodes.length - 1
-			: nextResourcePack.eventNodes.length - 1;
+			: kind === 'event'
+				? nextResourcePack.eventNodes.length - 1
+				: nextResourcePack.newsNodes.length - 1;
 	const entry = findEntry(graph, sourceId);
 	const level = readNodeGraphKizunaHandleLevel(sourceHandleId);
 	if (entry && level !== null) {
@@ -306,10 +423,7 @@ export function createNodeGraphConnectedNode(
 			createKizunaEventDefaults(entry, level)
 		);
 	}
-	const label =
-		kind === 'mission'
-			? nextResourcePack.missionNodes[index]?.label
-			: nextResourcePack.eventNodes[index]?.label;
+	const label = readLocalNode(nextResourcePack, { index, kind })?.label;
 	if (!label) return null;
 
 	const plan = planToTarget(
@@ -366,6 +480,32 @@ export function removeNodeGraphEdge(
 	const owner = findLocalNode(graph, edge.ownerId);
 	if (!owner || typeof firstIndex !== 'number') return null;
 
+	if (edge.kind === 'scheduleNews' || edge.kind === 'dismissNews') {
+		if (rootField !== 'rewards' && rootField !== 'postRewards') return null;
+		const rewards = readRewards(resourcePack, owner, rootField);
+		const reward = rewards[firstIndex];
+		if (!reward) return null;
+		// 候选新闻只剩这一条时删除整个奖励，否则只移除这一条候选。
+		const remainingLabels =
+			edge.kind === 'scheduleNews' && typeof secondIndex === 'number'
+				? (reward.rewardIdArray ?? []).filter(
+						(_, labelIndex) => labelIndex !== secondIndex
+					)
+				: [];
+		return writeRewards(
+			resourcePack,
+			owner,
+			rootField,
+			remainingLabels.length > 0
+				? rewards.map((candidate, index) =>
+						index === firstIndex
+							? { ...candidate, rewardIdArray: remainingLabels }
+							: candidate
+					)
+				: rewards.filter((_, index) => index !== firstIndex)
+		);
+	}
+
 	if (edge.kind === 'waitEvent') {
 		const mission = resourcePack.missionNodes[owner.index];
 		if (!mission || typeof secondIndex !== 'number') return null;
@@ -401,7 +541,12 @@ export function removeNodeGraphEdge(
 					}
 				: null;
 	if (!updates) return null;
-	return owner.kind === 'mission'
-		? updateMissionNodeAt(resourcePack, owner.index, updates)
-		: updateEventNodeAt(resourcePack, owner.index, updates);
+	switch (owner.kind) {
+		case 'mission':
+			return updateMissionNodeAt(resourcePack, owner.index, updates);
+		case 'event':
+			return updateEventNodeAt(resourcePack, owner.index, updates);
+		case 'news':
+			return null;
+	}
 }

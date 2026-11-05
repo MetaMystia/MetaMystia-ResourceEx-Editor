@@ -12,10 +12,12 @@ import type {
 	ObjectType,
 	RewardType,
 } from '@/domain/resourcePack/contracts/mission';
+import type { INewsNode } from '@/domain/resourcePack/contracts/news';
 
 import { SectionAddButton } from '@/features/resourceEditor/client/components/actions/SectionAddButton';
 import { SectionDeleteButton } from '@/features/resourceEditor/client/components/actions/SectionDeleteButton';
 import { TrashIcon } from '@/features/resourceEditor/client/components/actions/TrashIcon';
+import { DayConfigFields } from '@/features/resourceEditor/client/components/fields/DayConfigFields';
 import { Label } from '@/features/resourceEditor/client/components/fields/Label';
 import { EditorSection } from '@/features/resourceEditor/client/components/layout/EditorSection';
 import { EmptyState } from '@/features/resourceEditor/client/components/layout/EmptyState';
@@ -118,8 +120,8 @@ function AddRewardItemRow({
 
 const REWARD_TYPES: { type: RewardType; label: string }[] = [
 	{ type: 'UnlockNPC', label: '【未实现】解锁NPC' },
-	{ type: 'ScheduleNews', label: '【未实现】计划新闻' },
-	{ type: 'DismissNews', label: '【未实现】取消被计划的新闻' },
+	{ type: 'ScheduleNews', label: '计划新闻' },
+	{ type: 'DismissNews', label: '取消被计划的新闻' },
 	{ type: 'ModifyPopSystem', label: '【未实现】修改流行系统' },
 	{ type: 'ToggleResourcePoint', label: '【未实现】开关采集点' },
 	{
@@ -239,6 +241,89 @@ const REWARD_TYPES: { type: RewardType; label: string }[] = [
 	{ type: 'SetAndSavePlayerPref', label: '【未实现】设置PlayerPref' },
 ];
 
+interface IScheduleNewsFieldsProps {
+	reward: MissionReward;
+	newsOptions: ISelectOption<string>[];
+	onUpdate: (updates: Partial<MissionReward>) => void;
+}
+
+/** `ScheduleNews`：候选新闻随机取其一，在指定日期进入白天时发布。 */
+function ScheduleNewsFields({
+	reward,
+	newsOptions,
+	onUpdate,
+}: IScheduleNewsFieldsProps) {
+	const labels = reward.rewardIdArray ?? [];
+	const updateLabels = (rewardIdArray: string[]) =>
+		onUpdate({ rewardIdArray });
+
+	return (
+		<div className="flex flex-col gap-3 rounded-medium border border-divider bg-content2/30 p-3">
+			<div className="flex flex-col gap-1">
+				<Label size="sm">候选新闻（Reward ID Array）</Label>
+				{labels.map((label, labelIndex) => (
+					<div
+						key={labelIndex}
+						className="flex min-w-0 items-center gap-2"
+					>
+						<Select<string>
+							ariaLabel={`候选新闻#${labelIndex + 1}`}
+							baseClassName="min-w-0 flex-1"
+							placeholder="请选择新闻…"
+							value={label}
+							onChange={(value) =>
+								updateLabels(
+									labels.map((current, index) =>
+										index === labelIndex ? value : current
+									)
+								)
+							}
+							items={newsOptions}
+						/>
+						<Tooltip content="移除新闻">
+							<Button
+								isIconOnly
+								size="sm"
+								variant="light"
+								color="danger"
+								aria-label="移除新闻"
+								className="h-10 w-10 min-w-10 shrink-0"
+								onPress={() =>
+									updateLabels(
+										labels.filter(
+											(_, index) => index !== labelIndex
+										)
+									)
+								}
+							>
+								<TrashIcon className="h-4 w-4" />
+							</Button>
+						</Tooltip>
+					</div>
+				))}
+				<Button
+					variant="flat"
+					color="primary"
+					size="sm"
+					className="self-start"
+					onPress={() => updateLabels([...labels, ''])}
+				>
+					添加候选新闻
+				</Button>
+			</div>
+			<DayConfigFields
+				value={reward.time}
+				defaultDay={0}
+				onChange={(time) => onUpdate({ time })}
+			/>
+			<WarningNotice>
+				有多条候选时随机发布其中一条。游戏进入白天时发布当天的新闻，安排到当天的通常不会显示，建议相对天数至少为
+				1。
+			</WarningNotice>
+		</div>
+	);
+}
+
 interface MissionRewardListProps {
 	title?: string;
 	rewards: MissionReward[];
@@ -247,6 +332,7 @@ interface MissionRewardListProps {
 	allFoods: { id: number; name: string }[];
 	allIngredients: { id: number; name: string }[];
 	allRecipes: { id: number; name: string }[];
+	allNews: readonly INewsNode[];
 	onUpdate: (rewards: MissionReward[]) => void;
 }
 
@@ -259,8 +345,17 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 		allFoods,
 		allIngredients,
 		allRecipes,
+		allNews,
 		onUpdate,
 	}) {
+		const newsOptions = useMemo<ISelectOption<string>[]>(
+			() =>
+				allNews.map((newsNode) => ({
+					value: newsNode.label,
+					label: `${newsNode.title || newsNode.debugLabel || newsNode.label}（${newsNode.label}）`,
+				})),
+			[allNews]
+		);
 		const addReward = useCallback(() => {
 			const newRewards: MissionReward[] = [
 				...(rewards || []),
@@ -679,9 +774,45 @@ export const MissionRewardList = memo<MissionRewardListProps>(
 								</div>
 							)}
 
+							{reward.rewardType === 'ScheduleNews' && (
+								<ScheduleNewsFields
+									reward={reward}
+									newsOptions={newsOptions}
+									onUpdate={(updates) =>
+										updateReward(index, updates)
+									}
+								/>
+							)}
+
+							{reward.rewardType === 'DismissNews' && (
+								<div className="flex flex-col gap-3">
+									<div className="flex flex-col gap-1">
+										<Label size="sm">
+											目标新闻（Reward ID）
+										</Label>
+										<Select<string>
+											ariaLabel="目标新闻"
+											placeholder="请选择新闻…"
+											value={reward.rewardId ?? ''}
+											onChange={(v) =>
+												updateReward(index, {
+													rewardId: v,
+												})
+											}
+											items={newsOptions}
+										/>
+									</div>
+									<WarningNotice>
+										在每个日期的待发布列表中各移除一条该新闻。
+									</WarningNotice>
+								</div>
+							)}
+
 							{reward.rewardType !== 'UpgradeKizunaLevel' &&
 								reward.rewardType !== 'GiveItem' &&
 								reward.rewardType !== 'FinishFakeMission' &&
+								reward.rewardType !== 'ScheduleNews' &&
+								reward.rewardType !== 'DismissNews' &&
 								reward.rewardType !==
 									'EnableSGuestSpawnInTargetIzakayaById' && (
 									<WarningNotice>

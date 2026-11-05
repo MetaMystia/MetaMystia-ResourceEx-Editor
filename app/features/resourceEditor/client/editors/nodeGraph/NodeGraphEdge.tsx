@@ -77,7 +77,7 @@ export const NodeGraphEdge = memo(function NodeGraphEdge({
 						{label !== undefined && (
 							<span
 								className={cn(
-									'rounded-small bg-content1 px-1.5 text-[11px] leading-5 text-foreground-600 shadow-sm',
+									'whitespace-nowrap rounded-small bg-content1 px-1.5 text-[11px] leading-5 text-foreground-600 shadow-sm',
 									style?.opacity !== undefined && 'opacity-40'
 								)}
 							>

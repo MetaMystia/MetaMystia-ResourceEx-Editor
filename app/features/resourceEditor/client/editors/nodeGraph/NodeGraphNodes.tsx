@@ -18,7 +18,8 @@ import { WarningBadge } from '@/features/resourceEditor/client/components/status
 
 import { type INodeGraphSize } from './nodeGraphLayout';
 
-export type TNodeGraphCardKind = 'entry' | 'event' | 'external' | 'mission';
+export type TNodeGraphCardKind =
+	'entry' | 'event' | 'external' | 'mission' | 'news';
 
 export type TNodeGraphBadge = 'duplicateLabel' | 'emptyLabel' | 'noEntry';
 
@@ -51,6 +52,14 @@ export interface IEventCardData extends Record<string, unknown> {
 	trigger: string;
 }
 
+export interface INewsCardData extends Record<string, unknown> {
+	badges: readonly TNodeGraphBadge[];
+	description: string;
+	label: string;
+	rewards: string;
+	title: string;
+}
+
 export interface INodeGraphKizunaLevel {
 	hasEvent: boolean;
 	level: TKizunaPrerequisiteLevel;
@@ -72,8 +81,13 @@ export type TMissionFlowNode = Node<IMissionCardData, 'mission'>;
 export type TEventFlowNode = Node<IEventCardData, 'event'>;
 export type TEntryFlowNode = Node<IEntryCardData, 'entry'>;
 export type TExternalFlowNode = Node<IExternalCardData, 'external'>;
+export type TNewsFlowNode = Node<INewsCardData, 'news'>;
 export type TNodeGraphFlowNode =
-	TEntryFlowNode | TEventFlowNode | TExternalFlowNode | TMissionFlowNode;
+	| TEntryFlowNode
+	| TEventFlowNode
+	| TExternalFlowNode
+	| TMissionFlowNode
+	| TNewsFlowNode;
 
 export const NODE_GRAPH_INPUT_HANDLE_ID = 'in';
 
@@ -118,12 +132,36 @@ export const NODE_GRAPH_CARD_WIDTH_PX = {
 	event: 256,
 	external: 224,
 	mission: 280,
+	news: 256,
 } as const satisfies Record<TNodeGraphCardKind, number>;
 
+interface IPhaseOutput {
+	handleClassName: string;
+	id: TSchedulerGraphPhase;
+	label: string;
+}
+
 const PHASE_OUTPUTS = [
-	{ id: 'settle', label: '结算时' },
-	{ id: 'afterPerformance', label: '演出后' },
-] as const satisfies readonly { id: TSchedulerGraphPhase; label: string }[];
+	{ handleClassName: '!bg-warning', id: 'settle', label: '结算时' },
+	{ handleClassName: '!bg-focus', id: 'afterPerformance', label: '演出后' },
+] as const satisfies readonly IPhaseOutput[];
+
+/** 新闻发布时依次执行 rewards、postRewards，两个出口都只能安排新闻。 */
+const NEWS_OUTPUTS = [
+	{ handleClassName: '!bg-danger', id: 'settle', label: '奖励' },
+	{
+		handleClassName: '!bg-danger',
+		id: 'afterPerformance',
+		label: '后置奖励',
+	},
+] as const satisfies readonly IPhaseOutput[];
+
+/** 外部节点、新闻节点卡片上的类型名称。 */
+export const NODE_GRAPH_NODE_KIND_LABELS = {
+	event: '事件',
+	mission: '任务',
+	news: '新闻',
+} as const satisfies Record<TSchedulerGraphNodeKind, string>;
 
 const BADGE_LABELS = {
 	duplicateLabel: '标签重复',
@@ -153,13 +191,14 @@ export function estimateNodeGraphCardSize(
 				width: NODE_GRAPH_CARD_WIDTH_PX.entry,
 			};
 		case 'event':
+		case 'news':
 			return {
 				height:
 					CARD_HEADER_HEIGHT_PX +
 					CARD_SECTION_PADDING_PX +
 					CARD_ROW_HEIGHT_PX * 2 +
 					CARD_OUTPUTS_HEIGHT_PX,
-				width: NODE_GRAPH_CARD_WIDTH_PX.event,
+				width: NODE_GRAPH_CARD_WIDTH_PX[node.type],
 			};
 		case 'mission':
 			return {
@@ -255,8 +294,10 @@ function CardHeader({
 
 const INFO_ICON_PATHS = {
 	condition: 'M3.5 3.5h9v9h-9z M6 8l1.5 1.5L10.5 6.5',
+	description: 'M3 4h10 M3 7h10 M3 10h10 M3 13h6',
 	participants: 'M2.5 8h9 M8.5 5l3 3-3 3',
 	performance: 'M5 3.5v9l7-4.5z',
+	reward: 'M3 7h10v6H3z M2.5 4.5h11V7h-11z M8 4.5V13',
 	trigger: 'M9 2 4 9h4l-1 5 5-7H8z',
 } as const;
 
@@ -294,10 +335,14 @@ function InfoRow({
 	);
 }
 
-function PhaseOutputs() {
+function PhaseOutputs({
+	outputs = PHASE_OUTPUTS,
+}: {
+	outputs?: readonly IPhaseOutput[];
+}) {
 	return (
 		<div className="flex flex-col border-t border-divider py-1">
-			{PHASE_OUTPUTS.map(({ id, label }) => (
+			{outputs.map(({ handleClassName, id, label }) => (
 				<div
 					key={id}
 					className="relative flex h-6 items-center justify-end pr-3.5 text-[11px] leading-4 text-foreground-500"
@@ -307,10 +352,7 @@ function PhaseOutputs() {
 						type="source"
 						id={id}
 						position={Position.Right}
-						className={cn(
-							HANDLE_CLASS_NAME,
-							id === 'settle' ? '!bg-warning' : '!bg-focus'
-						)}
+						className={cn(HANDLE_CLASS_NAME, handleClassName)}
 					/>
 				</div>
 			))}
@@ -421,6 +463,37 @@ const MissionGraphNode = memo(function MissionGraphNode({
 	);
 });
 
+const NewsGraphNode = memo(function NewsGraphNode({
+	data,
+	selected,
+}: NodeProps<TNewsFlowNode>) {
+	return (
+		<div
+			className={cn(CARD_CLASS_NAME, getCardStateClassName(selected))}
+			style={{ width: NODE_GRAPH_CARD_WIDTH_PX.news }}
+		>
+			<InputHandle />
+			<CardHeader
+				badges={<CardBadges badges={data.badges} />}
+				chip={
+					<KindChip className="bg-danger/15 text-danger-700 dark:text-danger">
+						{NODE_GRAPH_NODE_KIND_LABELS.news}
+					</KindChip>
+				}
+				label={data.label}
+				title={data.title}
+			/>
+			<div className="flex flex-col border-t border-divider px-3 py-2">
+				<InfoRow icon="description" isMuted={!data.description}>
+					{data.description || '无正文'}
+				</InfoRow>
+				<InfoRow icon="reward">{data.rewards}</InfoRow>
+			</div>
+			<PhaseOutputs outputs={NEWS_OUTPUTS} />
+		</div>
+	);
+});
+
 const EntryGraphNode = memo(function EntryGraphNode({
 	data,
 	selected,
@@ -471,7 +544,7 @@ const ExternalGraphNode = memo(function ExternalGraphNode({
 	selected,
 }: NodeProps<TExternalFlowNode>) {
 	const isMissing = data.origin === 'missing';
-	const kindLabel = data.nodeKind === 'mission' ? '任务' : '事件';
+	const kindLabel = NODE_GRAPH_NODE_KIND_LABELS[data.nodeKind];
 	return (
 		<div
 			className={cn(
@@ -517,4 +590,5 @@ export const NODE_GRAPH_NODE_TYPES = {
 	event: EventGraphNode,
 	external: ExternalGraphNode,
 	mission: MissionGraphNode,
+	news: NewsGraphNode,
 };

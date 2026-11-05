@@ -78,6 +78,7 @@ export function EventEditorScreen() {
 					ingredients={data.ingredients || []}
 					recipes={data.recipes || []}
 					allDialogPackages={data.dialogPackages || []}
+					allNews={data.newsNodes}
 					onRemove={() => removeEvent(selectedIndex)}
 					onUpdate={(updates) => updateEvent(selectedIndex, updates)}
 				/>

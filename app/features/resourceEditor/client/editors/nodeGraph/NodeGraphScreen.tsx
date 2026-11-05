@@ -11,6 +11,7 @@ import Button from '@/design/ui/components/button';
 
 import type { EventNode } from '@/domain/resourcePack/contracts/event';
 import type { MissionNode } from '@/domain/resourcePack/contracts/mission';
+import type { INewsNode } from '@/domain/resourcePack/contracts/news';
 import { RESOURCE_EDITOR_ROUTE_BY_ENTITY_KIND } from '@/domain/resourcePack/editorNavigation';
 import {
 	buildSchedulerGraph,
@@ -29,6 +30,11 @@ import {
 	removeMissionNodeAt,
 	updateMissionNodeAt,
 } from '@/features/resourceEditor/client/editors/mission/missionNodeEdits';
+import {
+	appendNewsNode,
+	removeNewsNodeAt,
+	updateNewsNodeAt,
+} from '@/features/resourceEditor/client/editors/news/newsNodeEdits';
 import { useViewportFillHeight } from '@/features/resourceEditor/client/hooks/useViewportFillHeight';
 import { createEditorNavigationUrl } from '@/features/resourceEditor/client/navigation/editorNavigationIntent';
 import { useResourceEditor } from '@/features/resourceEditor/client/state/useResourceEditor';
@@ -311,6 +317,17 @@ function WorkspaceNodeGraph({ workspaceId }: IWorkspaceNodeGraphProps) {
 		},
 		[moveStoredPosition, updateResourcePack]
 	);
+	const handleUpdateNews = useCallback(
+		(index: number, updates: Partial<INewsNode>) => {
+			updateResourcePack((current) =>
+				updateNewsNodeAt(current, index, updates)
+			);
+			if (updates.label !== undefined) {
+				moveStoredPosition('news', index, updates.label);
+			}
+		},
+		[moveStoredPosition, updateResourcePack]
+	);
 	const handleRemoveMission = useCallback(
 		(index: number) => {
 			updateResourcePack((current) =>
@@ -327,9 +344,17 @@ function WorkspaceNodeGraph({ workspaceId }: IWorkspaceNodeGraphProps) {
 		},
 		[updateResourcePack]
 	);
+	const handleRemoveNews = useCallback(
+		(index: number) => {
+			updateResourcePack((current) => removeNewsNodeAt(current, index));
+			setSelection(null);
+		},
+		[updateResourcePack]
+	);
 
 	const missionCount = resourcePack.missionNodes.length;
 	const eventCount = resourcePack.eventNodes.length;
+	const newsCount = resourcePack.newsNodes.length;
 	const handleAddMission = useCallback(() => {
 		updateResourcePack(appendMissionNode);
 		shouldFocusSelectionRef.current = true;
@@ -340,6 +365,11 @@ function WorkspaceNodeGraph({ workspaceId }: IWorkspaceNodeGraphProps) {
 		shouldFocusSelectionRef.current = true;
 		setSelection({ index: eventCount, kind: 'event' });
 	}, [eventCount, updateResourcePack]);
+	const handleAddNews = useCallback(() => {
+		updateResourcePack(appendNewsNode);
+		shouldFocusSelectionRef.current = true;
+		setSelection({ index: newsCount, kind: 'news' });
+	}, [newsCount, updateResourcePack]);
 
 	const isValidConnection = useCallback(
 		(request: INodeGraphConnectionRequest) =>
@@ -450,6 +480,12 @@ function WorkspaceNodeGraph({ workspaceId }: IWorkspaceNodeGraphProps) {
 				section: '事件',
 			},
 			{
+				options: createOptions(
+					(node) => node.origin === 'local' && node.kind === 'news'
+				),
+				section: '新闻',
+			},
+			{
 				options: graph.entries.map((entry) => ({
 					description: entry.characterLabel,
 					label: entry.characterName || entry.characterLabel,
@@ -487,6 +523,14 @@ function WorkspaceNodeGraph({ workspaceId }: IWorkspaceNodeGraphProps) {
 				onPress={handleAddEvent}
 			>
 				新建事件
+			</Button>
+			<Button
+				size="sm"
+				variant="flat"
+				color="danger"
+				onPress={handleAddNews}
+			>
+				新建新闻
 			</Button>
 			{searchItems.length > 0 && (
 				<Select<string>
@@ -533,7 +577,7 @@ function WorkspaceNodeGraph({ workspaceId }: IWorkspaceNodeGraphProps) {
 								'max-w-sm text-center'
 							)}
 						>
-							还没有任务节点或事件节点。用左上角的按钮新建，或在角色的羁绊设置里指定前置事件。
+							还没有任务、事件或新闻节点。用左上角的按钮新建，或在角色的羁绊设置里指定前置事件。
 						</p>
 					</div>
 				)}
@@ -552,9 +596,11 @@ function WorkspaceNodeGraph({ workspaceId }: IWorkspaceNodeGraphProps) {
 					onRemoveEdge={handleEdgeRemove}
 					onRemoveEvent={handleRemoveEvent}
 					onRemoveMission={handleRemoveMission}
+					onRemoveNews={handleRemoveNews}
 					onSelect={handleSelectAndFocus}
 					onUpdateEvent={handleUpdateEvent}
 					onUpdateMission={handleUpdateMission}
+					onUpdateNews={handleUpdateNews}
 				/>
 			</aside>
 		</div>

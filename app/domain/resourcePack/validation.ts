@@ -20,7 +20,7 @@ import {
 	UNMANAGED_ID_MAX,
 	UNMANAGED_ID_MIN,
 } from './constants';
-import type { EventData, EventNodeTrigger } from './contracts/event';
+import type { DayConfig, EventData, EventNodeTrigger } from './contracts/event';
 import type { IItemConfig } from './contracts/items';
 import type { MissionReward } from './contracts/mission';
 import type { ResourceEx } from './contracts/resourceEx';
@@ -83,6 +83,8 @@ const FOOD_TAG_IDS = new Set<number>(FOOD_TAGS.map(({ id }) => id));
 const BEVERAGE_TAG_IDS = new Set<number>(BEVERAGE_TAGS.map(({ id }) => id));
 /** Mod 为白天地图生成的地图标识前缀（`DayMapRegistry.GetLabel`）。 */
 const DAY_MAP_LABEL_PREFIX = '_ResourceEx_Map_';
+/** 游戏文本占位符（如 `$a`）；奖励安排的新闻没有替换内容。 */
+const TEXT_PLACEHOLDER_PATTERN = /\$[a-z]/u;
 
 function isItemReferenceKind(
 	value: string | undefined
@@ -798,6 +800,65 @@ export function validateResourcePackRules(
 		checkLabelPrefix(event.label, '事件节点', displayName);
 	});
 
+	// ── News Nodes ────────────────────────────────────────
+	const newsNames = (index: number) =>
+		data.newsNodes[index]?.title ||
+		data.newsNodes[index]?.debugLabel ||
+		`新闻#${index + 1}`;
+	checkStringDuplicate(
+		data.newsNodes.map((newsNode) => newsNode.label),
+		'新闻节点',
+		'标签',
+		newsNames
+	);
+	const scheduledNewsLabels = new Set(
+		[...data.missionNodes, ...data.eventNodes, ...data.newsNodes].flatMap(
+			(node) =>
+				[...(node.rewards ?? []), ...(node.postRewards ?? [])].flatMap(
+					(reward) =>
+						reward.rewardType === 'ScheduleNews'
+							? (reward.rewardIdArray ?? []).map((label) =>
+									label.trim()
+								)
+							: []
+				)
+		)
+	);
+	data.newsNodes.forEach((newsNode, index) => {
+		const displayName = newsNames(index);
+		if (!newsNode.label) {
+			issues.push({
+				severity: 'error',
+				category: '新闻节点',
+				message: `${displayName}的标签不能为空`,
+			});
+		} else if (!scheduledNewsLabels.has(newsNode.label.trim())) {
+			issues.push({
+				severity: 'warning',
+				category: '新闻节点',
+				message: `${displayName}未被本包的“计划新闻”奖励安排`,
+			});
+		}
+		checkLabelPrefix(newsNode.label, '新闻节点', displayName);
+		if (!newsNode.title.trim()) {
+			issues.push({
+				severity: 'warning',
+				category: '新闻节点',
+				message: `${displayName}的标题为空`,
+			});
+		}
+		const placeholder = `${newsNode.title}\n${newsNode.description}`.match(
+			TEXT_PLACEHOLDER_PATTERN
+		)?.[0];
+		if (placeholder) {
+			issues.push({
+				severity: 'warning',
+				category: '新闻节点',
+				message: `${displayName}含有占位符“${placeholder}”，奖励安排的新闻不会替换占位符`,
+			});
+		}
+	});
+
 	// ── Ingredients ───────────────────────────────────────
 	const ingNames = (i: number) =>
 		data.ingredients[i]?.name || `食材#${i + 1}`;
@@ -1056,6 +1117,7 @@ export function validateResourcePackRules(
 	const missionLabels = new Set(
 		data.missionNodes.map(({ label }) => label.trim())
 	);
+	const newsLabels = new Set(data.newsNodes.map(({ label }) => label.trim()));
 	const mapLabels = new Set(
 		data.dayMaps.map(({ id }) => `${DAY_MAP_LABEL_PREFIX}${id}`)
 	);
@@ -1155,11 +1217,64 @@ export function validateResourcePackRules(
 		});
 	}
 
+	/** 游戏在进入白天时发布当天的新闻；之后再安排到当天的不会发布。 */
+	function checkNewsTime(time: DayConfig | undefined, owner: string): void {
+		const dayType = time?.dayType ?? 'Relative';
+		let earliestDay: number;
+		if (time?.dayCalcType === 'Random') {
+			const dayRangeMin = time.dayRangeMin ?? 0;
+			const dayRangeMax = time.dayRangeMax ?? 0;
+			checkRequiredNonNegativeInteger(dayRangeMin, '新闻最小天数', owner);
+			checkRequiredNonNegativeInteger(dayRangeMax, '新闻最大天数', owner);
+			if (dayRangeMin > dayRangeMax) {
+				reportDanglingReference(
+					`${owner}的新闻最小天数不能大于最大天数`
+				);
+			}
+			earliestDay = dayRangeMin;
+		} else {
+			earliestDay = time?.day ?? 0;
+			checkRequiredNonNegativeInteger(earliestDay, '新闻发布天数', owner);
+		}
+		if (dayType === 'Relative' && earliestDay === 0) {
+			reportDanglingReference(
+				`${owner}安排的新闻可能在当天发布；当天的新闻在进入白天时已经发布，之后安排的不会显示`,
+				'warning'
+			);
+		}
+	}
+
 	function checkRewardReferences(
 		rewards: readonly MissionReward[] | undefined,
 		owner: string
 	): void {
 		rewards?.forEach((reward) => {
+			if (reward.rewardType === 'ScheduleNews') {
+				const labels = reward.rewardIdArray ?? [];
+				if (labels.length === 0) {
+					reportDanglingReference(`${owner}的计划新闻奖励未选择新闻`);
+				} else if (labels.some((label) => !label.trim())) {
+					reportDanglingReference(
+						`${owner}的计划新闻奖励有未选择的新闻`
+					);
+				}
+				labels.forEach((label) =>
+					checkLabelReference(label, newsLabels, '新闻', owner)
+				);
+				checkNewsTime(reward.time, owner);
+			}
+			if (reward.rewardType === 'DismissNews') {
+				if (!reward.rewardId?.trim()) {
+					reportDanglingReference(`${owner}的取消新闻奖励未选择新闻`);
+				} else {
+					checkLabelReference(
+						reward.rewardId,
+						newsLabels,
+						'新闻',
+						owner
+					);
+				}
+			}
 			if (
 				reward.rewardType === 'FinishFakeMission' &&
 				!reward.rewardId?.trim()
@@ -1703,6 +1818,12 @@ export function validateResourcePackRules(
 		);
 	});
 
+	data.newsNodes.forEach((newsNode) => {
+		const owner = `新闻“${newsNode.label}”`;
+		checkRewardReferences(newsNode.rewards, owner);
+		checkRewardReferences(newsNode.postRewards, owner);
+	});
+
 	data.foods.forEach((food, index) =>
 		checkTagReferences(
 			[...food.tags, ...food.banTags],
@@ -1796,19 +1917,20 @@ export function validateResourcePackRules(
 		}
 	});
 	const obtainableRecipeIds = new Set<number>();
-	[...data.missionNodes, ...data.eventNodes].forEach((node) =>
-		[...(node.rewards ?? []), ...(node.postRewards ?? [])].forEach(
-			(reward) => {
-				if (
-					reward.rewardType === 'GiveItem' &&
-					reward.objectType === 'Recipe'
-				) {
-					reward.rewardIntArray?.forEach((id) =>
-						obtainableRecipeIds.add(id)
-					);
+	[...data.missionNodes, ...data.eventNodes, ...data.newsNodes].forEach(
+		(node) =>
+			[...(node.rewards ?? []), ...(node.postRewards ?? [])].forEach(
+				(reward) => {
+					if (
+						reward.rewardType === 'GiveItem' &&
+						reward.objectType === 'Recipe'
+					) {
+						reward.rewardIntArray?.forEach((id) =>
+							obtainableRecipeIds.add(id)
+						);
+					}
 				}
-			}
-		)
+			)
 	);
 	data.merchants.forEach(({ merchandise }) =>
 		merchandise.forEach(({ item }) => {
@@ -1821,7 +1943,7 @@ export function validateResourcePackRules(
 			issues.push({
 				severity: 'warning',
 				category: '食谱',
-				message: `${recipeNames(index)}没有获得途径（任务、事件奖励或商人）`,
+				message: `${recipeNames(index)}没有获得途径（任务、事件、新闻奖励或商人）`,
 			});
 		}
 	});
