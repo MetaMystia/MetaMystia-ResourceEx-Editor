@@ -90,7 +90,8 @@ function remapCharacterReward(
 	toLabel: string
 ): void {
 	if (
-		reward.rewardType === 'UpgradeKizunaLevel' &&
+		(reward.rewardType === 'UpgradeKizunaLevel' ||
+			reward.rewardType === 'EnableSGuestSpawnInTargetIzakayaById') &&
 		reward.rewardId === fromLabel
 	) {
 		reward.rewardId = toLabel;

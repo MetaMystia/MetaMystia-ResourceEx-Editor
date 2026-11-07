@@ -1294,6 +1294,50 @@ export function validateResourcePackRules(
 					GAME_CHARACTER_LABELS
 				);
 			}
+			if (reward.rewardType === 'EnableSGuestSpawnInTargetIzakayaById') {
+				const label = reward.rewardId?.trim();
+				if (label) {
+					checkLabelReference(
+						label,
+						characterLabels,
+						'角色',
+						owner,
+						GAME_CHARACTER_LABELS
+					);
+				} else {
+					reportDanglingReference(
+						`${owner}的稀客出没地点奖励未选择目标角色`
+					);
+				}
+				if (!reward.rewardIntArray?.length) {
+					reportDanglingReference(
+						`${owner}的稀客出没地点奖励未添加酒馆`
+					);
+				}
+				const character = data.characters.find(
+					(item) => item.label.trim() === label
+				);
+				reward.rewardIntArray?.forEach((izakayaId) => {
+					if (!GAME_IZAKAYA_IDS.has(izakayaId)) {
+						reportDanglingReference(
+							`${owner}的稀客出没地点奖励引用了游戏中不存在的酒馆（${izakayaId}）`
+						);
+					} else if (
+						character &&
+						!character.guest?.spawn?.some(
+							(spawn) =>
+								spawn.izakayaId === izakayaId &&
+								spawn.onlySpawnAfterUnlocking &&
+								spawn.onlySpawnWhenPlaceBeRecorded
+						)
+					) {
+						// 两个开关都开启时，夜间生成才受出没记录控制。
+						reportDanglingReference(
+							`${owner}的稀客出没地点奖励中，角色“${label}”需要酒馆（${izakayaId}）的出现地点，并同时开启“解锁后出现”和“按店铺许可后出现”`
+						);
+					}
+				});
+			}
 			if (reward.rewardType === 'GiveItem') {
 				const objectType = reward.objectType;
 				if (!objectType) {
