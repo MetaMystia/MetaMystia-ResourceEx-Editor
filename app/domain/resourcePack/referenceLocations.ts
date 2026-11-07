@@ -138,7 +138,10 @@ function addRewardReferences(
 ): void {
 	rewards?.forEach((reward, rewardIndex) => {
 		const rewardPath = [...fieldPrefix, rewardIndex];
-		if (reward.rewardType === 'UpgradeKizunaLevel') {
+		if (
+			reward.rewardType === 'UpgradeKizunaLevel' ||
+			reward.rewardType === 'EnableSGuestSpawnInTargetIzakayaById'
+		) {
 			addReference(
 				locations,
 				owner,
