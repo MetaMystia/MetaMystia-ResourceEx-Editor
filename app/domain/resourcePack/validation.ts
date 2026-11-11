@@ -20,6 +20,7 @@ import {
 	UNMANAGED_ID_MAX,
 	UNMANAGED_ID_MIN,
 } from './constants';
+import type { Dialog } from './contracts/dialogue';
 import type { DayConfig, EventData, EventNodeTrigger } from './contracts/event';
 import type { IItemConfig } from './contracts/items';
 import type { MissionReward } from './contracts/mission';
@@ -752,6 +753,43 @@ export function validateResourcePackRules(
 						message: `${where}引用的资产“${act.sprite}”在当前项目中不存在`,
 					});
 				}
+			});
+		});
+	});
+
+	// ── Dialog Speaker Side ───────────────────────────────
+	// 同一角色通常固定在一侧说话；按列表顺序，与该角色上一次发言的位置比较。
+	const DIALOG_SIDE_NAMES = { Left: '左侧', Right: '右侧' } as const;
+	data.dialogPackages.forEach((pkg, pkgIndex) => {
+		const pkgName = pkg.name || `对话包#${pkgIndex + 1}`;
+		const lastSideByCharacter = new Map<
+			string,
+			{ index: number; position: Dialog['position'] }
+		>();
+		pkg.dialogList.forEach((dlg, dlgIndex) => {
+			const key = `${dlg.characterType}:${dlg.characterId}`;
+			const last = lastSideByCharacter.get(key);
+			if (last && last.position !== dlg.position) {
+				const speaker =
+					data.characters.find(
+						({ type, id }) =>
+							type === dlg.characterType && id === dlg.characterId
+					)?.name ||
+					(dlg.characterType === 'Special'
+						? SPECIAL_GUESTS.find(
+								({ id }) => id === dlg.characterId
+							)?.name
+						: undefined) ||
+					`角色（${key}）`;
+				issues.push({
+					severity: 'warning',
+					category: '对话位置',
+					message: `${pkgName}第${dlgIndex + 1}条对话中，${speaker}从${DIALOG_SIDE_NAMES[last.position]}（第${last.index + 1}条）跳到了${DIALOG_SIDE_NAMES[dlg.position]}`,
+				});
+			}
+			lastSideByCharacter.set(key, {
+				index: dlgIndex,
+				position: dlg.position,
 			});
 		});
 	});
