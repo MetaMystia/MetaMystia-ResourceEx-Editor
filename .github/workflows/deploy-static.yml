@@ -75,7 +75,6 @@ jobs:
             - name: Setup pnpm
               uses: pnpm/action-setup@v6.1.0
               with:
-                  version: '10.34.7'
                   run_install: false
 
             - name: Check version consistency
@@ -123,9 +122,9 @@ jobs:
               uses: actions/cache@v6.1.0
               with:
                   path: .next/cache
-                  key: next-editor-ubuntu-26.04-node26-pnpm10.34.7-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+                  key: next-editor-ubuntu-26.04-node26-pnpm-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
                   restore-keys: |
-                      next-editor-ubuntu-26.04-node26-pnpm10.34.7-${{ hashFiles('pnpm-lock.yaml') }}-
+                      next-editor-ubuntu-26.04-node26-pnpm-${{ hashFiles('pnpm-lock.yaml') }}-
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile --prefer-offline
